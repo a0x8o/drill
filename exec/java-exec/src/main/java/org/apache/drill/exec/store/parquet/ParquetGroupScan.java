@@ -43,7 +43,6 @@ import org.apache.drill.exec.physical.base.PhysicalOperator;
 import org.apache.drill.exec.physical.base.ScanStats;
 import org.apache.drill.exec.physical.base.ScanStats.GroupScanProperty;
 import org.apache.drill.exec.proto.CoordinationProtos.DrillbitEndpoint;
-import org.apache.drill.exec.store.ParquetOutputRecordWriter;
 import org.apache.drill.exec.store.StoragePluginRegistry;
 import org.apache.drill.exec.store.dfs.DrillFileSystem;
 import org.apache.drill.exec.store.dfs.DrillPathFilter;
@@ -81,10 +80,10 @@ import org.apache.drill.exec.vector.NullableVarCharVector;
 import org.apache.drill.exec.vector.ValueVector;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
+import org.joda.time.DateTimeConstants;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.OriginalType;
 import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName;
-import org.joda.time.DateTimeUtils;
 
 import com.fasterxml.jackson.annotation.JacksonInject;
 import com.fasterxml.jackson.annotation.JsonCreator;
@@ -394,6 +393,7 @@ public class ParquetGroupScan extends AbstractFileGroupScan {
     return columnTypeMap.get(schemaPath);
   }
 
+  // Map from file names to maps of column name to partition value mappings
   private Map<String, Map<SchemaPath, Object>> partitionValueMap = Maps.newHashMap();
 
   public void populatePruningVector(ValueVector v, int index, SchemaPath column, String file) {
@@ -479,7 +479,7 @@ public class ParquetGroupScan extends AbstractFileGroupScan {
       case DATE: {
         NullableDateVector dateVector = (NullableDateVector) v;
         Integer value = (Integer) partitionValueMap.get(f).get(column);
-        dateVector.getMutator().setSafe(index, DateTimeUtils.fromJulianDay(value - ParquetOutputRecordWriter.JULIAN_DAY_EPOC - 0.5));
+        dateVector.getMutator().setSafe(index, value * (long) DateTimeConstants.MILLIS_PER_DAY);
         return;
       }
       case TIME: {
@@ -521,6 +521,7 @@ public class ParquetGroupScan extends AbstractFileGroupScan {
     private int rowGroupIndex;
     private String root;
     private long rowCount;  // rowCount = -1 indicates to include all rows.
+    private long numRecordsToRead;
 
     @JsonCreator
     public RowGroupInfo(@JsonProperty("path") String path, @JsonProperty("start") long start,
@@ -528,10 +529,12 @@ public class ParquetGroupScan extends AbstractFileGroupScan {
       super(path, start, length);
       this.rowGroupIndex = rowGroupIndex;
       this.rowCount = rowCount;
+      this.numRecordsToRead = rowCount;
     }
 
     public RowGroupReadEntry getRowGroupReadEntry() {
-      return new RowGroupReadEntry(this.getPath(), this.getStart(), this.getLength(), this.rowGroupIndex);
+      return new RowGroupReadEntry(this.getPath(), this.getStart(), this.getLength(),
+                                   this.rowGroupIndex, this.getNumRecordsToRead());
     }
 
     public int getRowGroupIndex() {
@@ -551,6 +554,14 @@ public class ParquetGroupScan extends AbstractFileGroupScan {
     @Override
     public EndpointByteMap getByteMap() {
       return byteMap;
+    }
+
+    public long getNumRecordsToRead() {
+      return numRecordsToRead;
+    }
+
+    public void setNumRecordsToRead(long numRecords) {
+      numRecordsToRead = numRecords;
     }
 
     public void setEndpointByteMap(EndpointByteMap byteMap) {
@@ -582,7 +593,10 @@ public class ParquetGroupScan extends AbstractFileGroupScan {
     // we only select the files that are part of selection (by setting fileSet appropriately)
 
     // get (and set internal field) the metadata for the directory by reading the metadata file
-    this.parquetTableMetadata = Metadata.readBlockMeta(fs, metaFilePath.toString(), selection.getMetaContext());
+    this.parquetTableMetadata = Metadata.readBlockMeta(fs, metaFilePath.toString(), selection.getMetaContext(), formatConfig);
+    if (formatConfig.autoCorrectCorruptDates) {
+      ParquetReaderUtility.correctDatesInMetadataCache(this.parquetTableMetadata);
+    }
     List<FileStatus> fileStatuses = selection.getStatuses(fs);
 
     if (fileSet == null) {
@@ -616,7 +630,7 @@ public class ParquetGroupScan extends AbstractFileGroupScan {
         if (status.isDirectory()) {
           //TODO [DRILL-4496] read the metadata cache files in parallel
           final Path metaPath = new Path(status.getPath(), Metadata.METADATA_FILENAME);
-          final Metadata.ParquetTableMetadataBase metadata = Metadata.readBlockMeta(fs, metaPath.toString(), selection.getMetaContext());
+          final Metadata.ParquetTableMetadataBase metadata = Metadata.readBlockMeta(fs, metaPath.toString(), selection.getMetaContext(), formatConfig);
           for (Metadata.ParquetFileMetadata file : metadata.getFiles()) {
             fileSet.add(file.getPath());
           }
@@ -664,9 +678,9 @@ public class ParquetGroupScan extends AbstractFileGroupScan {
       }
       if (metaPath != null && fs.exists(metaPath)) {
         usedMetadataCache = true;
-        parquetTableMetadata = Metadata.readBlockMeta(fs, metaPath.toString(), metaContext);
+        parquetTableMetadata = Metadata.readBlockMeta(fs, metaPath.toString(), metaContext, formatConfig);
       } else {
-        parquetTableMetadata = Metadata.getParquetTableMetadata(fs, p.toString());
+        parquetTableMetadata = Metadata.getParquetTableMetadata(fs, p.toString(), formatConfig);
       }
     } else {
       Path p = Path.getPathWithoutSchemeAndAuthority(new Path(selectionRoot));
@@ -674,7 +688,7 @@ public class ParquetGroupScan extends AbstractFileGroupScan {
       if (fs.isDirectory(new Path(selectionRoot)) && fs.exists(metaPath)) {
         usedMetadataCache = true;
         if (parquetTableMetadata == null) {
-          parquetTableMetadata = Metadata.readBlockMeta(fs, metaPath.toString(), metaContext);
+          parquetTableMetadata = Metadata.readBlockMeta(fs, metaPath.toString(), metaContext, formatConfig);
         }
         if (fileSet != null) {
           parquetTableMetadata = removeUnneededRowGroups(parquetTableMetadata);
@@ -684,7 +698,7 @@ public class ParquetGroupScan extends AbstractFileGroupScan {
         for (ReadEntryWithPath entry : entries) {
           getFiles(entry.getPath(), fileStatuses);
         }
-        parquetTableMetadata = Metadata.getParquetTableMetadata(fs, fileStatuses);
+        parquetTableMetadata = Metadata.getParquetTableMetadata(fs, fileStatuses, formatConfig);
       }
     }
 
@@ -831,7 +845,7 @@ public class ParquetGroupScan extends AbstractFileGroupScan {
   private List<RowGroupReadEntry> convertToReadEntries(List<RowGroupInfo> rowGroups) {
     List<RowGroupReadEntry> entries = Lists.newArrayList();
     for (RowGroupInfo rgi : rowGroups) {
-      RowGroupReadEntry entry = new RowGroupReadEntry(rgi.getPath(), rgi.getStart(), rgi.getLength(), rgi.getRowGroupIndex());
+      RowGroupReadEntry entry = new RowGroupReadEntry(rgi.getPath(), rgi.getStart(), rgi.getLength(), rgi.getRowGroupIndex(), rgi.getNumRecordsToRead());
       entries.add(entry);
     }
     return entries;
@@ -864,6 +878,10 @@ public class ParquetGroupScan extends AbstractFileGroupScan {
     return toString();
   }
 
+  public void setCacheFileRoot(String cacheFileRoot) {
+    this.cacheFileRoot = cacheFileRoot;
+  }
+
   @Override
   public String toString() {
     String cacheFileString = "";
@@ -890,12 +908,41 @@ public class ParquetGroupScan extends AbstractFileGroupScan {
     return newScan;
   }
 
+  // Based on maxRecords to read for the scan,
+  // figure out how many rowGroups to read and update number of records to read for each of them.
+  // Returns total number of rowGroups to read.
+  private int updateRowGroupInfo(long maxRecords) {
+    long count = 0;
+    int index = 0;
+    for (RowGroupInfo rowGroupInfo : rowGroupInfos) {
+      long rowCount = rowGroupInfo.getRowCount();
+      if (count + rowCount <= maxRecords) {
+        count += rowCount;
+        rowGroupInfo.setNumRecordsToRead(rowCount);
+        index++;
+        continue;
+      } else if (count < maxRecords) {
+        rowGroupInfo.setNumRecordsToRead(maxRecords - count);
+        index++;
+      }
+      break;
+    }
+
+    return index;
+  }
+
   @Override
-  public FileGroupScan clone(FileSelection selection) throws IOException {
+  public ParquetGroupScan clone(FileSelection selection) throws IOException {
     ParquetGroupScan newScan = new ParquetGroupScan(this);
     newScan.modifyFileSelection(selection);
-    newScan.cacheFileRoot = selection.cacheFileRoot;
+    newScan.setCacheFileRoot(selection.cacheFileRoot);
     newScan.init(selection.getMetaContext());
+    return newScan;
+  }
+
+  public ParquetGroupScan clone(FileSelection selection, long maxRecords) throws IOException {
+    ParquetGroupScan newScan = clone(selection);
+    newScan.updateRowGroupInfo(maxRecords);
     return newScan;
   }
 
@@ -910,22 +957,17 @@ public class ParquetGroupScan extends AbstractFileGroupScan {
 
     maxRecords = Math.max(maxRecords, 1); // Make sure it request at least 1 row -> 1 rowGroup.
     // further optimization : minimize # of files chosen, or the affinity of files chosen.
-    long count = 0;
-    int index = 0;
-    for (RowGroupInfo rowGroupInfo : rowGroupInfos) {
-      if (count < maxRecords) {
-        count += rowGroupInfo.getRowCount();
-        index ++;
-      } else {
-        break;
-      }
-    }
+
+    // Calculate number of rowGroups to read based on maxRecords and update
+    // number of records to read for each of those rowGroups.
+    int index = updateRowGroupInfo(maxRecords);
 
     Set<String> fileNames = Sets.newHashSet(); // HashSet keeps a fileName unique.
     for (RowGroupInfo rowGroupInfo : rowGroupInfos.subList(0, index)) {
       fileNames.add(rowGroupInfo.getPath());
     }
 
+    // If there is no change in fileSet, no need to create new groupScan.
     if (fileNames.size() == fileSet.size() ) {
       // There is no reduction of rowGroups. Return the original groupScan.
       logger.debug("applyLimit() does not apply!");
@@ -935,7 +977,7 @@ public class ParquetGroupScan extends AbstractFileGroupScan {
     try {
       FileSelection newSelection = new FileSelection(null, Lists.newArrayList(fileNames), getSelectionRoot(), cacheFileRoot, false);
       logger.debug("applyLimit() reduce parquet file # from {} to {}", fileSet.size(), fileNames.size());
-      return this.clone(newSelection);
+      return this.clone(newSelection, maxRecords);
     } catch (IOException e) {
       logger.warn("Could not apply rowcount based prune due to Exception : {}", e);
       return null;

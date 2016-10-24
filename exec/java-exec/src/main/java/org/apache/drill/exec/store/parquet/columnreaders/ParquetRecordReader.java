@@ -40,6 +40,7 @@ import org.apache.drill.exec.physical.impl.OutputMutator;
 import org.apache.drill.exec.record.MaterializedField;
 import org.apache.drill.exec.store.AbstractRecordReader;
 import org.apache.drill.exec.store.parquet.ParquetReaderStats;
+import org.apache.drill.exec.store.parquet.ParquetReaderUtility;
 import org.apache.drill.exec.vector.AllocationHelper;
 import org.apache.drill.exec.vector.NullableIntVector;
 import org.apache.drill.exec.vector.ValueVector;
@@ -67,6 +68,7 @@ public class ParquetRecordReader extends AbstractRecordReader {
   private static final long DEFAULT_BATCH_LENGTH = 256 * 1024 * NUMBER_OF_VECTORS; // 256kb
   private static final long DEFAULT_BATCH_LENGTH_IN_BITS = DEFAULT_BATCH_LENGTH * 8; // 256kb
   private static final char DEFAULT_RECORDS_TO_READ_IF_NOT_FIXED_WIDTH = 32*1024;
+  private static final int NUM_RECORDS_TO_READ_NOT_SPECIFIED = -1;
 
   // When no column is required by the downstrea operator, ask SCAN to return a DEFAULT column. If such column does not exist,
   // it will return as a nullable-int column. If that column happens to exist, return that column.
@@ -90,6 +92,8 @@ public class ParquetRecordReader extends AbstractRecordReader {
   private List<ColumnReader<?>> columnStatuses;
   private FileSystem fileSystem;
   private long batchSize;
+  private long numRecordsToRead; // number of records to read
+
   Path hadoopPath;
   private VarLenBinaryReader varLengthReader;
   private ParquetMetadata footer;
@@ -109,8 +113,23 @@ public class ParquetRecordReader extends AbstractRecordReader {
   int rowGroupIndex;
   long totalRecordsRead;
   private final FragmentContext fragmentContext;
+  ParquetReaderUtility.DateCorruptionStatus dateCorruptionStatus;
 
   public ParquetReaderStats parquetReaderStats = new ParquetReaderStats();
+
+  public ParquetRecordReader(FragmentContext fragmentContext,
+                             String path,
+                             int rowGroupIndex,
+                             long numRecordsToRead,
+                             FileSystem fs,
+                             CodecFactory codecFactory,
+                             ParquetMetadata footer,
+                             List<SchemaPath> columns,
+                             ParquetReaderUtility.DateCorruptionStatus dateCorruptionStatus)
+                             throws ExecutionSetupException {
+    this(fragmentContext, DEFAULT_BATCH_LENGTH_IN_BITS, numRecordsToRead,
+         path, rowGroupIndex, fs, codecFactory, footer, columns, dateCorruptionStatus);
+  }
 
   public ParquetRecordReader(FragmentContext fragmentContext,
       String path,
@@ -118,28 +137,50 @@ public class ParquetRecordReader extends AbstractRecordReader {
       FileSystem fs,
       CodecFactory codecFactory,
       ParquetMetadata footer,
-      List<SchemaPath> columns) throws ExecutionSetupException {
-    this(fragmentContext, DEFAULT_BATCH_LENGTH_IN_BITS, path, rowGroupIndex, fs, codecFactory, footer,
-        columns);
+      List<SchemaPath> columns,
+      ParquetReaderUtility.DateCorruptionStatus dateCorruptionStatus)
+      throws ExecutionSetupException {
+      this(fragmentContext, DEFAULT_BATCH_LENGTH_IN_BITS, footer.getBlocks().get(rowGroupIndex).getRowCount(),
+           path, rowGroupIndex, fs, codecFactory, footer, columns, dateCorruptionStatus);
   }
 
   public ParquetRecordReader(
       FragmentContext fragmentContext,
       long batchSize,
+      long numRecordsToRead,
       String path,
       int rowGroupIndex,
       FileSystem fs,
       CodecFactory codecFactory,
       ParquetMetadata footer,
-      List<SchemaPath> columns) throws ExecutionSetupException {
+      List<SchemaPath> columns,
+      ParquetReaderUtility.DateCorruptionStatus dateCorruptionStatus) throws ExecutionSetupException {
     this.hadoopPath = new Path(path);
     this.fileSystem = fs;
     this.codecFactory = codecFactory;
     this.rowGroupIndex = rowGroupIndex;
     this.batchSize = batchSize;
     this.footer = footer;
+    this.dateCorruptionStatus = dateCorruptionStatus;
     this.fragmentContext = fragmentContext;
+    // Callers can pass -1 if they want to read all rows.
+    if (numRecordsToRead == NUM_RECORDS_TO_READ_NOT_SPECIFIED) {
+      this.numRecordsToRead = footer.getBlocks().get(rowGroupIndex).getRowCount();
+    } else {
+      assert (numRecordsToRead >= 0);
+      this.numRecordsToRead = Math.min(numRecordsToRead, footer.getBlocks().get(rowGroupIndex).getRowCount());
+    }
     setColumns(columns);
+  }
+
+  /**
+   * Flag indicating if the old non-standard data format appears
+   * in this file, see DRILL-4203.
+   *
+   * @return true if the dates are corrupted and need to be corrected
+   */
+  public ParquetReaderUtility.DateCorruptionStatus getDateCorruptionStatus() {
+    return dateCorruptionStatus;
   }
 
   public CodecFactory getCodecFactory() {
@@ -207,6 +248,29 @@ public class ParquetRecordReader extends AbstractRecordReader {
     return operatorContext;
   }
 
+  /**
+   * Returns data type length for a given {@see ColumnDescriptor} and it's corresponding
+   * {@see SchemaElement}. Neither is enough information alone as the max
+   * repetition level (indicating if it is an array type) is in the ColumnDescriptor and
+   * the length of a fixed width field is stored at the schema level.
+   *
+   * @return the length if fixed width, else -1
+   */
+  private int getDataTypeLength(ColumnDescriptor column, SchemaElement se) {
+    if (column.getType() != PrimitiveType.PrimitiveTypeName.BINARY) {
+      if (column.getMaxRepetitionLevel() > 0) {
+        return -1;
+      }
+      if (column.getType() == PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY) {
+        return se.getType_length() * 8;
+      } else {
+        return getTypeLengthInBits(column.getType());
+      }
+    } else {
+      return -1;
+    }
+  }
+
   @Override
   public void setup(OperatorContext operatorContext, OutputMutator output) throws ExecutionSetupException {
     this.operatorContext = operatorContext;
@@ -233,16 +297,11 @@ public class ParquetRecordReader extends AbstractRecordReader {
 
     // TODO - figure out how to deal with this better once we add nested reading, note also look where this map is used below
     // store a map from column name to converted types if they are non-null
-    HashMap<String, SchemaElement> schemaElements = new HashMap<>();
-    fileMetaData = new ParquetMetadataConverter().toParquetMetadata(ParquetFileWriter.CURRENT_VERSION, footer);
-    for (SchemaElement se : fileMetaData.getSchema()) {
-      schemaElements.put(se.getName(), se);
-    }
+    Map<String, SchemaElement> schemaElements = ParquetReaderUtility.getColNameToSchemaElementMapping(footer);
 
     // loop to add up the length of the fixed width columns and build the schema
     for (int i = 0; i < columns.size(); ++i) {
       column = columns.get(i);
-      logger.debug("name: " + fileMetaData.getSchema().get(i).name);
       SchemaElement se = schemaElements.get(column.getPath()[0]);
       MajorType mt = ParquetToDrillTypeConverter.toMajorType(column.getType(), se.getType_length(),
           getDataMode(column), se, fragmentContext.getOptions());
@@ -251,18 +310,11 @@ public class ParquetRecordReader extends AbstractRecordReader {
         continue;
       }
       columnsToScan++;
-      // sum the lengths of all of the fixed length fields
-      if (column.getType() != PrimitiveType.PrimitiveTypeName.BINARY) {
-        if (column.getMaxRepetitionLevel() > 0) {
-          allFieldsFixedLength = false;
-        }
-        if (column.getType() == PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY) {
-            bitWidthAllFixedFields += se.getType_length() * 8;
-        } else {
-          bitWidthAllFixedFields += getTypeLengthInBits(column.getType());
-        }
-      } else {
+      int dataTypeLength = getDataTypeLength(column, se);
+      if (dataTypeLength == -1) {
         allFieldsFixedLength = false;
+      } else {
+        bitWidthAllFixedFields += dataTypeLength;
       }
     }
 //    rowGroupOffset = footer.getBlocks().get(rowGroupIndex).getColumns().get(0).getFirstDataPageOffset();
@@ -417,11 +469,16 @@ public class ParquetRecordReader extends AbstractRecordReader {
           return 0;
         }
         recordsToRead = Math.min(DEFAULT_RECORDS_TO_READ_IF_NOT_FIXED_WIDTH, footer.getBlocks().get(rowGroupIndex).getRowCount() - mockRecordsRead);
+
+        // Pick the minimum of recordsToRead calculated above and numRecordsToRead (based on rowCount and limit).
+        recordsToRead = Math.min(recordsToRead, numRecordsToRead);
+
         for (final ValueVector vv : nullFilledVectors ) {
           vv.getMutator().setValueCount( (int) recordsToRead);
         }
         mockRecordsRead += recordsToRead;
         totalRecordsRead += recordsToRead;
+        numRecordsToRead -= recordsToRead;
         return (int) recordsToRead;
       }
 
@@ -431,6 +488,9 @@ public class ParquetRecordReader extends AbstractRecordReader {
         recordsToRead = DEFAULT_RECORDS_TO_READ_IF_NOT_FIXED_WIDTH;
 
       }
+
+      // Pick the minimum of recordsToRead calculated above and numRecordsToRead (based on rowCount and limit)
+      recordsToRead = Math.min(recordsToRead, numRecordsToRead);
 
       if (allFieldsFixedLength) {
         readAllFixedFields(recordsToRead);
@@ -449,6 +509,7 @@ public class ParquetRecordReader extends AbstractRecordReader {
 
 //      logger.debug("So far read {} records out of row group({}) in file '{}'", totalRecordsRead, rowGroupIndex, hadoopPath.toUri().getPath());
       totalRecordsRead += firstColumnStatus.getRecordsReadInCurrentPass();
+      numRecordsToRead -= firstColumnStatus.getRecordsReadInCurrentPass();
       return firstColumnStatus.getRecordsReadInCurrentPass();
     } catch (Exception e) {
       handleAndRaise("\nHadoop path: " + hadoopPath.toUri().getPath() +

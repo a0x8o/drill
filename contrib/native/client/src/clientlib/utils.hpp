@@ -31,7 +31,6 @@
     #undef random
   #endif
 #endif
-#include <boost/asio/deadline_timer.hpp>
 #include <boost/random/mersenne_twister.hpp> // for mt19937
 #include <boost/random/random_device.hpp>
 #include <boost/random/uniform_int.hpp>
@@ -62,7 +61,7 @@ class AllocatedBuffer{
 
 };
 
-class Utils{
+class DECLSPEC_DRILL_CLIENT Utils{
     public:
         static boost::random::random_device s_RNG;   //Truly random (expensive and device dependent)
         static boost::random::mt19937 s_URNG; //Pseudo random with a period of ( 2^19937 - 1 )

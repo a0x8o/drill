@@ -50,6 +50,8 @@ class OperatorContextImpl extends OperatorContext implements AutoCloseable {
   private final BufferManager manager;
   private DrillFileSystem fs;
   private final ExecutorService executor;
+  private final ExecutorService scanExecutor;
+  private final ExecutorService scanDecodeExecutor;
 
   /**
    * This lazily initialized executor service is used to submit a {@link Callable task} that needs a proxy user. There
@@ -70,6 +72,8 @@ class OperatorContextImpl extends OperatorContext implements AutoCloseable {
     stats = context.getStats().newOperatorStats(def, allocator);
     executionControls = context.getExecutionControls();
     executor = context.getDrillbitContext().getExecutor();
+    scanExecutor = context.getDrillbitContext().getScanExecutor();
+    scanDecodeExecutor = context.getDrillbitContext().getScanDecodeExecutor();
   }
 
   public OperatorContextImpl(PhysicalOperator popConfig, FragmentContext context, OperatorStats stats)
@@ -81,6 +85,8 @@ class OperatorContextImpl extends OperatorContext implements AutoCloseable {
     this.stats     = stats;
     executionControls = context.getExecutionControls();
     executor = context.getDrillbitContext().getExecutor();
+    scanExecutor = context.getDrillbitContext().getScanExecutor();
+    scanDecodeExecutor = context.getDrillbitContext().getScanDecodeExecutor();
   }
 
   public DrillBuf replace(DrillBuf old, int newSize) {
@@ -93,6 +99,17 @@ class OperatorContextImpl extends OperatorContext implements AutoCloseable {
 
   public DrillBuf getManagedBuffer(int size) {
     return manager.getManagedBuffer(size);
+  }
+
+  // Allow an operator to use the thread pool
+  public ExecutorService getExecutor() {
+    return executor;
+  }
+  public ExecutorService getScanExecutor() {
+    return scanExecutor;
+  }
+  public ExecutorService getScanDecodeExecutor() {
+    return scanDecodeExecutor;
   }
 
   public ExecutionControls getExecutionControls() {
@@ -171,6 +188,16 @@ class OperatorContextImpl extends OperatorContext implements AutoCloseable {
   public DrillFileSystem newFileSystem(Configuration conf) throws IOException {
     Preconditions.checkState(fs == null, "Tried to create a second FileSystem. Can only be called once per OperatorContext");
     fs = new DrillFileSystem(conf, getStats());
+    return fs;
+  }
+
+  @Override
+  /*
+     Creates a DrillFileSystem that does not automatically track operator stats.
+   */
+  public DrillFileSystem newNonTrackingFileSystem(Configuration conf) throws IOException {
+    Preconditions.checkState(fs == null, "Tried to create a second FileSystem. Can only be called once per OperatorContext");
+    fs = new DrillFileSystem(conf, null);
     return fs;
   }
 

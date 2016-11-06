@@ -35,6 +35,7 @@ public class Types {
   public static final MajorType LATE_BIND_TYPE = optional(MinorType.LATE);
   public static final MajorType REQUIRED_BIT = required(MinorType.BIT);
   public static final MajorType OPTIONAL_BIT = optional(MinorType.BIT);
+  public static final MajorType OPTIONAL_INT = optional(MinorType.INT);
 
   public static boolean isUnion(MajorType toType) {
     return toType.getMinorType() == MinorType.UNION;
@@ -134,8 +135,8 @@ public class Types {
       case TIMESTAMP:       return "TIMESTAMP";
       case TIMESTAMPTZ:     return "TIMESTAMP WITH TIME ZONE";
 
-      case INTERVALYEAR:
-      case INTERVALDAY:     return "INTERVAL";
+      case INTERVALYEAR:    return "INTERVAL YEAR TO MONTH";
+      case INTERVALDAY:     return "INTERVAL DAY TO SECOND";
 
       // Non-standard SQL atomic data types:
 
@@ -184,6 +185,8 @@ public class Types {
       case "FLOAT":                         return java.sql.Types.FLOAT;
       case "INTEGER":                       return java.sql.Types.INTEGER;
       case "INTERVAL":                      return java.sql.Types.OTHER;  // JDBC (4.1) has nothing for INTERVAL
+      case "INTERVAL YEAR TO MONTH":        return java.sql.Types.OTHER;
+      case "INTERVAL DAY TO SECOND":        return java.sql.Types.OTHER;
       case "MAP":                           return java.sql.Types.OTHER; // Drill doesn't support java.sql.Struct
       case "NATIONAL CHARACTER VARYING":    return java.sql.Types.NVARCHAR;
       case "NATIONAL CHARACTER":            return java.sql.Types.NCHAR;
@@ -275,6 +278,84 @@ public class Types {
     return isSigned;
   }
 
+  public static int getJdbcDisplaySize(MajorType type) {
+    if (type.getMode() == DataMode.REPEATED || type.getMinorType() == MinorType.LIST) {
+      return 0;
+    }
+
+    final int precision = getPrecision(type);
+
+    switch(type.getMinorType()) {
+    case BIT:             return 1; // 1 digit
+
+    case TINYINT:         return 4; // sign + 3 digit
+    case SMALLINT:        return 6; // sign + 5 digits
+    case INT:             return 11; // sign + 10 digits
+    case BIGINT:          return 20; // sign + 19 digits
+
+    case UINT1:          return 3; // 3 digits
+    case UINT2:          return 5; // 5 digits
+    case UINT4:          return 10; // 10 digits
+    case UINT8:          return 19; // 19 digits
+
+    case FLOAT4:          return 14; // sign + 7 digits + decimal point + E + 2 digits
+    case FLOAT8:          return 24; // sign + 15 digits + decimal point + E + 3 digits
+
+    case DECIMAL9:
+    case DECIMAL18:
+    case DECIMAL28DENSE:
+    case DECIMAL28SPARSE:
+    case DECIMAL38DENSE:
+    case DECIMAL38SPARSE:
+    case MONEY:           return 2 + precision; // precision of the column plus a sign and a decimal point
+
+    case VARCHAR:
+    case FIXEDCHAR:
+    case VAR16CHAR:
+    case FIXED16CHAR:     return precision; // number of characters
+
+    case VARBINARY:
+    case FIXEDBINARY:     return 2 * precision; // each binary byte is represented as a 2digit hex number
+
+    case DATE:            return 10; // yyyy-mm-dd
+    case TIME:
+      return precision > 0
+        ? 9 + precision // hh-mm-ss.SSS
+        : 8; // hh-mm-ss
+    case TIMETZ:
+      return precision > 0
+        ? 15 + precision // hh-mm-ss.SSS-zz:zz
+        : 14; // hh-mm-ss-zz:zz
+    case TIMESTAMP:
+      return precision > 0
+         ? 20 + precision // yyyy-mm-ddThh:mm:ss.SSS
+         : 19; // yyyy-mm-ddThh:mm:ss
+    case TIMESTAMPTZ:
+      return precision > 0
+        ? 26 + precision // yyyy-mm-ddThh:mm:ss.SSS:ZZ-ZZ
+        : 25; // yyyy-mm-ddThh:mm:ss-ZZ:ZZ
+
+    case INTERVALYEAR:
+      return precision > 0
+          ? 5 + precision // P..Y12M
+          : 0; // if precision is not set, return 0 because there's not enough info
+
+    case INTERVALDAY:
+      return precision > 0
+          ? 12 + precision // P..DT12H60M60S assuming fractional seconds precision is not supported
+          : 0; // if precision is not set, return 0 because there's not enough info
+
+    case INTERVAL:
+    case MAP:
+    case LATE:
+    case NULL:
+    case UNION:           return 0;
+
+    default:
+      throw new UnsupportedOperationException(
+          "Unexpected/unhandled MinorType value " + type.getMinorType() );
+    }
+  }
   public static boolean usesHolderForGet(final MajorType type) {
     if (type.getMode() == REPEATED) {
       return true;

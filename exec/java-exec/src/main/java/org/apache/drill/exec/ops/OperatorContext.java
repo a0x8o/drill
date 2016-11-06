@@ -23,6 +23,8 @@ import io.netty.buffer.DrillBuf;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.concurrent.Callable;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 
 import org.apache.drill.exec.memory.BufferAllocator;
 import org.apache.drill.exec.physical.base.PhysicalOperator;
@@ -43,9 +45,17 @@ public abstract class OperatorContext {
 
   public abstract OperatorStats getStats();
 
+  public abstract ExecutorService getExecutor();
+
+  public abstract ExecutorService getScanExecutor();
+
+  public abstract ExecutorService getScanDecodeExecutor();
+
   public abstract ExecutionControls getExecutionControls();
 
   public abstract DrillFileSystem newFileSystem(Configuration conf) throws IOException;
+
+  public abstract DrillFileSystem newNonTrackingFileSystem(Configuration conf) throws IOException;
 
   /**
    * Run the callable as the given proxy user.

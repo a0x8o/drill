@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Iterator;
+import java.util.UUID;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -40,6 +41,9 @@ import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.FileContext;
+import org.apache.hadoop.fs.Options;
+
 import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
@@ -189,9 +193,9 @@ public class Metadata {
         childFiles.add(file);
       }
     }
-    ParquetTableMetadata_v3 parquetTableMetadata = new ParquetTableMetadata_v3(true);
+    ParquetTableMetadata_v3 parquetTableMetadata = new ParquetTableMetadata_v3(DrillVersionInfo.getVersion());
     if (childFiles.size() > 0) {
-      List<ParquetFileMetadata_v3> childFilesMetadata =
+      List<ParquetFileMetadata_v3 > childFilesMetadata =
           getParquetFileMetadata_v3(parquetTableMetadata, childFiles);
       metaDataList.addAll(childFilesMetadata);
       // Note that we do not need to merge the columnInfo at this point. The columnInfo is already added
@@ -209,11 +213,17 @@ public class Metadata {
     for (String oldname : OLD_METADATA_FILENAMES) {
       fs.delete(new Path(p, oldname), false);
     }
-    writeFile(parquetTableMetadata, new Path(p, METADATA_FILENAME));
+    // writeFile creates and writes to a tmp file first and then renames it
+    // to final metadata cache file name. We want the UUID appended to tmp file
+    // to be same for METADATA_FILENAME and METADATA_DIRECTORIES_FILENAME
+    // so we can track/debug things better.
+    // Generate UUID used for tmp file creation here
+    UUID tmpUUID =  UUID.randomUUID();
+    writeFile(parquetTableMetadata, path, tmpUUID);
 
     if (directoryList.size() > 0 && childFiles.size() == 0) {
       ParquetTableMetadataDirs parquetTableMetadataDirs = new ParquetTableMetadataDirs(directoryList);
-      writeFile(parquetTableMetadataDirs, new Path(p, METADATA_DIRECTORIES_FILENAME));
+      writeFile(parquetTableMetadataDirs, path, tmpUUID);
       logger.info("Creating metadata files recursively took {} ms", timer.elapsed(TimeUnit.MILLISECONDS));
       timer.stop();
       return Pair.of(parquetTableMetadata, parquetTableMetadataDirs);
@@ -489,13 +499,35 @@ public class Metadata {
   }
 
   /**
+   * Renames Path srcPath to Path dstPath.
+   *
+   * @param srcPath
+   * @param dstPath
+   * @throws IOException
+   */
+  private void renameFile(Path srcPath, Path dstPath) throws IOException {
+    try {
+      // Use fileContext API as FileSystem rename is deprecated.
+      FileContext fileContext = FileContext.getFileContext(srcPath.toUri());
+      fileContext.rename(srcPath, dstPath, Options.Rename.OVERWRITE);
+    } catch (Exception e) {
+      logger.info("Metadata cache file rename from {} to {} failed", srcPath.toString(), dstPath.toString(), e);
+      throw new IOException("metadata cache file rename failed", e);
+    } finally {
+      if (fs.exists(srcPath)) {
+        fs.delete(srcPath, false);
+      }
+    }
+  }
+
+  /**
    * Serialize parquet metadata to json and write to a file
    *
    * @param parquetTableMetadata
    * @param p
    * @throws IOException
    */
-  private void writeFile(ParquetTableMetadata_v3 parquetTableMetadata, Path p) throws IOException {
+  private void writeFile(ParquetTableMetadata_v3 parquetTableMetadata, String path, UUID tmpUUID) throws IOException {
     JsonFactory jsonFactory = new JsonFactory();
     jsonFactory.configure(Feature.AUTO_CLOSE_TARGET, false);
     jsonFactory.configure(JsonParser.Feature.AUTO_CLOSE_SOURCE, false);
@@ -503,23 +535,39 @@ public class Metadata {
     SimpleModule module = new SimpleModule();
     module.addSerializer(ColumnMetadata_v3.class, new ColumnMetadata_v3.Serializer());
     mapper.registerModule(module);
-    FSDataOutputStream os = fs.create(p);
+
+    // If multiple clients are updating metadata cache file concurrently, the cache file
+    // can get corrupted. To prevent this, write to a unique temporary file and then do
+    // atomic rename.
+    Path tmpPath = new Path(path, METADATA_FILENAME + "." + tmpUUID);
+    FSDataOutputStream os = fs.create(tmpPath);
     mapper.writerWithDefaultPrettyPrinter().writeValue(os, parquetTableMetadata);
     os.flush();
     os.close();
+
+    Path finalPath = new Path(path, METADATA_FILENAME);
+    renameFile(tmpPath, finalPath);
   }
 
-  private void writeFile(ParquetTableMetadataDirs parquetTableMetadataDirs, Path p) throws IOException {
+  private void writeFile(ParquetTableMetadataDirs parquetTableMetadataDirs, String path, UUID tmpUUID) throws IOException {
     JsonFactory jsonFactory = new JsonFactory();
     jsonFactory.configure(Feature.AUTO_CLOSE_TARGET, false);
     jsonFactory.configure(JsonParser.Feature.AUTO_CLOSE_SOURCE, false);
     ObjectMapper mapper = new ObjectMapper(jsonFactory);
     SimpleModule module = new SimpleModule();
     mapper.registerModule(module);
-    FSDataOutputStream os = fs.create(p);
+
+    // If multiple clients are updating metadata cache file concurrently, the cache file
+    // can get corrupted. To prevent this, write to a unique temporary file and then do
+    // atomic rename.
+    Path tmpPath = new Path(path, METADATA_DIRECTORIES_FILENAME + "." + tmpUUID);
+    FSDataOutputStream os = fs.create(tmpPath);
     mapper.writerWithDefaultPrettyPrinter().writeValue(os, parquetTableMetadataDirs);
     os.flush();
     os.close();
+
+    Path finalPath = new Path(path,  METADATA_DIRECTORIES_FILENAME);
+    renameFile(tmpPath, finalPath);
   }
 
   /**
@@ -562,8 +610,10 @@ public class Metadata {
       logger.info("Took {} ms to read directories from directory cache file", timer.elapsed(TimeUnit.MILLISECONDS));
       timer.stop();
       if (!alreadyCheckedModification && tableModified(parquetTableMetadataDirs.getDirectories(), p, parentDir, metaContext)) {
+        // Do not remove scheme and authority from the path passed to createMetaFilesRecursively
+        // as we need full path to obtain proper fileContext in writeFile
         parquetTableMetadataDirs =
-            (createMetaFilesRecursively(Path.getPathWithoutSchemeAndAuthority(p.getParent()).toString())).getRight();
+            (createMetaFilesRecursively(p.getParent().toString())).getRight();
         newMetadata = true;
       }
     } else {
@@ -571,8 +621,10 @@ public class Metadata {
       logger.info("Took {} ms to read metadata from cache file", timer.elapsed(TimeUnit.MILLISECONDS));
       timer.stop();
       if (!alreadyCheckedModification && tableModified(parquetTableMetadata.getDirectories(), p, parentDir, metaContext)) {
+        // Do not remove scheme and authority from the path passed to createMetaFilesRecursively
+        // as we need full path to obtain proper fileContext in writeFile
         parquetTableMetadata =
-            (createMetaFilesRecursively(Path.getPathWithoutSchemeAndAuthority(p.getParent()).toString())).getLeft();
+            (createMetaFilesRecursively(p.getParent().toString())).getLeft();
         newMetadata = true;
       }
 
@@ -674,9 +726,6 @@ public class Metadata {
     @JsonIgnore public abstract ParquetTableMetadataBase clone();
 
     @JsonIgnore public abstract String getDrillVersion();
-
-    @JsonIgnore public abstract boolean isDateCorrect();
-
   }
 
   public static abstract class ParquetFileMetadata {
@@ -811,12 +860,6 @@ public class Metadata {
     public String getDrillVersion() {
       return null;
     }
-
-    @JsonIgnore @Override
-    public boolean isDateCorrect() {
-      return false;
-    }
-
   }
 
 
@@ -1025,31 +1068,29 @@ public class Metadata {
     @JsonProperty List<ParquetFileMetadata_v2> files;
     @JsonProperty List<String> directories;
     @JsonProperty String drillVersion;
-    @JsonProperty boolean isDateCorrect;
 
     public ParquetTableMetadata_v2() {
       super();
     }
 
-    public ParquetTableMetadata_v2(boolean isDateCorrect) {
-      this.drillVersion = DrillVersionInfo.getVersion();
-      this.isDateCorrect = isDateCorrect;
+    public ParquetTableMetadata_v2(String drillVersion) {
+      this.drillVersion = drillVersion;
     }
 
     public ParquetTableMetadata_v2(ParquetTableMetadataBase parquetTable,
-        List<ParquetFileMetadata_v2> files, List<String> directories) {
+        List<ParquetFileMetadata_v2> files, List<String> directories, String drillVersion) {
       this.files = files;
       this.directories = directories;
       this.columnTypeInfo = ((ParquetTableMetadata_v2) parquetTable).columnTypeInfo;
-      this.drillVersion = DrillVersionInfo.getVersion();
-      this.isDateCorrect = true;
+      this.drillVersion = drillVersion;
     }
 
     public ParquetTableMetadata_v2(List<ParquetFileMetadata_v2> files, List<String> directories,
-        ConcurrentHashMap<ColumnTypeMetadata_v2.Key, ColumnTypeMetadata_v2> columnTypeInfo) {
+        ConcurrentHashMap<ColumnTypeMetadata_v2.Key, ColumnTypeMetadata_v2> columnTypeInfo, String drillVersion) {
       this.files = files;
       this.directories = directories;
       this.columnTypeInfo = columnTypeInfo;
+      this.drillVersion = drillVersion;
     }
 
     public ColumnTypeMetadata_v2 getColumnTypeInfo(String[] name) {
@@ -1096,16 +1137,12 @@ public class Metadata {
     }
 
     @JsonIgnore @Override public ParquetTableMetadataBase clone() {
-      return new ParquetTableMetadata_v2(files, directories, columnTypeInfo);
+      return new ParquetTableMetadata_v2(files, directories, columnTypeInfo, drillVersion);
     }
 
     @JsonIgnore @Override
     public String getDrillVersion() {
       return drillVersion;
-    }
-
-    @JsonIgnore @Override public boolean isDateCorrect() {
-      return isDateCorrect;
     }
 
   }
@@ -1383,30 +1420,38 @@ public class Metadata {
     @JsonProperty List<ParquetFileMetadata_v3> files;
     @JsonProperty List<String> directories;
     @JsonProperty String drillVersion;
-    @JsonProperty boolean isDateCorrect;
 
+    /**
+     * Default constructor needed for deserialization from Parquet Metadata Cache Files
+     * or for creating an empty instances of this class for the case when the Metadata Cache File is absent
+     */
     public ParquetTableMetadata_v3() {
       super();
     }
 
-    public ParquetTableMetadata_v3(boolean isDateCorrect) {
-      this.drillVersion = DrillVersionInfo.getVersion();
-      this.isDateCorrect = isDateCorrect;
+    /**
+     * Used for creating the Parquet Metadata Cache File
+     * @param drillVersion  actual version of apache drill
+     */
+    public ParquetTableMetadata_v3(String drillVersion) {
+      this.drillVersion = drillVersion;
     }
 
     public ParquetTableMetadata_v3(ParquetTableMetadataBase parquetTable,
-        List<ParquetFileMetadata_v3> files, List<String> directories) {
+        List<ParquetFileMetadata_v3> files, List<String> directories, String drillVersion) {
       this.files = files;
       this.directories = directories;
       this.columnTypeInfo = ((ParquetTableMetadata_v3) parquetTable).columnTypeInfo;
-      this.isDateCorrect = true;
+      this.drillVersion = drillVersion;
     }
 
     public ParquetTableMetadata_v3(List<ParquetFileMetadata_v3> files, List<String> directories,
-        ConcurrentHashMap<ColumnTypeMetadata_v3.Key, ColumnTypeMetadata_v3> columnTypeInfo) {
+        ConcurrentHashMap<ColumnTypeMetadata_v3.Key, ColumnTypeMetadata_v3> columnTypeInfo,
+        String drillVersion) {
       this.files = files;
       this.directories = directories;
       this.columnTypeInfo = columnTypeInfo;
+      this.drillVersion = drillVersion;
     }
 
     public ColumnTypeMetadata_v3 getColumnTypeInfo(String[] name) {
@@ -1453,16 +1498,12 @@ public class Metadata {
     }
 
     @JsonIgnore @Override public ParquetTableMetadataBase clone() {
-      return new ParquetTableMetadata_v3(files, directories, columnTypeInfo);
+      return new ParquetTableMetadata_v3(files, directories, columnTypeInfo, drillVersion);
     }
 
     @JsonIgnore @Override
     public String getDrillVersion() {
       return drillVersion;
-    }
-
-    @JsonIgnore @Override public boolean isDateCorrect() {
-      return isDateCorrect;
     }
 
   }

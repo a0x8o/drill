@@ -143,6 +143,20 @@ public class TestCTTAS extends BaseTestQuery {
   }
 
   @Test
+  public void testResolveTemporaryTableWithPartialSchema() throws Exception {
+    String temporaryTableName = "temporary_table_with_partial_schema";
+    test("use %s", test_schema);
+    test("create temporary table tmp.%s as select 'A' as c1 from (values(1))", temporaryTableName);
+
+    testBuilder()
+        .sqlQuery("select * from tmp.%s", temporaryTableName)
+        .unOrdered()
+        .baselineColumns("c1")
+        .baselineValues("A")
+        .go();
+  }
+
+  @Test
   public void testPartitionByWithTemporaryTables() throws Exception {
     String temporaryTableName = "temporary_table_with_partitions";
     mockRandomUUID(UUID.nameUUIDFromBytes(temporaryTableName.getBytes()));
@@ -334,6 +348,32 @@ public class TestCTTAS extends BaseTestQuery {
     } catch (UserRemoteException e) {
       assertThat(e.getMessage(), containsString(String.format(
           "VALIDATION ERROR: Temporary tables usage is disallowed. Used temporary table name: [%s]", temporaryTableName)));
+      throw e;
+    }
+  }
+
+  @Test(expected = UserRemoteException.class)
+  public void testTemporaryTablesInViewExpansionLogic() throws Exception {
+    String tableName = "table_for_expansion_logic_test";
+    String viewName = "view_for_expansion_logic_test";
+    test("use %s", TEMP_SCHEMA);
+    test("create table %s as select 'TABLE' as c1 from (values(1))", tableName);
+    test("create view %s as select * from %s", viewName, tableName);
+
+    testBuilder()
+        .sqlQuery("select * from %s", viewName)
+        .unOrdered()
+        .baselineColumns("c1")
+        .baselineValues("TABLE")
+        .go();
+
+    test("drop table %s", tableName);
+    test("create temporary table %s as select 'TEMP' as c1 from (values(1))", tableName);
+    try {
+      test("select * from %s", viewName);
+    } catch (UserRemoteException e) {
+      assertThat(e.getMessage(), containsString(String.format(
+          "VALIDATION ERROR: Temporary tables usage is disallowed. Used temporary table name: [%s]", tableName)));
       throw e;
     }
   }

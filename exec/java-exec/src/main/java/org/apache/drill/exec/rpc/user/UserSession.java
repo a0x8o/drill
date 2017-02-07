@@ -19,7 +19,6 @@ package org.apache.drill.exec.rpc.user;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -66,8 +65,8 @@ public class UserSession implements Closeable {
 
   private boolean supportComplexTypes = false;
   private UserCredentials credentials;
-  private Map<String, String> properties;
   private OptionManager sessionOptions;
+  private final Map<String, String> properties;
   private final AtomicInteger queryCount;
   private final String sessionId;
 
@@ -122,7 +121,6 @@ public class UserSession implements Closeable {
     }
 
     public Builder withUserProperties(UserProperties properties) {
-      userSession.properties = Maps.newHashMap();
       if (properties != null) {
         for (int i = 0; i < properties.getPropertiesCount(); i++) {
           final Property property = properties.getProperties(i);
@@ -158,6 +156,7 @@ public class UserSession implements Closeable {
     sessionId = UUID.randomUUID().toString();
     temporaryTables = Maps.newConcurrentMap();
     temporaryLocations = Maps.newConcurrentMap();
+    properties = Maps.newHashMap();
   }
 
   public boolean isSupportComplexTypes() {
@@ -188,10 +187,6 @@ public class UserSession implements Closeable {
 
   public String getTargetUserName() {
     return properties.get(IMPERSONATION_TARGET);
-  }
-
-  public String getDefaultSchemaName() {
-    return getProp(SCHEMA);
   }
 
   public void incrementQueryCount(final QueryCountIncrementer incrementer) {
@@ -278,7 +273,7 @@ public class UserSession implements Closeable {
    */
   public String registerTemporaryTable(AbstractSchema schema, String tableName) throws IOException {
       addTemporaryLocation((WorkspaceSchemaFactory.WorkspaceSchema) schema);
-      String temporaryTableName = Paths.get(sessionId, UUID.randomUUID().toString()).toString();
+      String temporaryTableName = new Path(sessionId, UUID.randomUUID().toString()).toUri().getPath();
       String oldTemporaryTableName = temporaryTables.putIfAbsent(tableName.toLowerCase(), temporaryTableName);
       return oldTemporaryTableName == null ? temporaryTableName : oldTemporaryTableName;
   }
@@ -351,8 +346,8 @@ public class UserSession implements Closeable {
    */
   private void addTemporaryLocation(WorkspaceSchemaFactory.WorkspaceSchema temporaryWorkspace) throws IOException {
     DrillFileSystem fs = temporaryWorkspace.getFS();
-    Path temporaryLocation = new Path(Paths.get(fs.getUri().toString(),
-        temporaryWorkspace.getDefaultLocation(), sessionId).toString());
+    Path temporaryLocation = new Path(fs.getUri().toString(),
+        new Path(temporaryWorkspace.getDefaultLocation(), sessionId));
 
     FileSystem fileSystem = temporaryLocations.putIfAbsent(temporaryLocation, fs);
 

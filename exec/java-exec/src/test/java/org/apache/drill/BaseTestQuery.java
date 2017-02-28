@@ -75,9 +75,8 @@ import org.apache.drill.exec.vector.ValueVector;
 public class BaseTestQuery extends ExecTest {
   private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(BaseTestQuery.class);
 
-  protected static final String TEMP_SCHEMA = "dfs_test.tmp";
+  public static final String TEMP_SCHEMA = "dfs_test.tmp";
 
-  private static final String ENABLE_FULL_CACHE = "drill.exec.test.use-full-cache";
   private static final int MAX_WIDTH_PER_NODE = 2;
 
   @SuppressWarnings("serial")
@@ -85,7 +84,6 @@ public class BaseTestQuery extends ExecTest {
     {
       put(ExecConstants.SYS_STORE_PROVIDER_LOCAL_ENABLE_WRITE, "false");
       put(ExecConstants.HTTP_ENABLE, "false");
-      put(ExecConstants.DEFAULT_TEMPORARY_WORKSPACE, TEMP_SCHEMA);
     }
   };
 
@@ -133,6 +131,10 @@ public class BaseTestQuery extends ExecTest {
   }
 
   protected static void updateTestCluster(int newDrillbitCount, DrillConfig newConfig) {
+    updateTestCluster(newDrillbitCount, newConfig, null);
+  }
+
+  protected static void updateTestCluster(int newDrillbitCount, DrillConfig newConfig, Properties properties) {
     Preconditions.checkArgument(newDrillbitCount > 0, "Number of Drillbits must be at least one");
     if (drillbitCount != newDrillbitCount || config != null) {
       // TODO: Currently we have to shutdown the existing Drillbit cluster before starting a new one with the given
@@ -145,7 +147,7 @@ public class BaseTestQuery extends ExecTest {
           // of the @BeforeClass method of test class.
           config = newConfig;
         }
-        openClient();
+        openClient(properties);
       } catch(Exception e) {
         throw new RuntimeException("Failure while updating the test Drillbit cluster.", e);
       }
@@ -181,12 +183,12 @@ public class BaseTestQuery extends ExecTest {
   }
 
   private static void openClient() throws Exception {
+    openClient(null);
+  }
+
+  private static void openClient(Properties properties) throws Exception {
     allocator = RootAllocatorFactory.newRoot(config);
-    if (config.hasPath(ENABLE_FULL_CACHE) && config.getBoolean(ENABLE_FULL_CACHE)) {
-      serviceSet = RemoteServiceSet.getServiceSetWithFullCache(config, allocator);
-    } else {
-      serviceSet = RemoteServiceSet.getLocalServiceSet();
-    }
+    serviceSet = RemoteServiceSet.getLocalServiceSet();
 
     dfsTestTmpSchemaLocation = TestUtilities.createTempDir();
 
@@ -200,7 +202,7 @@ public class BaseTestQuery extends ExecTest {
       TestUtilities.makeDfsTmpSchemaImmutable(pluginRegistry);
     }
 
-    client = QueryTestUtil.createClient(config,  serviceSet, MAX_WIDTH_PER_NODE, null);
+    client = QueryTestUtil.createClient(config,  serviceSet, MAX_WIDTH_PER_NODE, properties);
   }
 
   /**

@@ -20,7 +20,6 @@ package org.apache.drill.exec.server;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.calcite.schema.SchemaPlus;
 import org.apache.drill.common.AutoCloseables;
 import org.apache.drill.common.StackTrace;
 import org.apache.drill.common.config.DrillConfig;
@@ -31,17 +30,13 @@ import org.apache.drill.exec.coord.ClusterCoordinator;
 import org.apache.drill.exec.coord.ClusterCoordinator.RegistrationHandle;
 import org.apache.drill.exec.coord.zk.ZKClusterCoordinator;
 import org.apache.drill.exec.exception.DrillbitStartupException;
-import org.apache.drill.exec.planner.sql.SchemaUtilites;
 import org.apache.drill.exec.proto.CoordinationProtos.DrillbitEndpoint;
 import org.apache.drill.exec.server.options.OptionManager;
 import org.apache.drill.exec.server.options.OptionValue;
 import org.apache.drill.exec.server.options.OptionValue.OptionType;
 import org.apache.drill.exec.server.rest.WebServer;
 import org.apache.drill.exec.service.ServiceEngine;
-import org.apache.drill.exec.store.AbstractSchema;
-import org.apache.drill.exec.store.SchemaTreeProvider;
 import org.apache.drill.exec.store.StoragePluginRegistry;
-import org.apache.drill.exec.store.dfs.WorkspaceSchemaFactory;
 import org.apache.drill.exec.store.sys.store.provider.CachingPersistentStoreProvider;
 import org.apache.drill.exec.store.sys.PersistentStoreProvider;
 import org.apache.drill.exec.store.sys.PersistentStoreRegistry;
@@ -99,7 +94,7 @@ public class Drillbit implements AutoCloseable {
     context = new BootStrapContext(config, classpathScan);
     manager = new WorkManager(context);
 
-    webServer = new WebServer(config, context.getMetrics(), manager);
+    webServer = new WebServer(context, manager);
     boolean isDistributedMode = false;
     if (serviceSet != null) {
       coord = serviceSet.getCoordinator();
@@ -110,8 +105,7 @@ public class Drillbit implements AutoCloseable {
       isDistributedMode = true;
     }
 
-    engine = new ServiceEngine(manager.getControlMessageHandler(), manager.getUserWorker(), context,
-        manager.getWorkBus(), manager.getBee(), allowPortHunting, isDistributedMode);
+    engine = new ServiceEngine(manager, context, allowPortHunting, isDistributedMode);
 
     logger.info("Construction completed ({} ms).", w.elapsed(TimeUnit.MILLISECONDS));
   }
@@ -128,7 +122,6 @@ public class Drillbit implements AutoCloseable {
     storageRegistry.init();
     drillbitContext.getOptionManager().init();
     javaPropertiesToSystemOptions();
-    validateTemporaryWorkspace(manager.getContext());
     manager.getContext().getRemoteFunctionRegistry().init(context.getConfig(), storeProvider, coord);
     registrationHandle = coord.register(md);
     webServer.start();
@@ -217,21 +210,6 @@ public class Drillbit implements AutoCloseable {
       final OptionValue optionValue = OptionValue.createOption(
           defaultValue.kind, OptionType.SYSTEM, optionName, optionString);
       optionManager.setOption(optionValue);
-    }
-  }
-
-  /**
-   * Validates that temporary workspace indicated in configuration is
-   * mutable and file-based (instance of {@link WorkspaceSchemaFactory.WorkspaceSchema}).
-   *
-   * @param context drillbit context
-   * @throws Exception in case when temporary table schema is not mutable or
-   *                   not file-based (instance of WorkspaceSchemaFactory.WorkspaceSchema)
-   */
-  private void validateTemporaryWorkspace(DrillbitContext context) throws Exception {
-    try (SchemaTreeProvider schemaTreeProvider = new SchemaTreeProvider(context)) {
-      final SchemaPlus rootSchema = schemaTreeProvider.createRootSchema(context.getOptionManager());
-      SchemaUtilites.getTemporaryWorkspace(rootSchema, context.getConfig());
     }
   }
 

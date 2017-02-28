@@ -1790,6 +1790,10 @@ public final class SchemaUserBitShared
                     output.writeString(16, message.getErrorNode(), false);
                 if(message.hasOptionsJson())
                     output.writeString(17, message.getOptionsJson(), false);
+                if(message.hasPlanEnd())
+                    output.writeInt64(18, message.getPlanEnd(), false);
+                if(message.hasQueueWaitEnd())
+                    output.writeInt64(19, message.getQueueWaitEnd(), false);
             }
             public boolean isInitialized(org.apache.drill.exec.proto.UserBitShared.QueryProfile message)
             {
@@ -1883,6 +1887,12 @@ public final class SchemaUserBitShared
                         case 17:
                             builder.setOptionsJson(input.readString());
                             break;
+                        case 18:
+                            builder.setPlanEnd(input.readInt64());
+                            break;
+                        case 19:
+                            builder.setQueueWaitEnd(input.readInt64());
+                            break;
                         default:
                             input.handleUnknownField(number, this);
                     }
@@ -1940,6 +1950,8 @@ public final class SchemaUserBitShared
                 case 15: return "errorId";
                 case 16: return "errorNode";
                 case 17: return "optionsJson";
+                case 18: return "planEnd";
+                case 19: return "queueWaitEnd";
                 default: return null;
             }
         }
@@ -1968,6 +1980,8 @@ public final class SchemaUserBitShared
             fieldMap.put("errorId", 15);
             fieldMap.put("errorNode", 16);
             fieldMap.put("optionsJson", 17);
+            fieldMap.put("planEnd", 18);
+            fieldMap.put("queueWaitEnd", 19);
         }
     }
 
@@ -2920,6 +2934,132 @@ public final class SchemaUserBitShared
         {
             fieldMap.put("name", 1);
             fieldMap.put("functionSignature", 2);
+        }
+    }
+
+    public static final class SaslMessage
+    {
+        public static final org.apache.drill.exec.proto.SchemaUserBitShared.SaslMessage.MessageSchema WRITE =
+            new org.apache.drill.exec.proto.SchemaUserBitShared.SaslMessage.MessageSchema();
+        public static final org.apache.drill.exec.proto.SchemaUserBitShared.SaslMessage.BuilderSchema MERGE =
+            new org.apache.drill.exec.proto.SchemaUserBitShared.SaslMessage.BuilderSchema();
+        
+        public static class MessageSchema implements com.dyuproject.protostuff.Schema<org.apache.drill.exec.proto.UserBitShared.SaslMessage>
+        {
+            public void writeTo(com.dyuproject.protostuff.Output output, org.apache.drill.exec.proto.UserBitShared.SaslMessage message) throws java.io.IOException
+            {
+                if(message.hasMechanism())
+                    output.writeString(1, message.getMechanism(), false);
+                if(message.hasData())
+                    output.writeByteArray(2, message.getData().toByteArray(), false);
+
+                if(message.hasStatus())
+                    output.writeEnum(3, message.getStatus().getNumber(), false);
+            }
+            public boolean isInitialized(org.apache.drill.exec.proto.UserBitShared.SaslMessage message)
+            {
+                return message.isInitialized();
+            }
+            public java.lang.String getFieldName(int number)
+            {
+                return org.apache.drill.exec.proto.SchemaUserBitShared.SaslMessage.getFieldName(number);
+            }
+            public int getFieldNumber(java.lang.String name)
+            {
+                return org.apache.drill.exec.proto.SchemaUserBitShared.SaslMessage.getFieldNumber(name);
+            }
+            public java.lang.Class<org.apache.drill.exec.proto.UserBitShared.SaslMessage> typeClass()
+            {
+                return org.apache.drill.exec.proto.UserBitShared.SaslMessage.class;
+            }
+            public java.lang.String messageName()
+            {
+                return org.apache.drill.exec.proto.UserBitShared.SaslMessage.class.getSimpleName();
+            }
+            public java.lang.String messageFullName()
+            {
+                return org.apache.drill.exec.proto.UserBitShared.SaslMessage.class.getName();
+            }
+            //unused
+            public void mergeFrom(com.dyuproject.protostuff.Input input, org.apache.drill.exec.proto.UserBitShared.SaslMessage message) throws java.io.IOException {}
+            public org.apache.drill.exec.proto.UserBitShared.SaslMessage newMessage() { return null; }
+        }
+        public static class BuilderSchema implements com.dyuproject.protostuff.Schema<org.apache.drill.exec.proto.UserBitShared.SaslMessage.Builder>
+        {
+            public void mergeFrom(com.dyuproject.protostuff.Input input, org.apache.drill.exec.proto.UserBitShared.SaslMessage.Builder builder) throws java.io.IOException
+            {
+                for(int number = input.readFieldNumber(this);; number = input.readFieldNumber(this))
+                {
+                    switch(number)
+                    {
+                        case 0:
+                            return;
+                        case 1:
+                            builder.setMechanism(input.readString());
+                            break;
+                        case 2:
+                            builder.setData(com.google.protobuf.ByteString.copyFrom(input.readByteArray()));
+                            break;
+                        case 3:
+                            builder.setStatus(org.apache.drill.exec.proto.UserBitShared.SaslStatus.valueOf(input.readEnum()));
+                            break;
+                        default:
+                            input.handleUnknownField(number, this);
+                    }
+                }
+            }
+            public boolean isInitialized(org.apache.drill.exec.proto.UserBitShared.SaslMessage.Builder builder)
+            {
+                return builder.isInitialized();
+            }
+            public org.apache.drill.exec.proto.UserBitShared.SaslMessage.Builder newMessage()
+            {
+                return org.apache.drill.exec.proto.UserBitShared.SaslMessage.newBuilder();
+            }
+            public java.lang.String getFieldName(int number)
+            {
+                return org.apache.drill.exec.proto.SchemaUserBitShared.SaslMessage.getFieldName(number);
+            }
+            public int getFieldNumber(java.lang.String name)
+            {
+                return org.apache.drill.exec.proto.SchemaUserBitShared.SaslMessage.getFieldNumber(name);
+            }
+            public java.lang.Class<org.apache.drill.exec.proto.UserBitShared.SaslMessage.Builder> typeClass()
+            {
+                return org.apache.drill.exec.proto.UserBitShared.SaslMessage.Builder.class;
+            }
+            public java.lang.String messageName()
+            {
+                return org.apache.drill.exec.proto.UserBitShared.SaslMessage.class.getSimpleName();
+            }
+            public java.lang.String messageFullName()
+            {
+                return org.apache.drill.exec.proto.UserBitShared.SaslMessage.class.getName();
+            }
+            //unused
+            public void writeTo(com.dyuproject.protostuff.Output output, org.apache.drill.exec.proto.UserBitShared.SaslMessage.Builder builder) throws java.io.IOException {}
+        }
+        public static java.lang.String getFieldName(int number)
+        {
+            switch(number)
+            {
+                case 1: return "mechanism";
+                case 2: return "data";
+                case 3: return "status";
+                default: return null;
+            }
+        }
+        public static int getFieldNumber(java.lang.String name)
+        {
+            java.lang.Integer number = fieldMap.get(name);
+            return number == null ? 0 : number.intValue();
+        }
+        private static final java.util.HashMap<java.lang.String,java.lang.Integer> fieldMap = new java.util.HashMap<java.lang.String,java.lang.Integer>();
+        static
+        {
+            fieldMap.put("mechanism", 1);
+            fieldMap.put("data", 2);
+            fieldMap.put("status", 3);
         }
     }
 

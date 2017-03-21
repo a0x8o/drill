@@ -86,6 +86,9 @@ connectionStatus_t DrillClientImpl::connect(const char* connStr, DrillUserProper
         std::vector<std::string> drillbits;
         int err = zook.getAllDrillbits(hostPortStr, drillbits);
         if(!err){
+            if (drillbits.empty()){
+                return handleConnError(CONN_FAILURE, getMessage(ERR_CONN_ZKNODBIT));
+            }
             Utils::shuffle(drillbits);
             exec::DrillbitEndpoint endpoint;
             err = zook.getEndPoint(drillbits[drillbits.size() -1], endpoint);// get the last one in the list
@@ -274,11 +277,13 @@ connectionStatus_t DrillClientImpl::recvHandshake(){
     if(m_rbuf!=NULL){
         Utils::freeBuffer(m_rbuf, MAX_SOCK_RD_BUFSIZE); m_rbuf=NULL;
     }
-#ifdef WIN32_SHUTDOWN_ON_TIMEOUT
+
     if (m_pError != NULL) {
+        DRILL_MT_LOG(DRILL_LOG(LOG_ERROR) << "DrillClientImpl::recvHandshake: failed to complete handshake with server."
+                    << m_pError->msg << "\n";)
         return static_cast<connectionStatus_t>(m_pError->status);
     }
-#endif // WIN32_SHUTDOWN_ON_TIMEOUT
+
     startHeartbeatTimer();
 
     return CONN_SUCCESS;
@@ -2140,6 +2145,9 @@ connectionStatus_t PooledDrillClientImpl::connect(const char* connStr, DrillUser
         std::vector<std::string> drillbits;
         int err = zook.getAllDrillbits(hostPortStr, drillbits);
         if(!err){
+            if (drillbits.empty()){
+                return handleConnError(CONN_FAILURE, getMessage(ERR_CONN_ZKNODBIT));
+            }
             Utils::shuffle(drillbits);
             // The original shuffled order is maintained if we shuffle first and then add any missing elements
             Utils::add(m_drillbits, drillbits);

@@ -48,7 +48,7 @@ import com.google.common.collect.Sets;
  * Only one instance of this class exists per drillbit. Options set at the system level affect the entire system and
  * persist between restarts.
  */
-public class SystemOptionManager extends BaseOptionManager implements AutoCloseable {
+public class SystemOptionManager extends BaseOptionManager implements OptionManager, AutoCloseable {
   private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(SystemOptionManager.class);
 
   private static final CaseInsensitiveMap<OptionValidator> VALIDATORS;
@@ -92,6 +92,7 @@ public class SystemOptionManager extends BaseOptionManager implements AutoClosea
       PlannerSettings.PARQUET_ROWGROUP_FILTER_PUSHDOWN_PLANNING,
       PlannerSettings.PARQUET_ROWGROUP_FILTER_PUSHDOWN_PLANNING_THRESHOLD,
       PlannerSettings.QUOTING_IDENTIFIERS,
+      PlannerSettings.JOIN_OPTIMIZATION,
       ExecConstants.CAST_TO_NULLABLE_NUMERIC_OPTION,
       ExecConstants.OUTPUT_FORMAT_VALIDATOR,
       ExecConstants.PARQUET_BLOCK_SIZE_VALIDATOR,

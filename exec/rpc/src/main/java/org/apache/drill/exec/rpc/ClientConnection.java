@@ -19,12 +19,15 @@ package org.apache.drill.exec.rpc;
 
 import javax.security.sasl.SaslClient;
 
-public interface ClientConnection extends RemoteConnection {
+public interface ClientConnection extends RemoteConnection, EncryptionContext {
 
   // set only once
   void setSaslClient(SaslClient saslClient);
 
   // get only after setting
   SaslClient getSaslClient();
+
+  // dispose the saslClient object
+  void disposeSaslClient();
 
 }

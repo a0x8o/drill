@@ -99,6 +99,8 @@ public interface ExecConstants {
   String HTTP_CORS_ALLOWED_METHODS = "drill.exec.http.cors.allowedMethods";
   String HTTP_CORS_ALLOWED_HEADERS = "drill.exec.http.cors.allowedHeaders";
   String HTTP_CORS_CREDENTIALS = "drill.exec.http.cors.credentials";
+  String HTTP_SESSION_MEMORY_RESERVATION = "drill.exec.http.session.memory.reservation";
+  String HTTP_SESSION_MEMORY_MAXIMUM = "drill.exec.http.session.memory.maximum";
   String HTTP_SESSION_MAX_IDLE_SECS = "drill.exec.http.session_max_idle_secs";
   String HTTP_KEYSTORE_PATH = "javax.net.ssl.keyStore";
   String HTTP_KEYSTORE_PASSWORD = "javax.net.ssl.keyStorePassword";
@@ -107,6 +109,8 @@ public interface ExecConstants {
   String SYS_STORE_PROVIDER_CLASS = "drill.exec.sys.store.provider.class";
   String SYS_STORE_PROVIDER_LOCAL_PATH = "drill.exec.sys.store.provider.local.path";
   String SYS_STORE_PROVIDER_LOCAL_ENABLE_WRITE = "drill.exec.sys.store.provider.local.write";
+  String PROFILES_STORE_INMEMORY = "drill.exec.profiles.store.inmemory";
+  String PROFILES_STORE_CAPACITY = "drill.exec.profiles.store.capacity";
   String IMPERSONATION_ENABLED = "drill.exec.impersonation.enabled";
   String IMPERSONATION_MAX_CHAINED_USER_HOPS = "drill.exec.impersonation.max_chained_user_hops";
   String AUTHENTICATION_MECHANISMS = "drill.exec.security.auth.mechanisms";
@@ -165,6 +169,9 @@ public interface ExecConstants {
   OptionValidator OUTPUT_FORMAT_VALIDATOR = new StringValidator(OUTPUT_FORMAT_OPTION, "parquet");
   String PARQUET_BLOCK_SIZE = "store.parquet.block-size";
   OptionValidator PARQUET_BLOCK_SIZE_VALIDATOR = new LongValidator(PARQUET_BLOCK_SIZE, 512*1024*1024);
+  String PARQUET_WRITER_USE_SINGLE_FS_BLOCK = "store.parquet.writer.use_single_fs_block";
+  OptionValidator PARQUET_WRITER_USE_SINGLE_FS_BLOCK_VALIDATOR = new BooleanValidator(
+    PARQUET_WRITER_USE_SINGLE_FS_BLOCK, false);
   String PARQUET_PAGE_SIZE = "store.parquet.page-size";
   OptionValidator PARQUET_PAGE_SIZE_VALIDATOR = new LongValidator(PARQUET_PAGE_SIZE, 1024*1024);
   String PARQUET_DICT_PAGE_SIZE = "store.parquet.dictionary.page-size";
@@ -447,11 +454,40 @@ public interface ExecConstants {
   String USE_DYNAMIC_UDFS_KEY = "exec.udf.use_dynamic";
   BooleanValidator USE_DYNAMIC_UDFS = new BooleanValidator(USE_DYNAMIC_UDFS_KEY, true);
 
-
   String QUERY_TRANSIENT_STATE_UPDATE_KEY = "exec.query.progress.update";
   BooleanValidator QUERY_TRANSIENT_STATE_UPDATE = new BooleanValidator(QUERY_TRANSIENT_STATE_UPDATE_KEY, true);
 
   String PERSISTENT_TABLE_UMASK = "exec.persistent_table.umask";
   StringValidator PERSISTENT_TABLE_UMASK_VALIDATOR = new StringValidator(PERSISTENT_TABLE_UMASK, "002");
 
+  /**
+   * Enables batch iterator (operator) validation. Validation is normally enabled
+   * only when assertions are enabled. This option enables iterator validation even
+   * if assertions are not enabled. That is, it allows iterator validation even on
+   * a "production" Drill instance.
+   */
+  String ENABLE_ITERATOR_VALIDATION_OPTION = "debug.validate_iterators";
+  BooleanValidator ENABLE_ITERATOR_VALIDATOR = new BooleanValidator(ENABLE_ITERATOR_VALIDATION_OPTION, false);
+
+  /**
+   * Boot-time config option to enable validation. Primarily used for tests.
+   * If true, overrrides the above. (That is validation is done if assertions are on,
+   * if the above session option is set to true, or if this config option is set to true.
+   */
+
+  String ENABLE_ITERATOR_VALIDATION = "drill.exec.debug.validate_iterators";
+
+  /**
+   * When iterator validation is enabled, additionally validates the vectors in
+   * each batch passed to each iterator.
+   */
+  String ENABLE_VECTOR_VALIDATION_OPTION = "debug.validate_vectors";
+  BooleanValidator ENABLE_VECTOR_VALIDATOR = new BooleanValidator(ENABLE_VECTOR_VALIDATION_OPTION, false);
+
+  /**
+   * Boot-time config option to enable vector validation. Primarily used for
+   * tests. Add the following to the command line to enable:<br>
+   * <tt>-ea -Ddrill.exec.debug.validate_vectors=true</tt>
+   */
+  String ENABLE_VECTOR_VALIDATION = "drill.exec.debug.validate_vectors";
 }

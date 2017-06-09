@@ -38,7 +38,6 @@ import org.apache.drill.exec.server.rest.WebServer;
 import org.apache.drill.exec.service.ServiceEngine;
 import org.apache.drill.exec.store.StoragePluginRegistry;
 import org.apache.drill.exec.store.sys.store.provider.CachingPersistentStoreProvider;
-import org.apache.drill.exec.store.sys.store.provider.InMemoryStoreProvider;
 import org.apache.drill.exec.store.sys.PersistentStoreProvider;
 import org.apache.drill.exec.store.sys.PersistentStoreRegistry;
 import org.apache.drill.exec.store.sys.store.provider.LocalPersistentStoreProvider;
@@ -77,7 +76,6 @@ public class Drillbit implements AutoCloseable {
   private final WebServer webServer;
   private RegistrationHandle registrationHandle;
   private volatile StoragePluginRegistry storageRegistry;
-  private final PersistentStoreProvider profileStoreProvider;
 
   @VisibleForTesting
   public Drillbit(
@@ -107,14 +105,6 @@ public class Drillbit implements AutoCloseable {
       isDistributedMode = true;
     }
 
-    //Check if InMemory Profile Store, else use Default Store Provider
-    if (config.getBoolean(ExecConstants.PROFILES_STORE_INMEMORY)) {
-      profileStoreProvider = new InMemoryStoreProvider(config.getInt(ExecConstants.PROFILES_STORE_CAPACITY));
-      logger.info("Upto {} latest query profiles will be retained in-memory", config.getInt(ExecConstants.PROFILES_STORE_CAPACITY));
-    } else {
-      profileStoreProvider = storeProvider;
-    }
-
     engine = new ServiceEngine(manager, context, allowPortHunting, isDistributedMode);
 
     logger.info("Construction completed ({} ms).", w.elapsed(TimeUnit.MILLISECONDS));
@@ -125,11 +115,8 @@ public class Drillbit implements AutoCloseable {
     logger.debug("Startup begun.");
     coord.start(10000);
     storeProvider.start();
-    if (profileStoreProvider != storeProvider) {
-      profileStoreProvider.start();
-    }
     final DrillbitEndpoint md = engine.start();
-    manager.start(md, engine.getController(), engine.getDataConnectionCreator(), coord, storeProvider, profileStoreProvider);
+    manager.start(md, engine.getController(), engine.getDataConnectionCreator(), coord, storeProvider);
     final DrillbitContext drillbitContext = manager.getContext();
     storageRegistry = drillbitContext.getStorage();
     storageRegistry.init();
@@ -177,11 +164,6 @@ public class Drillbit implements AutoCloseable {
           manager,
           storageRegistry,
           context);
-
-      //Closing the profile store provider if distinct
-      if (storeProvider != profileStoreProvider) {
-        AutoCloseables.close(profileStoreProvider);
-      }
     } catch(Exception e) {
       logger.warn("Failure on close()", e);
     }

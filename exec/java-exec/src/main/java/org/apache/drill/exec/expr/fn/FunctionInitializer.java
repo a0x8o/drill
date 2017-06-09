@@ -1,4 +1,4 @@
-/*
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -31,18 +31,21 @@ import org.codehaus.janino.Parser;
 import org.codehaus.janino.Scanner;
 import org.mortbay.util.IO;
 
+import com.google.common.collect.Maps;
+
 /**
  * To avoid the cost of initializing all functions up front,
- * this class contains all information required to initializing a function when it is used.
+ * this class contains all informations required to initializing a function when it is used.
  */
 public class FunctionInitializer {
-  private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(FunctionInitializer.class);
+  static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(FunctionInitializer.class);
 
   private final String className;
   private final ClassLoader classLoader;
+  private Map<String, CompilationUnit> functionUnits = Maps.newHashMap();
   private Map<String, String> methods;
   private List<String> imports;
-  private volatile boolean isLoaded;
+  private volatile boolean ready;
 
   /**
    * @param className the fully qualified name of the class implementing the function
@@ -50,6 +53,7 @@ public class FunctionInitializer {
    *                    to prevent classpath collisions during loading an unloading jars
    */
   public FunctionInitializer(String className, ClassLoader classLoader) {
+    super();
     this.className = className;
     this.classLoader = classLoader;
   }
@@ -70,43 +74,41 @@ public class FunctionInitializer {
    * @return the imports of this class (for java code gen)
    */
   public List<String> getImports() {
-    loadFunctionBody();
+    checkInit();
     return imports;
   }
 
   /**
-   * @param methodName method name
+   * @param methodName
    * @return the content of the method (for java code gen inlining)
    */
   public String getMethod(String methodName) {
-    loadFunctionBody();
+    checkInit();
     return methods.get(methodName);
   }
 
-  /**
-   * Loads function body: methods (for instance, eval, setup, reset) and imports.
-   * Loading is done once per class instance upon first function invocation.
-   * Double-checked locking is used to avoid concurrency issues
-   * when two threads are trying to load the function body at the same time.
-   */
-  private void loadFunctionBody() {
-    if (isLoaded) {
+  private void checkInit() {
+    if (ready) {
       return;
     }
 
     synchronized (this) {
-      if (isLoaded) {
+      if (ready) {
         return;
       }
 
-      logger.trace("Getting function body for the {}", className);
+      // get function body.
+
       try {
         final Class<?> clazz = Class.forName(className, true, classLoader);
-        final CompilationUnit cu = convertToCompilationUnit(clazz);
+        final CompilationUnit cu = get(clazz);
+
+        if (cu == null) {
+          throw new IOException(String.format("Failure while loading class %s.", clazz.getName()));
+        }
 
         methods = MethodGrabbingVisitor.getMethods(cu, clazz);
-        imports = ImportGrabber.getImports(cu);
-        isLoaded = true;
+        imports = ImportGrabber.getMethods(cu);
 
       } catch (IOException | ClassNotFoundException e) {
         throw UserException.functionError(e)
@@ -117,25 +119,20 @@ public class FunctionInitializer {
     }
   }
 
-  /**
-   * Using class name generates path to class source code (*.java),
-   * reads its content as string and parses it into {@link org.codehaus.janino.Java.CompilationUnit}.
-   *
-   * @param clazz function class
-   * @return compilation unit
-   * @throws IOException if did not find class or could not load it
-   */
-  private CompilationUnit convertToCompilationUnit(Class<?> clazz) throws IOException {
-    String path = clazz.getName();
+  private CompilationUnit get(Class<?> c) throws IOException {
+    String path = c.getName();
     path = path.replaceFirst("\\$.*", "");
     path = path.replace(".", FileUtils.separator);
     path = "/" + path + ".java";
+    CompilationUnit cu = functionUnits.get(path);
+    if (cu != null) {
+      return cu;
+    }
 
-    logger.trace("Loading function code from the {}", path);
-    try (InputStream is = clazz.getResourceAsStream(path)) {
+    try (InputStream is = c.getResourceAsStream(path)) {
       if (is == null) {
         throw new IOException(String.format(
-            "Failure trying to locate source code for class %s, tried to read on classpath location %s", clazz.getName(),
+            "Failure trying to located source code for Class %s, tried to read on classpath location %s", c.getName(),
             path));
       }
       String body = IO.toString(is);
@@ -143,9 +140,12 @@ public class FunctionInitializer {
       // TODO: Hack to remove annotations so Janino doesn't choke. Need to reconsider this problem...
       body = body.replaceAll("@\\w+(?:\\([^\\\\]*?\\))?", "");
       try {
-        return new Parser(new Scanner(null, new StringReader(body))).parseCompilationUnit();
+        cu = new Parser(new Scanner(null, new StringReader(body))).parseCompilationUnit();
+        functionUnits.put(path, cu);
+        return cu;
       } catch (CompileException e) {
-          throw new IOException(String.format("Failure while loading class %s.", clazz.getName()), e);
+        logger.warn("Failure while parsing function class:\n{}", body, e);
+        return null;
       }
 
     }

@@ -74,15 +74,11 @@ message DrillPBError{
      */
     RESOURCE = 7;
     /* equivalent to SQLNonTransientException.
-     * - unexpected internal state
-     * - uncategorized operation
-     * general user action is to contact the Drill team for
-     * assistance
      */
     SYSTEM = 8;
     /* equivalent to SQLFeatureNotSupportedException
-     * - unimplemented feature, option, or execution path
-     * - schema change in operator that does not support it
+     * - type change
+     * - schema change
      */
     UNSUPPORTED_OPERATION = 9;
     /* SQL validation exception

@@ -2178,10 +2178,6 @@ public final class UserBitShared {
        *
        * <pre>
        * equivalent to SQLNonTransientException.
-       * - unexpected internal state
-       * - uncategorized operation
-       * general user action is to contact the Drill team for
-       * assistance
        * </pre>
        */
       SYSTEM(8, 8),
@@ -2190,8 +2186,8 @@ public final class UserBitShared {
        *
        * <pre>
        * equivalent to SQLFeatureNotSupportedException
-       * - unimplemented feature, option, or execution path
-       * - schema change in operator that does not support it
+       * - type change
+       * - schema change
        * </pre>
        */
       UNSUPPORTED_OPERATION(9, 9),
@@ -2290,10 +2286,6 @@ public final class UserBitShared {
        *
        * <pre>
        * equivalent to SQLNonTransientException.
-       * - unexpected internal state
-       * - uncategorized operation
-       * general user action is to contact the Drill team for
-       * assistance
        * </pre>
        */
       public static final int SYSTEM_VALUE = 8;
@@ -2302,8 +2294,8 @@ public final class UserBitShared {
        *
        * <pre>
        * equivalent to SQLFeatureNotSupportedException
-       * - unimplemented feature, option, or execution path
-       * - schema change in operator that does not support it
+       * - type change
+       * - schema change
        * </pre>
        */
       public static final int UNSUPPORTED_OPERATION_VALUE = 9;

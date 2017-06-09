@@ -37,7 +37,8 @@ import org.apache.drill.exec.planner.PhysicalPlanReaderTestFactory;
 import org.apache.drill.exec.pop.PopUnitTestBase;
 import org.apache.drill.exec.proto.BitControl.PlanFragment;
 import org.apache.drill.exec.rpc.user.QueryDataBatch;
-import org.apache.drill.exec.rpc.UserClientConnection;
+import org.apache.drill.exec.rpc.user.UserServer;
+import org.apache.drill.exec.rpc.user.UserServer.UserClientConnection;
 import org.apache.drill.exec.server.Drillbit;
 import org.apache.drill.exec.server.DrillbitContext;
 import org.apache.drill.exec.server.RemoteServiceSet;
@@ -60,7 +61,7 @@ public class TestMergeJoin extends PopUnitTestBase {
   @Test
   @Ignore // this doesn't have a sort.  it also causes an infinite loop.  these may or may not be related.
   public void simpleEqualityJoin(@Injectable final DrillbitContext bitContext,
-                                 @Injectable UserClientConnection connection) throws Throwable {
+                                 @Injectable UserServer.UserClientConnection connection) throws Throwable {
 
     mockDrillbitContext(bitContext);
 
@@ -108,7 +109,7 @@ public class TestMergeJoin extends PopUnitTestBase {
   @Test
   @Ignore
   public void orderedEqualityLeftJoin(@Injectable final DrillbitContext bitContext,
-                                      @Injectable UserClientConnection connection) throws Throwable {
+                                      @Injectable UserServer.UserClientConnection connection) throws Throwable {
     mockDrillbitContext(bitContext);
 
     final PhysicalPlanReader reader = PhysicalPlanReaderTestFactory.defaultPhysicalPlanReader(c,
@@ -159,7 +160,7 @@ public class TestMergeJoin extends PopUnitTestBase {
   @Test
   @Ignore
   public void orderedEqualityInnerJoin(@Injectable final DrillbitContext bitContext,
-                                       @Injectable UserClientConnection connection) throws Throwable {
+                                       @Injectable UserServer.UserClientConnection connection) throws Throwable {
     mockDrillbitContext(bitContext);
 
     final PhysicalPlanReader reader = PhysicalPlanReaderTestFactory.defaultPhysicalPlanReader(c,
@@ -210,7 +211,7 @@ public class TestMergeJoin extends PopUnitTestBase {
   @Test
   @Ignore
   public void orderedEqualityMultiBatchJoin(@Injectable final DrillbitContext bitContext,
-                                            @Injectable UserClientConnection connection) throws Throwable {
+                                            @Injectable UserServer.UserClientConnection connection) throws Throwable {
     mockDrillbitContext(bitContext);
 
     final PhysicalPlanReader reader = PhysicalPlanReaderTestFactory.defaultPhysicalPlanReader(c,

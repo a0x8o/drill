@@ -1031,7 +1031,6 @@ public class TestUnionAll extends BaseTestQuery{
 
     // Validate the plan
     final String[] expectedPlan = {"UnionExchange.*\n",
-        ".*Project.*\n" +
         ".*UnionAll"};
     final String[] excludedPlan = {};
 
@@ -1178,6 +1177,17 @@ public class TestUnionAll extends BaseTestQuery{
       test(sliceTargetDefault);
       test(defaultDistribute);
     }
+  }
+
+  @Test // DRILL-5130
+  public void testUnionAllWithValues() throws Exception {
+    testBuilder()
+        .sqlQuery("values('A') union all values('B')")
+        .unOrdered()
+        .baselineColumns("EXPR$0")
+        .baselineValues("A")
+        .baselineValues("B")
+        .go();
   }
 
 }

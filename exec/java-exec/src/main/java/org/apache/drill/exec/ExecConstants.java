@@ -64,6 +64,12 @@ public interface ExecConstants {
   String SPOOLING_BUFFER_MEMORY = "drill.exec.buffer.spooling.size";
   String BATCH_PURGE_THRESHOLD = "drill.exec.sort.purge.threshold";
 
+  // Spill boot-time Options common to all spilling operators
+  // (Each individual operator may override the common options)
+
+  String SPILL_FILESYSTEM = "drill.exec.spill.fs";
+  String SPILL_DIRS = "drill.exec.spill.directories";
+
   // External Sort Boot configuration
 
   String EXTERNAL_SORT_TARGET_SPILL_BATCH_SIZE = "drill.exec.sort.external.spill.batch.size";
@@ -78,14 +84,28 @@ public interface ExecConstants {
   String EXTERNAL_SORT_SPILL_BATCH_SIZE = "drill.exec.sort.external.spill.spill_batch_size";
   String EXTERNAL_SORT_MERGE_BATCH_SIZE = "drill.exec.sort.external.spill.merge_batch_size";
   String EXTERNAL_SORT_MAX_MEMORY = "drill.exec.sort.external.mem_limit";
-
-  // Used only by the "unmanaged" sort.
   String EXTERNAL_SORT_BATCH_LIMIT = "drill.exec.sort.external.batch_limit";
 
   // External Sort Runtime options
 
   BooleanValidator EXTERNAL_SORT_DISABLE_MANAGED_OPTION = new BooleanValidator("exec.sort.disable_managed", false);
 
+  // Hash Aggregate Options
+
+  String HASHAGG_NUM_PARTITIONS = "drill.exec.hashagg.num_partitions";
+  String HASHAGG_NUM_PARTITIONS_KEY = "exec.hashagg.num_partitions";
+  LongValidator HASHAGG_NUM_PARTITIONS_VALIDATOR = new RangeLongValidator(HASHAGG_NUM_PARTITIONS_KEY, 1, 128, 32); // 1 means - no spilling
+  String HASHAGG_MAX_MEMORY = "drill.exec.hashagg.mem_limit";
+  String HASHAGG_MAX_MEMORY_KEY = "exec.hashagg.mem_limit";
+  LongValidator HASHAGG_MAX_MEMORY_VALIDATOR = new RangeLongValidator(HASHAGG_MAX_MEMORY_KEY, 0, Integer.MAX_VALUE, 0);
+  // min batches is used for tuning (each partition needs so many batches when planning the number of partitions,
+  // or reserve this number when calculating whether the remaining available memory is too small and requires a spill.)
+  // Low value may OOM (e.g., when incoming rows become wider), higher values use fewer partitions but are safer
+  String HASHAGG_MIN_BATCHES_PER_PARTITION = "drill.exec.hashagg.min_batches_per_partition";
+  String HASHAGG_MIN_BATCHES_PER_PARTITION_KEY = "drill.exec.hashagg.min_batches_per_partition";
+  LongValidator HASHAGG_MIN_BATCHES_PER_PARTITION_VALIDATOR = new RangeLongValidator(HASHAGG_MIN_BATCHES_PER_PARTITION_KEY, 2, 5, 3);
+  String HASHAGG_SPILL_DIRS = "drill.exec.hashagg.spill.directories";
+  String HASHAGG_SPILL_FILESYSTEM = "drill.exec.hashagg.spill.fs";
 
   String TEXT_LINE_READER_BATCH_SIZE = "drill.exec.storage.file.text.batch.size";
   String TEXT_LINE_READER_BUFFER_SIZE = "drill.exec.storage.file.text.buffer.size";
@@ -168,14 +188,14 @@ public interface ExecConstants {
   String OUTPUT_FORMAT_OPTION = "store.format";
   OptionValidator OUTPUT_FORMAT_VALIDATOR = new StringValidator(OUTPUT_FORMAT_OPTION, "parquet");
   String PARQUET_BLOCK_SIZE = "store.parquet.block-size";
-  OptionValidator PARQUET_BLOCK_SIZE_VALIDATOR = new LongValidator(PARQUET_BLOCK_SIZE, 512*1024*1024);
   String PARQUET_WRITER_USE_SINGLE_FS_BLOCK = "store.parquet.writer.use_single_fs_block";
   OptionValidator PARQUET_WRITER_USE_SINGLE_FS_BLOCK_VALIDATOR = new BooleanValidator(
     PARQUET_WRITER_USE_SINGLE_FS_BLOCK, false);
+  OptionValidator PARQUET_BLOCK_SIZE_VALIDATOR = new PositiveLongValidator(PARQUET_BLOCK_SIZE, Integer.MAX_VALUE, 512 * 1024 * 1024);
   String PARQUET_PAGE_SIZE = "store.parquet.page-size";
-  OptionValidator PARQUET_PAGE_SIZE_VALIDATOR = new LongValidator(PARQUET_PAGE_SIZE, 1024*1024);
+  OptionValidator PARQUET_PAGE_SIZE_VALIDATOR = new PositiveLongValidator(PARQUET_PAGE_SIZE, Integer.MAX_VALUE, 1024 * 1024);
   String PARQUET_DICT_PAGE_SIZE = "store.parquet.dictionary.page-size";
-  OptionValidator PARQUET_DICT_PAGE_SIZE_VALIDATOR = new LongValidator(PARQUET_DICT_PAGE_SIZE, 1024*1024);
+  OptionValidator PARQUET_DICT_PAGE_SIZE_VALIDATOR = new PositiveLongValidator(PARQUET_DICT_PAGE_SIZE, Integer.MAX_VALUE, 1024 * 1024);
   String PARQUET_WRITER_COMPRESSION_TYPE = "store.parquet.compression";
   OptionValidator PARQUET_WRITER_COMPRESSION_TYPE_VALIDATOR = new EnumeratedStringValidator(
       PARQUET_WRITER_COMPRESSION_TYPE, "snappy", "snappy", "gzip", "none");
@@ -321,6 +341,15 @@ public interface ExecConstants {
   String MAX_QUERY_MEMORY_PER_NODE_KEY = "planner.memory.max_query_memory_per_node";
   LongValidator MAX_QUERY_MEMORY_PER_NODE = new RangeLongValidator(
       MAX_QUERY_MEMORY_PER_NODE_KEY, 1024 * 1024, Long.MAX_VALUE, 2 * 1024 * 1024 * 1024L);
+
+  /**
+   * Minimum memory alocated to each buffered operator instance.
+   * <p/>
+   * DEFAULT: 40 MB
+   */
+  String MIN_MEMORY_PER_BUFFERED_OP_KEY = "planner.memory.min_memory_per_buffered_op";
+  LongValidator MIN_MEMORY_PER_BUFFERED_OP = new RangeLongValidator(
+      MIN_MEMORY_PER_BUFFERED_OP_KEY, 1024 * 1024, Long.MAX_VALUE, 40 * 1024 * 1024L);
 
   /**
    * Extra query memory per node for non-blocking operators.

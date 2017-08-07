@@ -98,13 +98,11 @@ public class TestCsv extends ClusterTest {
         .add("b", MinorType.VARCHAR)
         .add("c", MinorType.VARCHAR)
         .build();
-    assertEquals(expectedSchema, actual.batchSchema());
-
     RowSet expected = new RowSetBuilder(client.allocator(), expectedSchema)
         .add("10", "foo", "bar")
         .build();
     new RowSetComparison(expected)
-      .verifyAndClear(actual);
+      .verifyAndClearAll(actual);
   }
 
   String invalidHeaders[] = {
@@ -126,13 +124,33 @@ public class TestCsv extends ClusterTest {
         .add("c_2", MinorType.VARCHAR)
         .add("c_2_2", MinorType.VARCHAR)
         .build();
-    assertEquals(expectedSchema, actual.batchSchema());
-
     RowSet expected = new RowSetBuilder(client.allocator(), expectedSchema)
         .add("10", "foo", "bar", "fourth", "fifth", "sixth")
         .build();
     new RowSetComparison(expected)
-      .verifyAndClear(actual);
+      .verifyAndClearAll(actual);
+  }
+
+  // Test fix for DRILL-5590
+  @Test
+  public void testCsvHeadersCaseInsensitive() throws IOException {
+    String fileName = "case2.csv";
+    buildFile(fileName, validHeaders);
+    String sql = "SELECT A, b, C FROM `dfs.data`.`" + fileName + "`";
+    RowSet actual = client.queryBuilder().sql(sql).rowSet();
+
+    BatchSchema expectedSchema = new SchemaBuilder()
+        .add("A", MinorType.VARCHAR)
+        .add("b", MinorType.VARCHAR)
+        .add("C", MinorType.VARCHAR)
+        .build();
+    assertEquals(expectedSchema, actual.batchSchema());
+
+    RowSet expected = new RowSetBuilder(client.allocator(), expectedSchema)
+        .add("10", "foo", "bar")
+        .build();
+    new RowSetComparison(expected)
+      .verifyAndClearAll(actual);
   }
 
   private String makeStatement(String fileName) {

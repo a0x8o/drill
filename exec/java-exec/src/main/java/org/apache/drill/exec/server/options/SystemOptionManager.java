@@ -93,6 +93,10 @@ public class SystemOptionManager extends BaseOptionManager implements OptionMana
       PlannerSettings.PARQUET_ROWGROUP_FILTER_PUSHDOWN_PLANNING_THRESHOLD,
       PlannerSettings.QUOTING_IDENTIFIERS,
       PlannerSettings.JOIN_OPTIMIZATION,
+      PlannerSettings.FORCE_2PHASE_AGGR, // for testing
+      ExecConstants.HASHAGG_NUM_PARTITIONS_VALIDATOR,
+      ExecConstants.HASHAGG_MAX_MEMORY_VALIDATOR,
+      ExecConstants.HASHAGG_MIN_BATCHES_PER_PARTITION_VALIDATOR, // for tuning
       ExecConstants.CAST_TO_NULLABLE_NUMERIC_OPTION,
       ExecConstants.OUTPUT_FORMAT_VALIDATOR,
       ExecConstants.PARQUET_BLOCK_SIZE_VALIDATOR,
@@ -140,6 +144,7 @@ public class SystemOptionManager extends BaseOptionManager implements OptionMana
       ExecConstants.EARLY_LIMIT0_OPT,
       ExecConstants.ENABLE_MEMORY_ESTIMATION,
       ExecConstants.MAX_QUERY_MEMORY_PER_NODE,
+      ExecConstants.MIN_MEMORY_PER_BUFFERED_OP,
       ExecConstants.NON_BLOCKING_OPERATORS_MEMORY,
       ExecConstants.HASH_JOIN_TABLE_FACTOR,
       ExecConstants.HASH_AGG_TABLE_FACTOR,

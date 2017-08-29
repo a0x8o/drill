@@ -252,11 +252,13 @@ void DrillClientImpl::doWriteToSocket(const char* dataPtr, size_t bytesToWrite,
     while(1) {
         size_t bytesWritten = m_socket.write_some(boost::asio::buffer(dataPtr, bytesToWrite), errorCode);
 
+        if(errorCode && boost::asio::error::interrupted != errorCode){
+            break;
+        } 
+
         // Update the state
         bytesToWrite -= bytesWritten;
         dataPtr += bytesWritten;
-
-        if(EINTR != errorCode.value()) break;
 
         // Check if all the data is written then break from loop
         if(0 == bytesToWrite) break;
@@ -412,17 +414,22 @@ void DrillClientImpl::doReadFromSocket(ByteBuf_t inBuf, size_t bytesToRead,
         return;
     }
 
+    DRILL_MT_LOG(DRILL_LOG(LOG_TRACE) << "Socket read: reading " << bytesToRead << "data bytes" << std::endl;)
     // Read all the bytes. In case when all the bytes were not read the proper
     // errorCode will be set.
     while(1){
         size_t dataBytesRead = m_socket.read_some(boost::asio::buffer(inBuf, bytesToRead),
                                            errorCode);
+        // Check if errorCode is EINTR then just retry otherwise break from loop
+        if(errorCode && boost::asio::error::interrupted != errorCode){
+            break;
+        } 
+
+        DRILL_MT_LOG(DRILL_LOG(LOG_TRACE) << "Socket read: actual bytes read = " << dataBytesRead << std::endl;)
         // Update the state
         bytesToRead -= dataBytesRead;
         inBuf += dataBytesRead;
 
-        // Check if errorCode is EINTR then just retry otherwise break from loop
-        if(EINTR != errorCode.value()) break;
 
         // Check if all the data is read then break from loop
         if(0 == bytesToRead) break;
@@ -2300,6 +2307,10 @@ namespace { // anonymous
 namespace { // anonymous
 // Helper class to wait on ServerMeta results
 struct ServerMetaContext {
+    ServerMetaContext() : m_done(false), m_status(QRY_FAILURE) 
+    {
+        ; // Do nothing.
+    }
 	bool m_done;
 	status_t m_status;
 	exec::user::ServerMeta m_serverMeta;
@@ -2377,7 +2388,7 @@ status_t DrillClientQueryResult::setupColumnDefs(exec::shared::QueryData* pQuery
         for(std::vector<Drill::FieldMetadata*>::iterator it = this->m_columnDefs->begin(); it != this->m_columnDefs->end(); ++it){
             // the key is the field_name + type
             char type[256];
-            sprintf(type, ":%d:%d",(*it)->getMinorType(), (*it)->getDataMode() );
+            snprintf(type, sizeof(type), ":%d:%d",(*it)->getMinorType(), (*it)->getDataMode() );
             std::string k= (*it)->getName()+type;
             oldSchema[k]=*it;
             delete *it;
@@ -2394,7 +2405,7 @@ status_t DrillClientQueryResult::setupColumnDefs(exec::shared::QueryData* pQuery
             //Look for changes in the vector and trigger a Schema change event if necessary.
             //If vectors are different, then call the schema change listener.
             char type[256];
-            sprintf(type, ":%d:%d",fmd->getMinorType(), fmd->getDataMode() );
+            snprintf(type, sizeof(type), ":%d:%d",fmd->getMinorType(), fmd->getDataMode() );
             std::string k= fmd->getName()+type;
             std::map<std::string, Drill::FieldMetadata*>::iterator iter=oldSchema.find(k);
             if(iter==oldSchema.end()){

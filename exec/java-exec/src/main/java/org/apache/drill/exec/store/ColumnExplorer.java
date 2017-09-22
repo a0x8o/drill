@@ -28,6 +28,7 @@ import org.apache.drill.exec.ops.FragmentContext;
 import org.apache.drill.exec.server.options.OptionManager;
 import org.apache.drill.exec.server.options.OptionValue;
 import org.apache.drill.exec.store.dfs.easy.FileWork;
+import org.apache.drill.exec.util.Utilities;
 import org.apache.hadoop.fs.Path;
 
 import java.util.List;
@@ -63,7 +64,7 @@ public class ColumnExplorer {
   public ColumnExplorer(OptionManager optionManager, List<SchemaPath> columns) {
     this.partitionDesignator = optionManager.getOption(ExecConstants.FILESYSTEM_PARTITION_COLUMN_LABEL).string_val;
     this.columns = columns;
-    this.isStarQuery = columns != null && AbstractRecordReader.isStarQuery(columns);
+    this.isStarQuery = columns != null && Utilities.isStarQuery(columns);
     this.selectedPartitionColumns = Lists.newArrayList();
     this.tableColumns = Lists.newArrayList();
     this.allImplicitColumns = initImplicitFileColumns(optionManager);
@@ -95,7 +96,7 @@ public class ColumnExplorer {
    */
   public static boolean isPartitionColumn(OptionManager optionManager, SchemaPath column){
     String partitionDesignator = optionManager.getOption(ExecConstants.FILESYSTEM_PARTITION_COLUMN_LABEL).string_val;
-    String path = column.getAsUnescapedPath();
+    String path = column.getRootSegmentPath();
     return isPartitionColumn(partitionDesignator, path);
   }
 
@@ -187,7 +188,7 @@ public class ColumnExplorer {
       selectedImplicitColumns.putAll(allImplicitColumns);
     } else {
       for (SchemaPath column : columns) {
-        String path = column.getAsUnescapedPath();
+        String path = column.getRootSegmentPath();
         if (isPartitionColumn(partitionDesignator, path)) {
           selectedPartitionColumns.add(Integer.parseInt(path.substring(partitionDesignator.length())));
         } else if (allImplicitColumns.get(path) != null) {

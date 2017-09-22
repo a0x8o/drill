@@ -220,7 +220,8 @@ public final class ${minor.class}Vector extends BaseDataValueVector implements F
 
   @Override
   public void load(SerializedField metadata, DrillBuf buffer) {
-    Preconditions.checkArgument(this.field.getPath().equals(metadata.getNamePart().getName()), "The field %s doesn't match the provided metadata %s.", this.field, metadata);
+    Preconditions.checkArgument(this.field.getName().equals(metadata.getNamePart().getName()),
+                                "The field %s doesn't match the provided metadata %s.", this.field, metadata);
     final int actualLength = metadata.getBufferLength();
     final int valueCount = metadata.getValueCount();
     final int expectedLength = valueCount * VALUE_WIDTH;
@@ -333,6 +334,12 @@ public final class ${minor.class}Vector extends BaseDataValueVector implements F
 
   private void incrementAllocationMonitor() {
     ++allocationMonitor;
+  }
+
+  @Override
+  public void toNullable(ValueVector nullableVector) {
+    Nullable${minor.class}Vector dest = (Nullable${minor.class}Vector) nullableVector;
+    dest.getMutator().fromNotNullable(this);
   }
 
   public final class Accessor extends BaseDataValueVector.BaseAccessor {

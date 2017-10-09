@@ -21,15 +21,19 @@ import com.google.common.io.Resources;
 import mockit.Mock;
 import mockit.MockUp;
 import mockit.integration.junit4.JMockit;
+import com.google.common.collect.Lists;
 import org.apache.drill.PlanTestBase;
+import org.apache.drill.categories.UnlikelyTest;
 import org.apache.drill.common.util.TestTools;
 import org.apache.commons.io.FileUtils;
 import org.apache.drill.exec.store.dfs.MetadataContext;
+import org.apache.drill.exec.planner.physical.PlannerSettings;
 import org.apache.hadoop.fs.Path;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 
 import java.io.File;
@@ -91,6 +95,7 @@ public class TestParquetMetadataCache extends PlanTestBase {
   }
 
   @Test // DRILL-3917, positive test case for DRILL-4530
+  @Category(UnlikelyTest.class)
   public void testPartitionPruningWithMetadataCache_2() throws Exception {
     test(String.format("refresh table metadata dfs_test.`%s/%s`", getDfsTestTmpSchemaLocation(), tableName1));
     checkForMetadataFile(tableName1);
@@ -110,6 +115,7 @@ public class TestParquetMetadataCache extends PlanTestBase {
   }
 
   @Test // DRILL-3937 (partitioning column is varchar)
+  @Category(UnlikelyTest.class)
   public void testPartitionPruningWithMetadataCache_3() throws Exception {
     String tableName = "orders_ctas_varchar";
     test("use dfs_test.tmp");
@@ -131,6 +137,7 @@ public class TestParquetMetadataCache extends PlanTestBase {
   }
 
   @Test // DRILL-3937 (partitioning column is binary using convert_to)
+  @Category(UnlikelyTest.class)
   public void testPartitionPruningWithMetadataCache_4() throws Exception {
     String tableName = "orders_ctas_binary";
     test("use dfs_test.tmp");
@@ -223,6 +230,7 @@ public class TestParquetMetadataCache extends PlanTestBase {
   }
 
   @Test //DRILL-4511
+  @Category(UnlikelyTest.class)
   public void testTableDoesNotExistWithEmptyDirectory() throws Exception {
     File path = new File(getTempDir("empty_directory"));
     String pathString = path.toURI().getPath();
@@ -240,6 +248,7 @@ public class TestParquetMetadataCache extends PlanTestBase {
   }
 
   @Test //DRILL-4511
+  @Category(UnlikelyTest.class)
   public void testTableDoesNotExistWithIncorrectTableName() throws Exception {
     String tableName = "incorrect_table";
     testBuilder()
@@ -262,6 +271,7 @@ public class TestParquetMetadataCache extends PlanTestBase {
   }
 
   @Test // DRILL-4530  // single leaf level partition
+  @Category(UnlikelyTest.class)
   public void testDrill4530_1() throws Exception {
     // create metadata cache
     test(String.format("refresh table metadata dfs_test.`%s/%s`", getDfsTestTmpSchemaLocation(), tableName2));
@@ -284,6 +294,7 @@ public class TestParquetMetadataCache extends PlanTestBase {
   }
 
   @Test // DRILL-4530  // single non-leaf level partition
+  @Category(UnlikelyTest.class)
   public void testDrill4530_2() throws Exception {
     // create metadata cache
     test(String.format("refresh table metadata dfs_test.`%s/%s`", getDfsTestTmpSchemaLocation(), tableName2));
@@ -306,6 +317,7 @@ public class TestParquetMetadataCache extends PlanTestBase {
   }
 
   @Test // DRILL-4530  // only dir1 filter is present, no dir0, hence this maps to multiple partitions
+  @Category(UnlikelyTest.class)
   public void testDrill4530_3() throws Exception {
     // create metadata cache
     test(String.format("refresh table metadata dfs_test.`%s/%s`", getDfsTestTmpSchemaLocation(), tableName2));
@@ -328,6 +340,7 @@ public class TestParquetMetadataCache extends PlanTestBase {
   }
 
   @Test // DRILL-4530  // non-existent partition (1 subdirectory's cache file will still be read for schema)
+  @Category(UnlikelyTest.class)
   public void testDrill4530_4() throws Exception {
     // create metadata cache
     test(String.format("refresh table metadata dfs_test.`%s/%s`", getDfsTestTmpSchemaLocation(), tableName2));
@@ -350,6 +363,7 @@ public class TestParquetMetadataCache extends PlanTestBase {
   }
 
   @Test // DRILL-4794
+  @Category(UnlikelyTest.class)
   public void testDrill4794() throws Exception {
     test(String.format("refresh table metadata dfs_test.`%s/%s`", getDfsTestTmpSchemaLocation(), tableName1));
     checkForMetadataFile(tableName1);
@@ -370,6 +384,7 @@ public class TestParquetMetadataCache extends PlanTestBase {
   }
 
   @Test // DRILL-4786
+  @Category(UnlikelyTest.class)
   public void testDrill4786_1() throws Exception {
     // create metadata cache
     test(String.format("refresh table metadata dfs_test.`%s/%s`", getDfsTestTmpSchemaLocation(), tableName2));
@@ -394,6 +409,7 @@ public class TestParquetMetadataCache extends PlanTestBase {
   }
 
   @Test // DRILL-4786
+  @Category(UnlikelyTest.class)
   public void testDrill4786_2() throws Exception {
     // create metadata cache
     test(String.format("refresh table metadata dfs_test.`%s/%s`", getDfsTestTmpSchemaLocation(), tableName2));
@@ -418,6 +434,7 @@ public class TestParquetMetadataCache extends PlanTestBase {
   }
 
   @Test // DRILL-4877
+  @Category(UnlikelyTest.class)
   public void testDrill4877() throws Exception {
     // create metadata cache
     test(String.format("refresh table metadata dfs_test.`%s/%s`", getDfsTestTmpSchemaLocation(), tableName2));
@@ -690,6 +707,7 @@ public class TestParquetMetadataCache extends PlanTestBase {
   }
 
   @Test // DRILL-4264
+  @Category(UnlikelyTest.class)
   public void testMetadataCacheFieldWithDots() throws Exception {
     final String tableWithDots = "dfs_test.tmp.`complex_table`";
     try {
@@ -714,6 +732,220 @@ public class TestParquetMetadataCache extends PlanTestBase {
     }
   }
 
+  @Test // DRILL-4139
+  public void testBooleanPartitionPruning() throws Exception {
+    final String boolPartitionTable = "dfs_test.tmp.`interval_bool_partition`";
+    try {
+      test("create table %s partition by (col_bln) as " +
+        "select * from cp.`parquet/alltypes_required.parquet`", boolPartitionTable);
+
+      String query = String.format("select * from %s where col_bln = true", boolPartitionTable);
+      int expectedRowCount = 2;
+
+      int actualRowCount = testSql(query);
+      assertEquals("Row count does not match the expected value", expectedRowCount, actualRowCount);
+      PlanTestBase.testPlanMatchingPatterns(query, new String[]{"usedMetadataFile=false"}, new String[]{"Filter"});
+
+      test("refresh table metadata %s", boolPartitionTable);
+
+      actualRowCount = testSql(query);
+      assertEquals("Row count does not match the expected value", expectedRowCount, actualRowCount);
+      PlanTestBase.testPlanMatchingPatterns(query, new String[]{"usedMetadataFile=true"}, new String[]{"Filter"});
+    } finally {
+      test("drop table if exists %s", boolPartitionTable);
+    }
+  }
+
+  @Test // DRILL-4139
+  public void testIntervalDayPartitionPruning() throws Exception {
+    final String intervalDayPartitionTable = "dfs_test.tmp.`interval_day_partition`";
+    try {
+      test("create table %s partition by (col_intrvl_day) as " +
+        "select * from cp.`parquet/alltypes_optional.parquet`", intervalDayPartitionTable);
+
+      String query = String.format("select * from %s " +
+        "where col_intrvl_day = cast('P26DT27386S' as interval day)", intervalDayPartitionTable);
+      int expectedRowCount = 1;
+
+      int actualRowCount = testSql(query);
+      assertEquals("Row count does not match the expected value", expectedRowCount, actualRowCount);
+      PlanTestBase.testPlanMatchingPatterns(query, new String[]{"usedMetadataFile=false"}, new String[]{"Filter"});
+
+      test("refresh table metadata %s", intervalDayPartitionTable);
+
+      actualRowCount = testSql(query);
+      assertEquals("Row count does not match the expected value", expectedRowCount, actualRowCount);
+      PlanTestBase.testPlanMatchingPatterns(query, new String[]{"usedMetadataFile=true"}, new String[]{"Filter"});
+    } finally {
+      test(String.format("drop table if exists %s", intervalDayPartitionTable));
+    }
+  }
+
+  @Test // DRILL-4139
+  public void testIntervalYearPartitionPruning() throws Exception {
+    final String intervalYearPartitionTable = "dfs_test.tmp.`interval_yr_partition`";
+    try {
+      test("create table %s partition by (col_intrvl_yr) as " +
+        "select * from cp.`parquet/alltypes_optional.parquet`", intervalYearPartitionTable);
+
+      String query = String.format("select * from %s where col_intrvl_yr = cast('P314M' as interval year)",
+        intervalYearPartitionTable);
+      int expectedRowCount = 1;
+
+      int actualRowCount = testSql(query);
+      assertEquals("Row count does not match the expected value", expectedRowCount, actualRowCount);
+      PlanTestBase.testPlanMatchingPatterns(query, new String[]{"usedMetadataFile=false"}, new String[]{"Filter"});
+
+      test("refresh table metadata %s", intervalYearPartitionTable);
+
+      actualRowCount = testSql(query);
+      assertEquals("Row count does not match the expected value", expectedRowCount, actualRowCount);
+      PlanTestBase.testPlanMatchingPatterns(query, new String[]{"usedMetadataFile=true"}, new String[]{"Filter"});
+    } finally {
+      test("drop table if exists %s", intervalYearPartitionTable);
+    }
+  }
+
+  @Test // DRILL-4139
+  public void testVarCharWithNullsPartitionPruning() throws Exception {
+    final String intervalYearPartitionTable = "dfs_test.tmp.`varchar_optional_partition`";
+    try {
+      test("create table %s partition by (col_vrchr) as " +
+        "select * from cp.`parquet/alltypes_optional.parquet`", intervalYearPartitionTable);
+
+      String query = String.format("select * from %s where col_vrchr = 'Nancy Cloke'",
+        intervalYearPartitionTable);
+      int expectedRowCount = 1;
+
+      int actualRowCount = testSql(query);
+      assertEquals("Row count does not match the expected value", expectedRowCount, actualRowCount);
+      PlanTestBase.testPlanMatchingPatterns(query, new String[]{"usedMetadataFile=false"}, new String[]{"Filter"});
+
+      test("refresh table metadata %s", intervalYearPartitionTable);
+
+      actualRowCount = testSql(query);
+      assertEquals("Row count does not match the expected value", expectedRowCount, actualRowCount);
+      PlanTestBase.testPlanMatchingPatterns(query, new String[]{"usedMetadataFile=true"}, new String[]{"Filter"});
+    } finally {
+      test("drop table if exists %s", intervalYearPartitionTable);
+    }
+  }
+
+  @Test // DRILL-4139
+  public void testDecimalPartitionPruning() throws Exception {
+    List<String> ctasQueries = Lists.newArrayList();
+    // decimal stores as fixed_len_byte_array
+    ctasQueries.add("create table %s partition by (manager_id) as " +
+      "select * from cp.`parquet/fixedlenDecimal.parquet`");
+    // decimal stores as int32
+    ctasQueries.add("create table %s partition by (manager_id) as " +
+      "select cast(manager_id as decimal(6, 0)) as manager_id, EMPLOYEE_ID, FIRST_NAME, LAST_NAME " +
+      "from cp.`parquet/fixedlenDecimal.parquet`");
+    // decimal stores as int64
+    ctasQueries.add("create table %s partition by (manager_id) as " +
+      "select cast(manager_id as decimal(18, 6)) as manager_id, EMPLOYEE_ID, FIRST_NAME, LAST_NAME " +
+      "from cp.`parquet/fixedlenDecimal.parquet`");
+    final String decimalPartitionTable = "dfs_test.tmp.`decimal_optional_partition`";
+    for (String ctasQuery : ctasQueries) {
+      try {
+        test("alter session set `%s` = true", PlannerSettings.ENABLE_DECIMAL_DATA_TYPE_KEY);
+        test(ctasQuery, decimalPartitionTable);
+
+        String query = String.format("select * from %s where manager_id = 148", decimalPartitionTable);
+        int expectedRowCount = 6;
+
+        int actualRowCount = testSql(query);
+        assertEquals("Row count does not match the expected value", expectedRowCount, actualRowCount);
+        PlanTestBase.testPlanMatchingPatterns(query, new String[]{"usedMetadataFile=false"}, new String[]{"Filter"});
+
+        test("refresh table metadata %s", decimalPartitionTable);
+
+        actualRowCount = testSql(query);
+        assertEquals("Row count does not match the expected value", expectedRowCount, actualRowCount);
+        PlanTestBase.testPlanMatchingPatterns(query, new String[]{"usedMetadataFile=true"}, new String[]{"Filter"});
+      } finally {
+        test("drop table if exists %s", decimalPartitionTable);
+        test("alter session set `%s` = false", PlannerSettings.ENABLE_DECIMAL_DATA_TYPE_KEY);
+      }
+    }
+  }
+
+  @Test // DRILL-4139
+  public void testIntWithNullsPartitionPruning() throws Exception {
+    try {
+      test("create table dfs_test.tmp.`t5/a` as\n" +
+        "select 100 as mykey from cp.`tpch/nation.parquet`\n" +
+        "union all\n" +
+        "select col_notexist from cp.`tpch/region.parquet`");
+
+      test("create table dfs_test.tmp.`t5/b` as\n" +
+        "select 200 as mykey from cp.`tpch/nation.parquet`\n" +
+        "union all\n" +
+        "select col_notexist from cp.`tpch/region.parquet`");
+
+      String query = "select mykey from dfs_test.tmp.`t5` where mykey = 100";
+      int actualRowCount = testSql(query);
+      assertEquals("Row count does not match the expected value", 25, actualRowCount);
+
+      test("refresh table metadata dfs_test.tmp.`t5`");
+
+      actualRowCount = testSql(query);
+      assertEquals("Row count does not match the expected value", 25, actualRowCount);
+    } finally {
+      test("drop table if exists dfs_test.tmp.`t5`");
+    }
+  }
+
+  @Test // DRILL-4139
+  public void testPartitionPruningWithIsNull() throws Exception {
+    try {
+      test("create table dfs_test.tmp.`t6/a` as\n" +
+        "select col_notexist as mykey from cp.`tpch/region.parquet`");
+
+      test("create table dfs_test.tmp.`t6/b` as\n" +
+        "select 100 as mykey from cp.`tpch/region.parquet`");
+
+      String query = "select mykey from dfs_test.tmp.t6 where mykey is null";
+
+      int actualRowCount = testSql(query);
+      assertEquals("Row count does not match the expected value", 5, actualRowCount);
+      PlanTestBase.testPlanMatchingPatterns(query, new String[]{"usedMetadataFile=false"}, new String[]{"Filter"});
+
+      test("refresh table metadata dfs_test.tmp.`t6`");
+
+      actualRowCount = testSql(query);
+      assertEquals("Row count does not match the expected value", 5, actualRowCount);
+      PlanTestBase.testPlanMatchingPatterns(query, new String[]{"usedMetadataFile=true"}, new String[]{"Filter"});
+    } finally {
+      test("drop table if exists dfs_test.tmp.`t6`");
+    }
+  }
+
+  @Test // DRILL-4139
+  public void testPartitionPruningWithIsNotNull() throws Exception {
+    try {
+      test("create table dfs_test.tmp.`t7/a` as\n" +
+        "select col_notexist as mykey from cp.`tpch/region.parquet`");
+
+      test("create table dfs_test.tmp.`t7/b` as\n" +
+        "select 100 as mykey from cp.`tpch/region.parquet`");
+
+      String query = "select mykey from dfs_test.tmp.t7 where mykey is null";
+
+      int actualRowCount = testSql(query);
+      assertEquals("Row count does not match the expected value", 5, actualRowCount);
+      PlanTestBase.testPlanMatchingPatterns(query, new String[]{"usedMetadataFile=false"}, new String[]{"Filter"});
+
+      test("refresh table metadata dfs_test.tmp.`t7`");
+
+      actualRowCount = testSql(query);
+      assertEquals("Row count does not match the expected value", 5, actualRowCount);
+      PlanTestBase.testPlanMatchingPatterns(query, new String[]{"usedMetadataFile=true"}, new String[]{"Filter"});
+    } finally {
+      test("drop table if exists dfs_test.tmp.`t7`");
+    }
+  }
+
   /**
    * Helper method for checking the metadata file existence
    *
@@ -726,5 +958,4 @@ public class TestParquetMetadataCache extends PlanTestBase {
     assertTrue(String.format("There is no metadata cache file for the %s table", table),
         Files.exists(metaFile.toPath()));
   }
-
 }

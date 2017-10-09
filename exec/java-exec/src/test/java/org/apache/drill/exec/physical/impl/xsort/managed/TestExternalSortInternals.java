@@ -21,6 +21,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import org.apache.drill.categories.OperatorTest;
 import org.apache.drill.common.config.DrillConfig;
 import org.apache.drill.exec.ExecConstants;
 import org.apache.drill.exec.physical.impl.xsort.managed.SortMemoryManager.MergeAction;
@@ -29,7 +30,9 @@ import org.apache.drill.test.ConfigBuilder;
 import org.apache.drill.test.DrillTest;
 import org.apache.drill.test.OperatorFixture;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
+@Category(OperatorTest.class)
 public class TestExternalSortInternals extends DrillTest {
 
   private static final int ONE_MEG = 1024 * 1024;
@@ -472,9 +475,11 @@ public class TestExternalSortInternals extends DrillTest {
         .put(ExecConstants.EXTERNAL_SORT_MERGE_LIMIT, mergeLimitConstraint)
         .build();
     SortConfig sortConfig = new SortConfig(drillConfig);
+
     // Allow four spill batches, 8 MB each, plus one output of 16
     // Allow for internal fragmentation
     // 96 > (4 * 8 + 16) * 2
+
     long memoryLimit = 96 * ONE_MEG;
     SortMemoryManager memManager = new SortMemoryManager(sortConfig, memoryLimit);
 
@@ -486,7 +491,7 @@ public class TestExternalSortInternals extends DrillTest {
 
     memManager.updateEstimates(batchSize, rowWidth, rowCount);
     assertFalse(memManager.isLowMemory());
-    int spillBatchBufferSize = memManager.getSpillBatchSize().expectedBufferSize;
+    int spillBatchBufferSize = memManager.getSpillBatchSize().maxBufferSize;
     int inputBatchBufferSize = memManager.getInputBatchSize().expectedBufferSize;
 
     // One in-mem batch, no merging.
@@ -502,7 +507,7 @@ public class TestExternalSortInternals extends DrillTest {
     task = memManager.consolidateBatches(allocMemory, memBatches, 0);
     assertEquals(MergeAction.NONE, task.action);
 
-    // Spills if no room for spill and in-memory batches
+    // Spills if no room to merge spilled and in-memory batches
 
     int spillCount = (int) Math.ceil((memManager.getMergeMemoryLimit() - allocMemory) / (1.0 * spillBatchBufferSize));
     assertTrue(spillCount >= 1);

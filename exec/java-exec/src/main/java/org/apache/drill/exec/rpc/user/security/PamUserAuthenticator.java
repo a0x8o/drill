@@ -59,7 +59,8 @@ public class PamUserAuthenticator implements UserAuthenticator {
     for (String pamProfile : profiles) {
       Pam pam = new Pam(pamProfile);
       if (!pam.authenticateSuccessful(user, password)) {
-        throw new UserAuthenticationException(String.format("PAM profile '%s' validation failed", pamProfile));
+        throw new UserAuthenticationException(String.format("PAM profile '%s' validation failed for user %s",
+            pamProfile, user));
       }
     }
   }

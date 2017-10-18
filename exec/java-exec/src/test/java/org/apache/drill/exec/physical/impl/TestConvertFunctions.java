@@ -30,6 +30,7 @@ import java.util.List;
 
 import org.apache.drill.BaseTestQuery;
 import org.apache.drill.QueryTestUtil;
+import org.apache.drill.categories.UnlikelyTest;
 import org.apache.drill.exec.ExecConstants;
 import org.apache.drill.exec.compile.ClassTransformer.ScalarReplacementOption;
 import org.apache.drill.exec.compile.CodeCompiler;
@@ -55,7 +56,9 @@ import com.google.common.io.Resources;
 
 import io.netty.buffer.DrillBuf;
 import mockit.Injectable;
+import org.junit.experimental.categories.Category;
 
+@Category(UnlikelyTest.class)
 public class TestConvertFunctions extends BaseTestQuery {
 //  private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(TestConvertFunctions.class);
 
@@ -119,7 +122,7 @@ public class TestConvertFunctions extends BaseTestQuery {
           .run();
     } finally {
       // restore the system option
-      QueryTestUtil.restoreScalarReplacementOption(bits[0], srOption);
+      QueryTestUtil.restoreScalarReplacementOption(bits[0], srOption.string_val);
       test("alter session set `planner.slice_target` = " + ExecConstants.SLICE_TARGET_DEFAULT);
     }
   }
@@ -547,7 +550,7 @@ public class TestConvertFunctions extends BaseTestQuery {
       testBigIntVarCharReturnTripConvertLogical();
     } finally {
       // restore the system option
-      QueryTestUtil.restoreScalarReplacementOption(bits[0], srOption);
+      QueryTestUtil.restoreScalarReplacementOption(bits[0], srOption.string_val);
     }
   }
 
@@ -564,7 +567,7 @@ public class TestConvertFunctions extends BaseTestQuery {
     } catch(RpcException e) {
       caughtException = true;
     } finally {
-      QueryTestUtil.restoreScalarReplacementOption(bits[0], srOption);
+      QueryTestUtil.restoreScalarReplacementOption(bits[0], srOption.string_val);
     }
 
     // Yes: sometimes this works, sometimes it does not...
@@ -579,7 +582,7 @@ public class TestConvertFunctions extends BaseTestQuery {
       testBigIntVarCharReturnTripConvertLogical();
     } finally {
       // restore the system option
-      QueryTestUtil.restoreScalarReplacementOption(bits[0], srOption);
+      QueryTestUtil.restoreScalarReplacementOption(bits[0], srOption.string_val);
     }
   }
 
@@ -650,7 +653,7 @@ public class TestConvertFunctions extends BaseTestQuery {
 
     } finally {
       // restore the system option
-      QueryTestUtil.restoreScalarReplacementOption(bits[0], srOption);
+      QueryTestUtil.restoreScalarReplacementOption(bits[0], srOption.string_val);
     }
   }
 

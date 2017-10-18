@@ -19,6 +19,7 @@
 package org.apache.drill.exec.physical.unit;
 
 import com.google.common.collect.Lists;
+import org.apache.drill.categories.PlannerTest;
 import org.apache.drill.common.types.TypeProtos;
 import org.apache.drill.common.util.FileUtils;
 import org.apache.drill.exec.physical.config.Filter;
@@ -30,8 +31,8 @@ import org.apache.drill.test.rowSet.SchemaBuilder;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import java.util.Collections;
 import java.util.List;
@@ -42,6 +43,7 @@ import java.util.List;
  * built from PopBuilder/ScanBuilder, 2)an expected schema and base line values,
  * or 3) indicating no batch is expected.
  */
+@Category(PlannerTest.class)
 public class TestMiniPlan extends MiniPlanUnitTestBase {
 
   protected static DrillFileSystem fs;
@@ -51,22 +53,6 @@ public class TestMiniPlan extends MiniPlanUnitTestBase {
     Configuration conf = new Configuration();
     conf.set(FileSystem.FS_DEFAULT_NAME_KEY, FileSystem.DEFAULT_FS);
     fs = new DrillFileSystem(conf);
-  }
-
-  @Test
-  @Ignore("DRILL-5464: A bug in JsonRecordReader handling empty file")
-  public void testEmptyJsonInput() throws Exception {
-    String emptyFile = FileUtils.getResourceAsFile("/project/pushdown/empty.json").toURI().toString();
-
-    RecordBatch scanBatch = new JsonScanBuilder()
-        .fileSystem(fs)
-        .inputPaths(Lists.newArrayList(emptyFile))
-        .build();
-
-    new MiniPlanTestBuilder()
-        .root(scanBatch)
-        .expectZeroBatch(true)
-        .go();
   }
 
   @Test
@@ -85,7 +71,7 @@ public class TestMiniPlan extends MiniPlanUnitTestBase {
 
     new MiniPlanTestBuilder()
         .root(scanBatch)
-        .expectedSchema(expectedSchema)
+        .expectSchema(expectedSchema)
         .baselineValues(0L)
         .baselineValues(1L)
         .go();
@@ -107,7 +93,7 @@ public class TestMiniPlan extends MiniPlanUnitTestBase {
 
     new MiniPlanTestBuilder()
         .root(scanBatch)
-        .expectedSchema(expectedSchema)
+        .expectSchema(expectedSchema)
         .baselineValues(100L)
         .go();
   }
@@ -149,58 +135,12 @@ public class TestMiniPlan extends MiniPlanUnitTestBase {
 
     new MiniPlanTestBuilder()
         .root(batch)
-        .expectedSchema(expectedSchema)
+        .expectSchema(expectedSchema)
         .baselineValues(5l, 1l)
         .baselineValues(5l, 5l)
         .baselineValues(50l, 100l)
         .go();
   }
 
-  @Test
-  @Ignore ("DRILL-5327: A bug in UnionAll handling empty inputs from both sides")
-  public void testUnionFilterAll() throws Exception {
-    List<String> leftJsonBatches = Lists.newArrayList(
-        "[{\"a\": 5, \"b\" : 1 }]");
-
-    List<String> rightJsonBatches = Lists.newArrayList(
-        "[{\"a\": 50, \"b\" : 10 }]");
-
-    RecordBatch leftScan = new JsonScanBuilder()
-        .jsonBatches(leftJsonBatches)
-        .columnsToRead("a", "b")
-        .build();
-
-    RecordBatch leftFilter = new PopBuilder()
-        .physicalOperator(new Filter(null, parseExpr("a < 0"), 1.0f))
-        .addInput(leftScan)
-        .build();
-
-    RecordBatch rightScan = new JsonScanBuilder()
-        .jsonBatches(rightJsonBatches)
-        .columnsToRead("a", "b")
-        .build();
-
-    RecordBatch rightFilter = new PopBuilder()
-        .physicalOperator(new Filter(null, parseExpr("a < 0"), 1.0f))
-        .addInput(rightScan)
-        .build();
-
-    RecordBatch batch = new PopBuilder()
-        .physicalOperator(new UnionAll(Collections.EMPTY_LIST)) // Children list is provided through RecordBatch
-        .addInput(leftFilter)
-        .addInput(rightFilter)
-        .build();
-
-    BatchSchema expectedSchema = new SchemaBuilder()
-        .addNullable("a", TypeProtos.MinorType.BIGINT)
-        .addNullable("b", TypeProtos.MinorType.BIGINT)
-        .withSVMode(BatchSchema.SelectionVectorMode.NONE)
-        .build();
-
-    new MiniPlanTestBuilder()
-        .root(batch)
-        .expectedSchema(expectedSchema)
-        .go();
-  }
 
 }

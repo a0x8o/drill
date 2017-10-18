@@ -23,6 +23,7 @@ import static org.junit.Assert.fail;
 
 import java.io.IOException;
 
+import org.apache.drill.categories.OperatorTest;
 import org.apache.drill.common.exceptions.UserRemoteException;
 import org.apache.drill.common.util.TestTools;
 import org.apache.drill.exec.ExecConstants;
@@ -34,6 +35,7 @@ import org.apache.drill.test.ClusterTest;
 import org.apache.drill.test.FixtureBuilder;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 /**
  * Testing External Sort's spilling to disk.
@@ -43,6 +45,7 @@ import org.junit.Test;
  * <br>
  * {@link ExecConstants#EXTERNAL_SORT_SPILL_GROUP_SIZE} = 1
  */
+@Category(OperatorTest.class)
 public class TestSortSpillWithException extends ClusterTest {
   private static final String TEST_RES_PATH = TestTools.getWorkingPath() + "/src/test/resources";
 
@@ -52,6 +55,8 @@ public class TestSortSpillWithException extends ClusterTest {
         .configProperty(ExecConstants.EXTERNAL_SORT_SPILL_THRESHOLD, 1) // Unmanaged
         .configProperty(ExecConstants.EXTERNAL_SORT_SPILL_GROUP_SIZE, 1) // Unmanaged
         .sessionOption(ExecConstants.MAX_QUERY_MEMORY_PER_NODE_KEY, 60 * 1024 * 1024) // Spill early
+        // Prevent the percent-based memory rule from second-guessing the above.
+        .sessionOption(ExecConstants.PERCENT_MEMORY_PER_QUERY_KEY, 0.0)
         .configProperty(ExecConstants.EXTERNAL_SORT_DISABLE_MANAGED, false)
         .maxParallelization(1)
         ;
@@ -64,8 +69,8 @@ public class TestSortSpillWithException extends ClusterTest {
     // inject exception in sort while spilling
     final String controls = Controls.newBuilder()
       .addExceptionOnBit(
-          org.apache.drill.exec.physical.impl.xsort.ExternalSortBatch.class,
-          org.apache.drill.exec.physical.impl.xsort.ExternalSortBatch.INTERRUPTION_WHILE_SPILLING,
+          ExternalSortBatch.class,
+          ExternalSortBatch.INTERRUPTION_WHILE_SPILLING,
           IOException.class,
           cluster.drillbit().getContext().getEndpoint())
       .build();
@@ -87,8 +92,8 @@ public class TestSortSpillWithException extends ClusterTest {
     // inject exception in sort while spilling
     final String controls = Controls.newBuilder()
       .addExceptionOnBit(
-          org.apache.drill.exec.physical.impl.xsort.managed.ExternalSortBatch.class,
-          org.apache.drill.exec.physical.impl.xsort.managed.ExternalSortBatch.INTERRUPTION_WHILE_SPILLING,
+          ExternalSortBatch.class,
+          ExternalSortBatch.INTERRUPTION_WHILE_SPILLING,
           IOException.class,
           cluster.drillbit().getContext().getEndpoint())
       .build();

@@ -20,18 +20,26 @@ package org.apache.drill;
 import com.google.common.collect.Lists;
 
 import org.apache.commons.lang3.tuple.Pair;
+import org.apache.drill.categories.OperatorTest;
+import org.apache.drill.categories.SqlTest;
+import org.apache.drill.categories.UnlikelyTest;
 import org.apache.drill.common.exceptions.UserException;
 import org.apache.drill.common.expression.SchemaPath;
 import org.apache.drill.common.types.TypeProtos;
 import org.apache.drill.common.util.FileUtils;
 import org.apache.drill.exec.work.foreman.SqlUnsupportedException;
 import org.apache.drill.exec.work.foreman.UnsupportedRelOperatorException;
+import org.junit.Ignore;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
 import java.util.List;
 
-public class TestUnionAll extends BaseTestQuery{
-//  private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(TestUnionAll.class);
+@Category({SqlTest.class, OperatorTest.class})
+public class TestUnionAll extends BaseTestQuery {
 
   private static final String sliceTargetSmall = "alter session set `planner.slice_target` = 1";
   private static final String sliceTargetDefault = "alter session reset `planner.slice_target`";
@@ -161,6 +169,7 @@ public class TestUnionAll extends BaseTestQuery{
   }
 
   @Test // DRILL-1905: Union-all of * column from JSON files in different directories
+  @Category(UnlikelyTest.class)
   public void testUnionAll9() throws Exception {
     String file0 = FileUtils.getResourceAsFile("/multilevel/json/1994/Q1/orders_94_q1.json").toURI().toString();
     String file1 = FileUtils.getResourceAsFile("/multilevel/json/1995/Q1/orders_95_q1.json").toURI().toString();
@@ -274,6 +283,7 @@ public class TestUnionAll extends BaseTestQuery{
   }
 
   @Test // see DRILL-2203
+  @Category(UnlikelyTest.class)
   public void testDistinctOverUnionAllwithFullyQualifiedColumnNames() throws Exception {
     String query = "select distinct sq.x1, sq.x2 " +
         "from " +
@@ -291,6 +301,7 @@ public class TestUnionAll extends BaseTestQuery{
   }
 
   @Test // see DRILL-1923
+  @Category(UnlikelyTest.class)
   public void testUnionAllContainsColumnANumericConstant() throws Exception {
     String query = "(select n_nationkey, n_regionkey, n_name from cp.`tpch/nation.parquet`  limit 5) " +
         "union all " +
@@ -306,6 +317,7 @@ public class TestUnionAll extends BaseTestQuery{
   }
 
   @Test // see DRILL-2207
+  @Category(UnlikelyTest.class)
   public void testUnionAllEmptySides() throws Exception {
     String query1 = "(select n_nationkey, n_regionkey, n_name from cp.`tpch/nation.parquet`  limit 0) " +
         "union all " +
@@ -334,6 +346,7 @@ public class TestUnionAll extends BaseTestQuery{
     }
 
   @Test // see DRILL-1977, DRILL-2376, DRILL-2377, DRILL-2378, DRILL-2379
+  @Category(UnlikelyTest.class)
   public void testAggregationOnUnionAllOperator() throws Exception {
     String root = FileUtils.getResourceAsFile("/store/text/data/t.json").toURI().toString();
     String query1 = String.format(
@@ -381,6 +394,7 @@ public class TestUnionAll extends BaseTestQuery{
   }
 
   @Test // see DRILL-2591
+  @Category(UnlikelyTest.class)
   public void testDateAndTimestampJson() throws Exception {
     String rootDate = FileUtils.getResourceAsFile("/store/json/dateData.json").toURI().toString();
     String rootTimpStmp = FileUtils.getResourceAsFile("/store/json/timeStmpData.json").toURI().toString();
@@ -426,6 +440,7 @@ public class TestUnionAll extends BaseTestQuery{
   }
 
   @Test // see DRILL-2637
+  @Category(UnlikelyTest.class)
   public void testUnionAllOneInputContainsAggFunction() throws Exception {
     String root = FileUtils.getResourceAsFile("/multilevel/csv/1994/Q1/orders_94_q1.csv").toURI().toString();
     String query1 = String.format("select * from ((select count(c1) as ct from (select columns[0] c1 from dfs.`%s`)) \n" +
@@ -468,6 +483,7 @@ public class TestUnionAll extends BaseTestQuery{
   }
 
   @Test // see DRILL-2717
+  @Category(UnlikelyTest.class)
   public void testUnionInputsGroupByOnCSV() throws Exception {
     String root = FileUtils.getResourceAsFile("/multilevel/csv/1994/Q1/orders_94_q1.csv").toURI().toString();
     String query = String.format("select * from \n" +
@@ -498,6 +514,7 @@ public class TestUnionAll extends BaseTestQuery{
   }
 
   @Test // see DRILL-2639
+  @Category(UnlikelyTest.class)
   public void testUnionAllDiffTypesAtPlanning() throws Exception {
     String query = "select count(c1) as ct from (select cast(r_regionkey as int) c1 from cp.`tpch/region.parquet`) " +
         "union all " +
@@ -517,6 +534,7 @@ public class TestUnionAll extends BaseTestQuery{
   }
 
   @Test // see DRILL-2612
+  @Category(UnlikelyTest.class)
   public void testUnionAllRightEmptyJson() throws Exception {
     String rootEmpty = FileUtils.getResourceAsFile("/project/pushdown/empty.json").toURI().toString();
     String rootSimple = FileUtils.getResourceAsFile("/store/json/booleanData.json").toURI().toString();
@@ -584,7 +602,7 @@ public class TestUnionAll extends BaseTestQuery{
   }
 
   @Test
-  public void testUnionAllRightEmptyBatch() throws Exception {
+  public void testUnionAllRightEmptyDataBatch() throws Exception {
     String rootSimple = FileUtils.getResourceAsFile("/store/json/booleanData.json").toURI().toString();
 
     String queryRightEmptyBatch = String.format(
@@ -604,7 +622,7 @@ public class TestUnionAll extends BaseTestQuery{
   }
 
   @Test
-  public void testUnionAllLeftEmptyBatch() throws Exception {
+  public void testUnionAllLeftEmptyDataBatch() throws Exception {
     String rootSimple = FileUtils.getResourceAsFile("/store/json/booleanData.json").toURI().toString();
 
     final String queryLeftBatch = String.format(
@@ -625,7 +643,7 @@ public class TestUnionAll extends BaseTestQuery{
   }
 
   @Test
-  public void testUnionAllBothEmptyBatch() throws Exception {
+  public void testUnionAllBothEmptyDataBatch() throws Exception {
     String rootSimple = FileUtils.getResourceAsFile("/store/json/booleanData.json").toURI().toString();
     final String query = String.format(
         "select key from dfs_test.`%s` where 1 = 0 " +
@@ -636,7 +654,7 @@ public class TestUnionAll extends BaseTestQuery{
 
     final List<Pair<SchemaPath, TypeProtos.MajorType>> expectedSchema = Lists.newArrayList();
     final TypeProtos.MajorType majorType = TypeProtos.MajorType.newBuilder()
-        .setMinorType(TypeProtos.MinorType.INT)
+        .setMinorType(TypeProtos.MinorType.BIT) // field "key" is boolean type
         .setMode(TypeProtos.DataMode.OPTIONAL)
         .build();
     expectedSchema.add(Pair.of(SchemaPath.getSimplePath("key"), majorType));
@@ -908,6 +926,7 @@ public class TestUnionAll extends BaseTestQuery{
   }
 
   @Test // DRILL-3257 (Simplified Query from TPC-DS query 74)
+  @Category(UnlikelyTest.class)
   public void testUnionAllInWith() throws Exception {
     final String query1 = "WITH year_total \n" +
         "     AS (SELECT c.r_regionkey    customer_id,\n" +
@@ -1022,6 +1041,7 @@ public class TestUnionAll extends BaseTestQuery{
   }
 
   @Test // DRILL-4147 // base case
+  @Category(UnlikelyTest.class)
   public void testDrill4147_1() throws Exception {
     final String l = FileUtils.getResourceAsFile("/multilevel/parquet/1994").toURI().toString();
     final String r = FileUtils.getResourceAsFile("/multilevel/parquet/1995").toURI().toString();
@@ -1113,6 +1133,7 @@ public class TestUnionAll extends BaseTestQuery{
   }
 
   @Test // DRILL-4833  // limit 1 is on RHS of union-all
+  @Category(UnlikelyTest.class)
   public void testDrill4833_1() throws Exception {
     final String l = FileUtils.getResourceAsFile("/multilevel/parquet/1994").toURI().toString();
     final String r = FileUtils.getResourceAsFile("/multilevel/parquet/1995").toURI().toString();
@@ -1146,6 +1167,7 @@ public class TestUnionAll extends BaseTestQuery{
   }
 
   @Test // DRILL-4833  // limit 1 is on LHS of union-all
+  @Category(UnlikelyTest.class)
   public void testDrill4833_2() throws Exception {
     final String l = FileUtils.getResourceAsFile("/multilevel/parquet/1994").toURI().toString();
     final String r = FileUtils.getResourceAsFile("/multilevel/parquet/1995").toURI().toString();
@@ -1190,4 +1212,42 @@ public class TestUnionAll extends BaseTestQuery{
         .go();
   }
 
+  @Test // DRILL-4264
+  @Category(UnlikelyTest.class)
+  public void testFieldWithDots() throws Exception {
+    File directory = new File(BaseTestQuery.getTempDir("json/input"));
+    try {
+      directory.mkdirs();
+      String fileName = "table.json";
+      try (BufferedWriter writer = new BufferedWriter(new FileWriter(new File(directory, fileName)))) {
+        writer.write("{\"rk.q\": \"a\", \"m\": {\"a.b\":\"1\", \"a\":{\"b\":\"2\"}, \"c\":\"3\"}}");
+      }
+
+      String query = String.format("select * from (" +
+                                              "(select t.m.`a.b` as a,\n" +
+                                                      "t.m.a.b as b,\n" +
+                                                      "t.m['a.b'] as c,\n" +
+                                                      "t.rk.q as d,\n" +
+                                                      "t.`rk.q` as e\n" +
+                                              "from dfs_test.`%1$s/%2$s` t)\n" +
+                                            "union all\n" +
+                                              "(select t.m.`a.b` as a,\n" +
+                                                      "t.m.a.b as b,\n" +
+                                                      "t.m['a.b'] as c,\n" +
+                                                      "t.rk.q as d,\n" +
+                                                      "t.`rk.q` as e\n" +
+                                              "from dfs_test.`%1$s/%2$s` t))",
+                                  directory.toPath().toString(), fileName);
+      testBuilder()
+        .sqlQuery(query)
+        .unOrdered()
+        .baselineColumns("a", "b", "c", "d", "e")
+        .baselineValues("1", "2", "1", null, "a")
+        .baselineValues("1", "2", "1", null, "a")
+        .go();
+
+    } finally {
+      org.apache.commons.io.FileUtils.deleteQuietly(directory);
+    }
+  }
 }

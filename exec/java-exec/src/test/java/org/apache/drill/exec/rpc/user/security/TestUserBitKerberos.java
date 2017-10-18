@@ -20,10 +20,14 @@ package org.apache.drill.exec.rpc.user.security;
 import com.google.common.collect.Lists;
 import com.typesafe.config.ConfigValueFactory;
 import org.apache.drill.BaseTestQuery;
+import org.apache.drill.categories.SecurityTest;
 import org.apache.drill.common.config.DrillProperties;
 import org.apache.drill.common.config.DrillConfig;
 import org.apache.drill.exec.ExecConstants;
+import org.apache.drill.exec.rpc.control.ControlRpcMetrics;
+import org.apache.drill.exec.rpc.data.DataRpcMetrics;
 import org.apache.drill.exec.rpc.security.KerberosHelper;
+import org.apache.drill.exec.rpc.user.UserRpcMetrics;
 import org.apache.drill.exec.rpc.user.security.testing.UserAuthenticatorTestImpl;
 import org.apache.drill.exec.server.BootStrapContext;
 import org.apache.hadoop.security.authentication.util.KerberosName;
@@ -33,13 +37,17 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import javax.security.auth.Subject;
 import java.lang.reflect.Field;
 import java.security.PrivilegedExceptionAction;
 import java.util.Properties;
 
+import static junit.framework.TestCase.assertTrue;
+
 @Ignore("See DRILL-5387")
+@Category(SecurityTest.class)
 public class TestUserBitKerberos extends BaseTestQuery {
   //private static final org.slf4j.Logger logger =org.slf4j.LoggerFactory.getLogger(TestUserBitKerberos.class);
 
@@ -135,6 +143,41 @@ public class TestUserBitKerberos extends BaseTestQuery {
     test("SHOW TABLES");
     test("SELECT * FROM INFORMATION_SCHEMA.`TABLES` WHERE TABLE_NAME LIKE 'COLUMNS'");
     test("SELECT * FROM cp.`region.json` LIMIT 5");
+  }
+
+  @Test
+  public void testUnecryptedConnectionCounter() throws Exception {
+    final Properties connectionProps = new Properties();
+    connectionProps.setProperty(DrillProperties.SERVICE_PRINCIPAL, krbHelper.SERVER_PRINCIPAL);
+    connectionProps.setProperty(DrillProperties.KERBEROS_FROM_SUBJECT, "true");
+    final Subject clientSubject = JaasKrbUtil.loginUsingKeytab(krbHelper.CLIENT_PRINCIPAL,
+        krbHelper.clientKeytab.getAbsoluteFile());
+
+    Subject.doAs(clientSubject, new PrivilegedExceptionAction<Void>() {
+      @Override
+      public Void run() throws Exception {
+        updateClient(connectionProps);
+        return null;
+      }
+    });
+
+    // Run few queries using the new client
+    testBuilder()
+        .sqlQuery("SELECT session_user FROM (SELECT * FROM sys.drillbits LIMIT 1)")
+        .unOrdered()
+        .baselineColumns("session_user")
+        .baselineValues(krbHelper.CLIENT_SHORT_NAME)
+        .go();
+
+    // Check encrypted counters value
+    assertTrue(0 == UserRpcMetrics.getInstance().getEncryptedConnectionCount());
+    assertTrue(0 == ControlRpcMetrics.getInstance().getEncryptedConnectionCount());
+    assertTrue(0 == DataRpcMetrics.getInstance().getEncryptedConnectionCount());
+
+    // Check unencrypted counters value
+    assertTrue(1 == UserRpcMetrics.getInstance().getUnEncryptedConnectionCount());
+    assertTrue(2 == ControlRpcMetrics.getInstance().getUnEncryptedConnectionCount());
+    assertTrue(0 == DataRpcMetrics.getInstance().getUnEncryptedConnectionCount());
   }
 
   @AfterClass

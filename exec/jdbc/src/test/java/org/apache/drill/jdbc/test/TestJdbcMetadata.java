@@ -22,11 +22,13 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 import org.apache.drill.common.util.TestTools;
+import org.apache.drill.categories.JdbcTest;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 import org.junit.rules.TestRule;
 
-
+@Category(JdbcTest.class)
 public class TestJdbcMetadata extends JdbcTestActionBase {
   private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(TestJdbcMetadata.class);
 
@@ -81,7 +83,7 @@ public class TestJdbcMetadata extends JdbcTestActionBase {
       public ResultSet getResult(Connection c) throws SQLException {
         return c.getMetaData().getTables("DRILL", "sys", "opt%", new String[]{"SYSTEM_TABLE", "SYSTEM_VIEW"});
       }
-    }, 1);
+    }, 2);
   }
 
   @Test
@@ -101,6 +103,6 @@ public class TestJdbcMetadata extends JdbcTestActionBase {
       public ResultSet getResult(Connection c) throws SQLException {
         return c.getMetaData().getColumns("DRILL", "sys", "opt%", "%ame");
       }
-    }, 1);
+    }, 2);
   }
 }

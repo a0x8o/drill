@@ -33,6 +33,7 @@ class UserConnectionConfig extends AbstractConnectionConfig {
   private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(UserConnectionConfig.class);
 
   private final boolean authEnabled;
+  private final boolean sslEnabled;
   private final InboundImpersonationManager impersonationManager;
 
   private final UserServerRequestHandler handler;
@@ -61,8 +62,9 @@ class UserConnectionConfig extends AbstractConnectionConfig {
             "user.encryption.sasl.max_wrapped_size. Must be a positive integer in bytes with a recommended max value " +
             "of %s", RpcConstants.MAX_RECOMMENDED_WRAPPED_SIZE));
       } else if (maxWrappedSize > RpcConstants.MAX_RECOMMENDED_WRAPPED_SIZE) {
-        logger.warn("The configured value of user.encryption.sasl.max_wrapped_size is too big. This may cause higher" +
-            " memory pressure. [Details: Recommended max value is %s]", RpcConstants.MAX_RECOMMENDED_WRAPPED_SIZE);
+        logger.warn("The configured value of user.encryption.sasl.max_wrapped_size: {} is too big. This may cause " +
+            "higher memory pressure. [Details: Recommended max value is {}]",
+            maxWrappedSize, RpcConstants.MAX_RECOMMENDED_WRAPPED_SIZE);
       }
       encryptionContext.setMaxWrappedSize(maxWrappedSize);
 
@@ -74,10 +76,16 @@ class UserConnectionConfig extends AbstractConnectionConfig {
     } else {
       authEnabled = false;
     }
-
     impersonationManager = !config.getBoolean(ExecConstants.IMPERSONATION_ENABLED)
         ? null
         : new InboundImpersonationManager();
+
+    sslEnabled = config.getBoolean(ExecConstants.USER_SSL_ENABLED);
+
+    if(isSSLEnabled() && isAuthEnabled() && isEncryptionEnabled()){
+      logger.warn("The server is configured to use both SSL and SASL encryption (only one should be configured).");
+    }
+
   }
 
   @Override
@@ -87,6 +95,10 @@ class UserConnectionConfig extends AbstractConnectionConfig {
 
   boolean isAuthEnabled() {
     return authEnabled;
+  }
+
+  boolean isSSLEnabled() {
+    return sslEnabled;
   }
 
   InboundImpersonationManager getImpersonationManager() {

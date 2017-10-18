@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.drill.common.AutoCloseables;
 import org.apache.drill.common.StackTrace;
 import org.apache.drill.common.config.DrillConfig;
+import org.apache.drill.common.map.CaseInsensitiveMap;
 import org.apache.drill.common.scanner.ClassPathScanner;
 import org.apache.drill.common.scanner.persistence.ScanResult;
 import org.apache.drill.exec.ExecConstants;
@@ -31,9 +32,10 @@ import org.apache.drill.exec.coord.ClusterCoordinator.RegistrationHandle;
 import org.apache.drill.exec.coord.zk.ZKClusterCoordinator;
 import org.apache.drill.exec.exception.DrillbitStartupException;
 import org.apache.drill.exec.proto.CoordinationProtos.DrillbitEndpoint;
-import org.apache.drill.exec.server.options.OptionManager;
+import org.apache.drill.exec.server.options.OptionDefinition;
 import org.apache.drill.exec.server.options.OptionValue;
-import org.apache.drill.exec.server.options.OptionValue.OptionType;
+import org.apache.drill.exec.server.options.OptionValue.OptionScope;
+import org.apache.drill.exec.server.options.SystemOptionManager;
 import org.apache.drill.exec.server.rest.WebServer;
 import org.apache.drill.exec.service.ServiceEngine;
 import org.apache.drill.exec.store.StoragePluginRegistry;
@@ -81,19 +83,37 @@ public class Drillbit implements AutoCloseable {
 
   @VisibleForTesting
   public Drillbit(
+    final DrillConfig config,
+    final RemoteServiceSet serviceSet) throws Exception {
+    this(config, SystemOptionManager.createDefaultOptionDefinitions(), serviceSet, ClassPathScanner.fromPrescan(config));
+  }
+
+  @VisibleForTesting
+  public Drillbit(
       final DrillConfig config,
+      final CaseInsensitiveMap<OptionDefinition> definitions,
       final RemoteServiceSet serviceSet) throws Exception {
-    this(config, serviceSet, ClassPathScanner.fromPrescan(config));
+    this(config, definitions, serviceSet, ClassPathScanner.fromPrescan(config));
   }
 
   public Drillbit(
-      final DrillConfig config,
-      final RemoteServiceSet serviceSet,
-      final ScanResult classpathScan) throws Exception {
+    final DrillConfig config,
+    final RemoteServiceSet serviceSet,
+    final ScanResult classpathScan) throws Exception {
+    this(config, SystemOptionManager.createDefaultOptionDefinitions(), serviceSet, classpathScan);
+  }
+
+  @SuppressWarnings("resource")
+  @VisibleForTesting
+  public Drillbit(
+    final DrillConfig config,
+    final CaseInsensitiveMap<OptionDefinition> definitions,
+    final RemoteServiceSet serviceSet,
+    final ScanResult classpathScan) throws Exception {
     final Stopwatch w = Stopwatch.createStarted();
     logger.debug("Construction started.");
     final boolean allowPortHunting = serviceSet != null;
-    context = new BootStrapContext(config, classpathScan);
+    context = new BootStrapContext(config, definitions, classpathScan);
     manager = new WorkManager(context);
 
     webServer = new WebServer(context, manager);
@@ -103,7 +123,7 @@ public class Drillbit implements AutoCloseable {
       storeProvider = new CachingPersistentStoreProvider(new LocalPersistentStoreProvider(config));
     } else {
       coord = new ZKClusterCoordinator(config);
-      storeProvider = new PersistentStoreRegistry(this.coord, config).newPStoreProvider();
+      storeProvider = new PersistentStoreRegistry<ClusterCoordinator>(this.coord, config).newPStoreProvider();
       isDistributedMode = true;
     }
 
@@ -120,6 +140,14 @@ public class Drillbit implements AutoCloseable {
     logger.info("Construction completed ({} ms).", w.elapsed(TimeUnit.MILLISECONDS));
   }
 
+  public int getUserPort() {
+    return engine.getUserPort();
+  }
+
+  public int getWebServerPort() {
+    return webServer.getPort();
+  }
+
   public void run() throws Exception {
     final Stopwatch w = Stopwatch.createStarted();
     logger.debug("Startup begun.");
@@ -130,6 +158,7 @@ public class Drillbit implements AutoCloseable {
     }
     final DrillbitEndpoint md = engine.start();
     manager.start(md, engine.getController(), engine.getDataConnectionCreator(), coord, storeProvider, profileStoreProvider);
+    @SuppressWarnings("resource")
     final DrillbitContext drillbitContext = manager.getContext();
     storageRegistry = drillbitContext.getStorage();
     storageRegistry.init();
@@ -138,6 +167,10 @@ public class Drillbit implements AutoCloseable {
     manager.getContext().getRemoteFunctionRegistry().init(context.getConfig(), storeProvider, coord);
     registrationHandle = coord.register(md);
     webServer.start();
+
+    // Must start the RM after the above since it needs to read system options.
+
+    drillbitContext.startRM();
 
     Runtime.getRuntime().addShutdownHook(new ShutdownThread(this, new StackTrace()));
     logger.info("Startup completed ({} ms).", w.elapsed(TimeUnit.MILLISECONDS));
@@ -197,7 +230,8 @@ public class Drillbit implements AutoCloseable {
       return;
     }
 
-    final OptionManager optionManager = getContext().getOptionManager();
+    @SuppressWarnings("resource")
+    final SystemOptionManager optionManager = getContext().getOptionManager();
 
     // parse out the properties, validate, and then set them
     final String systemProps[] = allSystemProps.split(",");
@@ -218,16 +252,16 @@ public class Drillbit implements AutoCloseable {
       }
 
       final OptionValue defaultValue = optionManager.getOption(optionName);
+
       if (defaultValue == null) {
         throwInvalidSystemOption(systemProp, "does not specify a valid option name");
       }
-      if (defaultValue.type != OptionType.SYSTEM) {
+
+      if (!defaultValue.accessibleScopes.inScopeOf(OptionScope.SYSTEM)) {
         throwInvalidSystemOption(systemProp, "does not specify a SYSTEM option ");
       }
 
-      final OptionValue optionValue = OptionValue.createOption(
-          defaultValue.kind, OptionType.SYSTEM, optionName, optionString);
-      optionManager.setOption(optionValue);
+      optionManager.setLocalOption(defaultValue.kind, optionName, optionString);
     }
   }
 
@@ -286,21 +320,27 @@ public class Drillbit implements AutoCloseable {
   }
 
   public static Drillbit start(final StartupOptions options) throws DrillbitStartupException {
-    return start(DrillConfig.create(options.getConfigLocation()), null);
+    return start(DrillConfig.create(options.getConfigLocation()), SystemOptionManager.createDefaultOptionDefinitions(), null);
   }
 
   public static Drillbit start(final DrillConfig config) throws DrillbitStartupException {
-    return start(config, null);
+    return start(config, SystemOptionManager.createDefaultOptionDefinitions(), null);
   }
 
-  public static Drillbit start(final DrillConfig config, final RemoteServiceSet remoteServiceSet)
+  public static Drillbit start(final DrillConfig config, final RemoteServiceSet remoteServiceSet) throws DrillbitStartupException {
+    return start(config, SystemOptionManager.createDefaultOptionDefinitions(), remoteServiceSet);
+  }
+
+  @VisibleForTesting
+  public static Drillbit start(final DrillConfig config, final CaseInsensitiveMap<OptionDefinition> validators,
+                               final RemoteServiceSet remoteServiceSet)
       throws DrillbitStartupException {
     logger.debug("Starting new Drillbit.");
     // TODO: allow passing as a parameter
     ScanResult classpathScan = ClassPathScanner.fromPrescan(config);
     Drillbit bit;
     try {
-      bit = new Drillbit(config, remoteServiceSet, classpathScan);
+      bit = new Drillbit(config, validators, remoteServiceSet, classpathScan);
     } catch (final Exception ex) {
       throw new DrillbitStartupException("Failure while initializing values in Drillbit.", ex);
     }

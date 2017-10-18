@@ -20,16 +20,21 @@ package org.apache.drill;
 import com.google.common.collect.Lists;
 
 import org.apache.commons.lang3.tuple.Pair;
+import org.apache.drill.categories.OperatorTest;
+import org.apache.drill.categories.SqlTest;
 import org.apache.drill.common.exceptions.UserException;
 import org.apache.drill.common.expression.SchemaPath;
 import org.apache.drill.common.types.TypeProtos;
 import org.apache.drill.common.util.FileUtils;
 import org.apache.drill.exec.work.foreman.SqlUnsupportedException;
 import org.apache.drill.exec.work.foreman.UnsupportedRelOperatorException;
+import org.junit.Ignore;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import java.util.List;
 
+@Category({SqlTest.class, OperatorTest.class})
 public class TestUnionDistinct extends BaseTestQuery {
 //  private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(TestUnionDistinct.class);
 
@@ -583,7 +588,7 @@ public class TestUnionDistinct extends BaseTestQuery {
   }
 
   @Test
-  public void testUnionDistinctRightEmptyBatch() throws Exception {
+  public void testUnionDistinctRightEmptyDataBatch() throws Exception {
     String rootSimple = FileUtils.getResourceAsFile("/store/json/booleanData.json").toURI().toString();
 
     String queryRightEmptyBatch = String.format(
@@ -603,7 +608,7 @@ public class TestUnionDistinct extends BaseTestQuery {
   }
 
   @Test
-  public void testUnionDistinctLeftEmptyBatch() throws Exception {
+  public void testUnionDistinctLeftEmptyDataBatch() throws Exception {
     String rootSimple = FileUtils.getResourceAsFile("/store/json/booleanData.json").toURI().toString();
 
     final String queryLeftBatch = String.format(
@@ -624,7 +629,7 @@ public class TestUnionDistinct extends BaseTestQuery {
   }
 
   @Test
-  public void testUnionDistinctBothEmptyBatch() throws Exception {
+  public void testUnionDistinctBothEmptyDataBatch() throws Exception {
     String rootSimple = FileUtils.getResourceAsFile("/store/json/booleanData.json").toURI().toString();
     final String query = String.format(
         "select key from dfs_test.`%s` where 1 = 0 " +
@@ -635,7 +640,7 @@ public class TestUnionDistinct extends BaseTestQuery {
 
     final List<Pair<SchemaPath, TypeProtos.MajorType>> expectedSchema = Lists.newArrayList();
     final TypeProtos.MajorType majorType = TypeProtos.MajorType.newBuilder()
-        .setMinorType(TypeProtos.MinorType.INT)
+        .setMinorType(TypeProtos.MinorType.BIT) // field "key" has boolean type.
         .setMode(TypeProtos.DataMode.OPTIONAL)
         .build();
     expectedSchema.add(Pair.of(SchemaPath.getSimplePath("key"), majorType));

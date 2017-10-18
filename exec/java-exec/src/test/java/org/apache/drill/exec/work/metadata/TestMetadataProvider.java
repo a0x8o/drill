@@ -28,6 +28,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import org.apache.drill.BaseTestQuery;
+import org.apache.drill.categories.OptionsTest;
 import org.apache.drill.exec.proto.UserProtos.CatalogMetadata;
 import org.apache.drill.exec.proto.UserProtos.ColumnMetadata;
 import org.apache.drill.exec.proto.UserProtos.GetCatalogsResp;
@@ -38,11 +39,14 @@ import org.apache.drill.exec.proto.UserProtos.LikeFilter;
 import org.apache.drill.exec.proto.UserProtos.RequestStatus;
 import org.apache.drill.exec.proto.UserProtos.SchemaMetadata;
 import org.apache.drill.exec.proto.UserProtos.TableMetadata;
+import org.apache.drill.exec.store.sys.SystemTable;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 /**
  * Tests for metadata provider APIs.
  */
+@Category(OptionsTest.class)
 public class TestMetadataProvider extends BaseTestQuery {
 
   @Test
@@ -152,7 +156,7 @@ public class TestMetadataProvider extends BaseTestQuery {
 
     assertEquals(RequestStatus.OK, resp.getStatus());
     List<TableMetadata> tables = resp.getTablesList();
-    assertEquals(11, tables.size());
+    assertEquals(14, tables.size());
 
     verifyTable("INFORMATION_SCHEMA", "CATALOGS", tables);
     verifyTable("INFORMATION_SCHEMA", "COLUMNS", tables);
@@ -162,9 +166,12 @@ public class TestMetadataProvider extends BaseTestQuery {
     verifyTable("sys", "boot", tables);
     verifyTable("sys", "drillbits", tables);
     verifyTable("sys", "memory", tables);
-    verifyTable("sys", "options", tables);
+    verifyTable("sys", SystemTable.OPTION.getTableName(), tables);
+    verifyTable("sys", SystemTable.OPTION_VAL.getTableName(), tables);
     verifyTable("sys", "threads", tables);
     verifyTable("sys", "version", tables);
+    verifyTable("sys", SystemTable.INTERNAL_OPTIONS.getTableName(), tables);
+    verifyTable("sys", SystemTable.INTERNAL_OPTIONS_VAL.getTableName(), tables);
   }
 
   @Test
@@ -186,7 +193,7 @@ public class TestMetadataProvider extends BaseTestQuery {
 
     assertEquals(RequestStatus.OK, resp.getStatus());
     List<TableMetadata> tables = resp.getTablesList();
-    assertEquals(11, tables.size());
+    assertEquals(14, tables.size());
 
     verifyTable("INFORMATION_SCHEMA", "CATALOGS", tables);
     verifyTable("INFORMATION_SCHEMA", "COLUMNS", tables);
@@ -196,9 +203,12 @@ public class TestMetadataProvider extends BaseTestQuery {
     verifyTable("sys", "boot", tables);
     verifyTable("sys", "drillbits", tables);
     verifyTable("sys", "memory", tables);
-    verifyTable("sys", "options", tables);
+    verifyTable("sys", SystemTable.OPTION.getTableName(), tables);
+    verifyTable("sys", SystemTable.OPTION_VAL.getTableName(), tables);
     verifyTable("sys", "threads", tables);
     verifyTable("sys", "version", tables);
+    verifyTable("sys", SystemTable.INTERNAL_OPTIONS.getTableName(), tables);
+    verifyTable("sys", SystemTable.INTERNAL_OPTIONS_VAL.getTableName(), tables);
   }
 
   @Test
@@ -211,12 +221,15 @@ public class TestMetadataProvider extends BaseTestQuery {
 
     assertEquals(RequestStatus.OK, resp.getStatus());
     List<TableMetadata> tables = resp.getTablesList();
-    assertEquals(4, tables.size());
+    assertEquals(7, tables.size());
 
     verifyTable("sys", "boot", tables);
     verifyTable("sys", "memory", tables);
-    verifyTable("sys", "options", tables);
+    verifyTable("sys", SystemTable.OPTION.getTableName(), tables);
+    verifyTable("sys", SystemTable.OPTION_VAL.getTableName(), tables);
     verifyTable("sys", "version", tables);
+    verifyTable("sys", SystemTable.INTERNAL_OPTIONS.getTableName(), tables);
+    verifyTable("sys", SystemTable.INTERNAL_OPTIONS_VAL.getTableName(), tables);
   }
 
   @Test
@@ -242,7 +255,7 @@ public class TestMetadataProvider extends BaseTestQuery {
 
     assertEquals(RequestStatus.OK, resp.getStatus());
     List<ColumnMetadata> columns = resp.getColumnsList();
-    assertEquals(71, columns.size());
+    assertEquals(92, columns.size());
     // too many records to verify the output.
   }
 

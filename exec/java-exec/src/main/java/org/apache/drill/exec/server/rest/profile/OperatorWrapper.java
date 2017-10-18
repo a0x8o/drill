@@ -17,6 +17,7 @@
  */
 package org.apache.drill.exec.server.rest.profile;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -37,20 +38,20 @@ import org.apache.drill.exec.proto.UserBitShared.StreamProfile;
 public class OperatorWrapper {
   private static final String UNKNOWN_OPERATOR = "UNKNOWN_OPERATOR";
   private final int major;
-  private final List<ImmutablePair<OperatorProfile, Integer>> ops; // operator profile --> minor fragment number
+  private final List<ImmutablePair<ImmutablePair<OperatorProfile, Integer>, String>> opsAndHosts; // [(operatorProfile --> minorFragment number,host), ...]
   private final OperatorProfile firstProfile;
   private final CoreOperatorType operatorType;
   private final String operatorName;
   private final int size;
 
-  public OperatorWrapper(int major, List<ImmutablePair<OperatorProfile, Integer>> ops) {
-    Preconditions.checkArgument(ops.size() > 0);
+  public OperatorWrapper(int major, List<ImmutablePair<ImmutablePair<OperatorProfile, Integer>, String>> opsAndHostsList) {
+    Preconditions.checkArgument(opsAndHostsList.size() > 0);
     this.major = major;
-    firstProfile = ops.get(0).getLeft();
+    firstProfile = opsAndHostsList.get(0).getLeft().getLeft();
     operatorType = CoreOperatorType.valueOf(firstProfile.getOperatorType());
     operatorName = operatorType == null ? UNKNOWN_OPERATOR : operatorType.toString();
-    this.ops = ops;
-    size = ops.size();
+    this.opsAndHosts = opsAndHostsList;
+    size = opsAndHostsList.size();
   }
 
   public String getDisplayName() {
@@ -59,21 +60,29 @@ public class OperatorWrapper {
   }
 
   public String getId() {
-    return String.format("operator-%d-%d", major, ops.get(0).getLeft().getOperatorId());
+    return String.format("operator-%d-%d", major, opsAndHosts.get(0).getLeft().getLeft().getOperatorId());
   }
 
-  public static final String [] OPERATOR_COLUMNS = {"Minor Fragment", "Setup Time", "Process Time", "Wait Time",
-      "Max Batches", "Max Records", "Peak Memory"};
+  public static final String [] OPERATOR_COLUMNS = {
+      OperatorTblTxt.MINOR_FRAGMENT, OperatorTblTxt.HOSTNAME, OperatorTblTxt.SETUP_TIME, OperatorTblTxt.PROCESS_TIME, OperatorTblTxt.WAIT_TIME,
+      OperatorTblTxt.MAX_BATCHES, OperatorTblTxt.MAX_RECORDS, OperatorTblTxt.PEAK_MEMORY
+  };
+
+  public static final String [] OPERATOR_COLUMNS_TOOLTIP = {
+      OperatorTblTooltip.MINOR_FRAGMENT, OperatorTblTooltip.HOSTNAME, OperatorTblTooltip.SETUP_TIME, OperatorTblTooltip.PROCESS_TIME, OperatorTblTooltip.WAIT_TIME,
+      OperatorTblTooltip.MAX_BATCHES, OperatorTblTooltip.MAX_RECORDS, OperatorTblTooltip.PEAK_MEMORY
+  };
 
   public String getContent() {
-    TableBuilder builder = new TableBuilder(OPERATOR_COLUMNS, null);
+    TableBuilder builder = new TableBuilder(OPERATOR_COLUMNS, OPERATOR_COLUMNS_TOOLTIP, true);
 
-    for (ImmutablePair<OperatorProfile, Integer> ip : ops) {
-      int minor = ip.getRight();
-      OperatorProfile op = ip.getLeft();
+    for (ImmutablePair<ImmutablePair<OperatorProfile, Integer>, String> ip : opsAndHosts) {
+      int minor = ip.getLeft().getRight();
+      OperatorProfile op = ip.getLeft().getLeft();
 
       String path = new OperatorPathBuilder().setMajor(major).setMinor(minor).setOperator(op).build();
       builder.appendCell(path);
+      builder.appendCell(ip.getRight());
       builder.appendNanos(op.getSetupNanos());
       builder.appendNanos(op.getProcessNanos());
       builder.appendNanos(op.getWaitNanos());
@@ -128,8 +137,12 @@ public class OperatorWrapper {
     double waitSum = 0.0;
     double memSum = 0.0;
     long recordSum = 0L;
-    for (ImmutablePair<OperatorProfile, Integer> ip : ops) {
-      OperatorProfile profile = ip.getLeft();
+
+    //Construct list for sorting purposes (using legacy Comparators)
+    final List<ImmutablePair<OperatorProfile, Integer>> opList = new ArrayList<>();
+
+    for (ImmutablePair<ImmutablePair<OperatorProfile, Integer>,String> ip : opsAndHosts) {
+      OperatorProfile profile = ip.getLeft().getLeft();
       setupSum += profile.getSetupNanos();
       processSum += profile.getProcessNanos();
       waitSum += profile.getWaitNanos();
@@ -137,18 +150,19 @@ public class OperatorWrapper {
       for (final StreamProfile sp : profile.getInputProfileList()) {
         recordSum += sp.getRecords();
       }
+      opList.add(ip.getLeft());
     }
 
-    final ImmutablePair<OperatorProfile, Integer> longSetup = Collections.max(ops, Comparators.setupTime);
+    final ImmutablePair<OperatorProfile, Integer> longSetup = Collections.max(opList, Comparators.setupTime);
     tb.appendNanos(Math.round(setupSum / size));
     tb.appendNanos(longSetup.getLeft().getSetupNanos());
 
-    final ImmutablePair<OperatorProfile, Integer> longProcess = Collections.max(ops, Comparators.processTime);
+    final ImmutablePair<OperatorProfile, Integer> longProcess = Collections.max(opList, Comparators.processTime);
     tb.appendNanos(Math.round(processSum / size));
     tb.appendNanos(longProcess.getLeft().getProcessNanos());
 
-    final ImmutablePair<OperatorProfile, Integer> shortWait = Collections.min(ops, Comparators.waitTime);
-    final ImmutablePair<OperatorProfile, Integer> longWait = Collections.max(ops, Comparators.waitTime);
+    final ImmutablePair<OperatorProfile, Integer> shortWait = Collections.min(opList, Comparators.waitTime);
+    final ImmutablePair<OperatorProfile, Integer> longWait = Collections.max(opList, Comparators.waitTime);
     tb.appendNanos(shortWait.getLeft().getWaitNanos());
     tb.appendNanos(Math.round(waitSum / size));
     tb.appendNanos(longWait.getLeft().getWaitNanos());
@@ -158,7 +172,7 @@ public class OperatorWrapper {
 
     tb.appendFormattedInteger(recordSum);
 
-    final ImmutablePair<OperatorProfile, Integer> peakMem = Collections.max(ops, Comparators.operatorPeakMemory);
+    final ImmutablePair<OperatorProfile, Integer> peakMem = Collections.max(opList, Comparators.operatorPeakMemory);
     tb.appendBytes(Math.round(memSum / size));
     tb.appendBytes(peakMem.getLeft().getPeakLocalMemoryAllocated());
   }
@@ -180,13 +194,13 @@ public class OperatorWrapper {
     }
     final TableBuilder builder = new TableBuilder(metricsTableColumnNames, null);
 
-    for (final ImmutablePair<OperatorProfile, Integer> ip : ops) {
-      final OperatorProfile op = ip.getLeft();
+    for (final ImmutablePair<ImmutablePair<OperatorProfile, Integer>,String> ip : opsAndHosts) {
+      final OperatorProfile op = ip.getLeft().getLeft();
 
       builder.appendCell(
           new OperatorPathBuilder()
           .setMajor(major)
-          .setMinor(ip.getRight())
+          .setMinor(ip.getLeft().getRight())
           .setOperator(op)
           .build());
 
@@ -214,6 +228,28 @@ public class OperatorWrapper {
       }
     }
     return builder.build();
+  }
+
+  private class OperatorTblTxt {
+    static final String MINOR_FRAGMENT = "Minor Fragment";
+    static final String HOSTNAME = "Hostname";
+    static final String SETUP_TIME = "Setup Time";
+    static final String PROCESS_TIME = "Process Time";
+    static final String WAIT_TIME = "Wait Time";
+    static final String MAX_BATCHES = "Max Batches";
+    static final String MAX_RECORDS = "Max Records";
+    static final String PEAK_MEMORY = "Peak Memory";
+  }
+
+  private class OperatorTblTooltip {
+    static final String MINOR_FRAGMENT = "Operator's Minor Fragment";
+    static final String HOSTNAME = "Host on which the minor fragment ran";
+    static final String SETUP_TIME = "Setup Time for the minor fragment's operator";
+    static final String PROCESS_TIME = "Process Time for the minor fragment's operator";
+    static final String WAIT_TIME = "Wait Time for the minor fragment's operator";
+    static final String MAX_BATCHES = "Max Batches processed by the minor fragment's operator";
+    static final String MAX_RECORDS = "Max Records processed by the minor fragment's operator";
+    static final String PEAK_MEMORY = "Peak Memory usage by the minor fragment's operator";
   }
 
   private class OverviewTblTxt {
@@ -250,4 +286,3 @@ public class OperatorWrapper {
     static final String MAX_PEAK_MEMORY  =  "Highest memory consumption by a fragment";
   }
 }
-

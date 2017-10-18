@@ -18,16 +18,19 @@
 package org.apache.drill;
 
 import com.google.common.collect.ImmutableList;
+import org.apache.drill.categories.UnlikelyTest;
 import org.apache.drill.common.exceptions.UserException;
 import org.apache.drill.common.util.TestTools;
 import org.apache.drill.exec.planner.physical.PlannerSettings;
 import org.junit.Ignore;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+@Category(UnlikelyTest.class)
 public class TestBugFixes extends BaseTestQuery {
   private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(TestBugFixes.class);
   private static final String WORKING_PATH = TestTools.getWorkingPath();
@@ -272,5 +275,28 @@ public class TestBugFixes extends BaseTestQuery {
         .baselineColumns("employee_id")
         .baselineValues((long) 2)
         .go();
+  }
+
+  @Test
+  public void testDRILL5269() throws Exception {
+    try {
+      test("ALTER SESSION SET `planner.enable_nljoin_for_scalar_only` = false");
+      test("ALTER SESSION SET `planner.slice_target` = 500");
+      test("\nSELECT `one` FROM (\n" +
+          "  SELECT 1 `one` FROM cp.`tpch/nation.parquet`\n" +
+          "  INNER JOIN (\n" +
+          "    SELECT 2 `two` FROM cp.`tpch/nation.parquet`\n" +
+          "  ) `t0` ON (\n" +
+          "    `tpch/nation.parquet`.n_regionkey IS NOT DISTINCT FROM `t0`.`two`\n" +
+          "  )\n" +
+          "  GROUP BY `one`\n" +
+          ") `t1`\n" +
+          "  INNER JOIN (\n" +
+          "    SELECT count(1) `a_count` FROM cp.`tpch/nation.parquet`\n" +
+          ") `t5` ON TRUE\n");
+    } finally {
+      test("ALTER SESSION RESET `planner.enable_nljoin_for_scalar_only`");
+      test("ALTER SESSION RESET `planner.slice_target`");
+    }
   }
 }

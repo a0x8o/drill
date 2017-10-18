@@ -22,6 +22,7 @@ import static org.junit.Assert.fail;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.drill.categories.OperatorTest;
 import org.apache.drill.common.logical.data.Order.Ordering;
 import org.apache.drill.common.types.TypeProtos.MinorType;
 import org.apache.drill.exec.physical.impl.xsort.managed.PriorityQueueCopierWrapper.BatchMerger;
@@ -38,6 +39,7 @@ import org.apache.drill.test.rowSet.SchemaBuilder;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 /**
  * Light-weight sanity test of the copier class. The implementation has
@@ -48,6 +50,7 @@ import org.junit.Test;
  * then additional tests should be added to re-validate the code.
  */
 
+@Category(OperatorTest.class)
 public class TestCopier extends DrillTest {
 
   public static OperatorFixture fixture;
@@ -69,8 +72,13 @@ public class TestCopier extends DrillTest {
     PriorityQueueCopierWrapper copier = SortTestUtilities.makeCopier(fixture, Ordering.ORDER_ASC, Ordering.NULLS_UNSPECIFIED);
     VectorContainer dest = new VectorContainer();
     try {
+      // TODO: Create a vector allocator to pass as last parameter so
+      // that the test uses the same vector allocator as the production
+      // code. Only nuisance is that we don't have the required metadata
+      // readily at hand here...
+
       @SuppressWarnings({ "resource", "unused" })
-      BatchMerger merger = copier.startMerge(schema, batches, dest, 10);
+      BatchMerger merger = copier.startMerge(schema, batches, dest, 10, null);
       fail();
     } catch (AssertionError e) {
       // Expected

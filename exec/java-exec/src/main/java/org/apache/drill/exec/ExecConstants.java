@@ -19,12 +19,12 @@ package org.apache.drill.exec;
 
 import org.apache.drill.exec.physical.impl.common.HashTable;
 import org.apache.drill.exec.rpc.user.InboundImpersonationManager;
-import org.apache.drill.exec.server.options.OptionMetaData;
 import org.apache.drill.exec.server.options.OptionValidator;
 import org.apache.drill.exec.server.options.TypeValidators.BooleanValidator;
 import org.apache.drill.exec.server.options.TypeValidators.DoubleValidator;
 import org.apache.drill.exec.server.options.TypeValidators.EnumeratedStringValidator;
 import org.apache.drill.exec.server.options.TypeValidators.LongValidator;
+import org.apache.drill.exec.server.options.TypeValidators.MaxWidthValidator;
 import org.apache.drill.exec.server.options.TypeValidators.PositiveLongValidator;
 import org.apache.drill.exec.server.options.TypeValidators.PowerOfTwoLongValidator;
 import org.apache.drill.exec.server.options.TypeValidators.RangeDoubleValidator;
@@ -117,6 +117,18 @@ public final class ExecConstants {
   public static final String HASHAGG_FALLBACK_ENABLED_KEY = "drill.exec.hashagg.fallback.enabled";
   public static final BooleanValidator HASHAGG_FALLBACK_ENABLED_VALIDATOR = new BooleanValidator(HASHAGG_FALLBACK_ENABLED_KEY);
 
+  public static final String SSL_PROVIDER = "drill.exec.ssl.provider"; // valid values are "JDK", "OPENSSL" // default JDK
+  public static final String SSL_PROTOCOL = "drill.exec.ssl.protocol"; // valid values are SSL, SSLV2, SSLV3, TLS, TLSV1, TLSv1.1, TLSv1.2(default)
+  public static final String SSL_KEYSTORE_TYPE = "drill.exec.ssl.keyStoreType";
+  public static final String SSL_KEYSTORE_PATH = "drill.exec.ssl.keyStorePath";     // path to keystore. default : $JRE_HOME/lib/security/keystore.jks
+  public static final String SSL_KEYSTORE_PASSWORD = "drill.exec.ssl.keyStorePassword"; // default: changeit
+  public static final String SSL_KEY_PASSWORD = "drill.exec.ssl.keyPassword"; //
+  public static final String SSL_TRUSTSTORE_TYPE = "drill.exec.ssl.trustStoreType"; // valid values are jks(default), jceks, pkcs12
+  public static final String SSL_TRUSTSTORE_PATH = "drill.exec.ssl.trustStorePath"; // path to keystore. default : $JRE_HOME/lib/security/cacerts.jks
+  public static final String SSL_TRUSTSTORE_PASSWORD = "drill.exec.ssl.trustStorePassword"; // default: changeit
+  public static final String SSL_USE_HADOOP_CONF = "drill.exec.ssl.useHadoopConfig"; // Initialize ssl params from hadoop if not provided by drill. default: true
+  public static final String SSL_HANDSHAKE_TIMEOUT = "drill.exec.security.user.encryption.ssl.handshakeTimeout"; // Default 10 seconds
+
   public static final String TEXT_LINE_READER_BATCH_SIZE = "drill.exec.storage.file.text.batch.size";
   public static final String TEXT_LINE_READER_BUFFER_SIZE = "drill.exec.storage.file.text.buffer.size";
   public static final String HAZELCAST_SUBNETS = "drill.exec.cache.hazel.subnets";
@@ -133,10 +145,10 @@ public final class ExecConstants {
   public static final String HTTP_SESSION_MEMORY_RESERVATION = "drill.exec.http.session.memory.reservation";
   public static final String HTTP_SESSION_MEMORY_MAXIMUM = "drill.exec.http.session.memory.maximum";
   public static final String HTTP_SESSION_MAX_IDLE_SECS = "drill.exec.http.session_max_idle_secs";
-  public static final String HTTP_KEYSTORE_PATH = "drill.exec.ssl.keyStorePath";
-  public static final String HTTP_KEYSTORE_PASSWORD = "drill.exec.ssl.keyStorePassword";
-  public static final String HTTP_TRUSTSTORE_PATH = "drill.exec.ssl.trustStorePath";
-  public static final String HTTP_TRUSTSTORE_PASSWORD = "drill.exec.ssl.trustStorePassword";
+  public static final String HTTP_KEYSTORE_PATH = SSL_KEYSTORE_PATH;
+  public static final String HTTP_KEYSTORE_PASSWORD = SSL_KEYSTORE_PASSWORD;
+  public static final String HTTP_TRUSTSTORE_PATH = SSL_TRUSTSTORE_PATH;
+  public static final String HTTP_TRUSTSTORE_PASSWORD = SSL_TRUSTSTORE_PASSWORD;
   public static final String SYS_STORE_PROVIDER_CLASS = "drill.exec.sys.store.provider.class";
   public static final String SYS_STORE_PROVIDER_LOCAL_PATH = "drill.exec.sys.store.provider.local.path";
   public static final String SYS_STORE_PROVIDER_LOCAL_ENABLE_WRITE = "drill.exec.sys.store.provider.local.write";
@@ -153,6 +165,8 @@ public final class ExecConstants {
   public static final String USE_LOGIN_PRINCIPAL = "drill.exec.security.bit.auth.use_login_principal";
   public static final String USER_ENCRYPTION_SASL_ENABLED = "drill.exec.security.user.encryption.sasl.enabled";
   public static final String USER_ENCRYPTION_SASL_MAX_WRAPPED_SIZE = "drill.exec.security.user.encryption.sasl.max_wrapped_size";
+
+  public static final String USER_SSL_ENABLED = "drill.exec.security.user.encryption.ssl.enabled";
   public static final String BIT_ENCRYPTION_SASL_ENABLED = "drill.exec.security.bit.encryption.sasl.enabled";
   public static final String BIT_ENCRYPTION_SASL_MAX_WRAPPED_SIZE = "drill.exec.security.bit.encryption.sasl.max_wrapped_size";
 
@@ -208,7 +222,7 @@ public final class ExecConstants {
   public static final OptionValidator PARQUET_DICT_PAGE_SIZE_VALIDATOR = new PositiveLongValidator(PARQUET_DICT_PAGE_SIZE, Integer.MAX_VALUE);
   public static final String PARQUET_WRITER_COMPRESSION_TYPE = "store.parquet.compression";
   public static final OptionValidator PARQUET_WRITER_COMPRESSION_TYPE_VALIDATOR = new EnumeratedStringValidator(
-    PARQUET_WRITER_COMPRESSION_TYPE, "snappy", "gzip", "none");
+      PARQUET_WRITER_COMPRESSION_TYPE, "snappy", "gzip", "none");
   public static final String PARQUET_WRITER_ENABLE_DICTIONARY_ENCODING = "store.parquet.enable_dictionary_encoding";
   public static final OptionValidator PARQUET_WRITER_ENABLE_DICTIONARY_ENCODING_VALIDATOR = new BooleanValidator(
       PARQUET_WRITER_ENABLE_DICTIONARY_ENCODING);
@@ -344,12 +358,41 @@ public final class ExecConstants {
   public static final OptionValidator ENABLE_MEMORY_ESTIMATION = new BooleanValidator(ENABLE_MEMORY_ESTIMATION_KEY);
 
   /**
-   * Maximum query memory per node (in MB). Re-plan with cheaper operators if memory estimation exceeds this limit.
+   * Maximum query memory per node (in MB). Re-plan with cheaper operators if
+   * memory estimation exceeds this limit.
    * <p/>
    * DEFAULT: 2048 MB
    */
   public static final String MAX_QUERY_MEMORY_PER_NODE_KEY = "planner.memory.max_query_memory_per_node";
   public static final LongValidator MAX_QUERY_MEMORY_PER_NODE = new RangeLongValidator(MAX_QUERY_MEMORY_PER_NODE_KEY, 1024 * 1024, Long.MAX_VALUE);
+
+  /**
+   * Alternative way to compute per-query-per-node memory as a percent
+   * of the total available system memory.
+   * <p>
+   * Suggestion for computation.
+   * <ul>
+   * <li>Assume an allowance for non-managed operators. Default assumption:
+   * 50%</li>
+   * <li>Assume a desired number of concurrent queries. Default assumption:
+   * 10.</li>
+   * <li>The value of this parameter is<br>
+   * (1 - non-managed allowance) / concurrency</li>
+   * </ul>
+   * Doing the math produces the default 5% number. The actual number
+   * given is no less than the <tt>max_query_memory_per_node</tt>
+   * amount.
+   * <p>
+   * This number is used only when throttling is disabled. Setting the
+   * number to 0 effectively disables this technique as it will always
+   * produce values lower than <tt>max_query_memory_per_node</tt>.
+   * <p>
+   * DEFAULT: 5%
+   */
+
+  public static String PERCENT_MEMORY_PER_QUERY_KEY = "planner.memory.percent_per_query";
+  public static DoubleValidator PERCENT_MEMORY_PER_QUERY = new RangeDoubleValidator(
+      PERCENT_MEMORY_PER_QUERY_KEY, 0, 1.0);
 
   /**
    * Minimum memory allocated to each buffered operator instance.
@@ -464,7 +507,7 @@ public final class ExecConstants {
    */
   public static final String IMPERSONATION_POLICIES_KEY = "exec.impersonation.inbound_policies";
   public static final StringValidator IMPERSONATION_POLICY_VALIDATOR =
-    new InboundImpersonationManager.InboundImpersonationPolicyValidator(IMPERSONATION_POLICIES_KEY);
+      new InboundImpersonationManager.InboundImpersonationPolicyValidator(IMPERSONATION_POLICIES_KEY);
 
 
   /**
@@ -546,5 +589,5 @@ public final class ExecConstants {
 
   public static String bootDefaultFor(String name) {
     return OPTION_DEFAULTS_ROOT + name;
-  }
+}
 }

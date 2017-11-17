@@ -32,7 +32,6 @@ import org.apache.drill.exec.expr.TypeHelper;
 import org.apache.drill.exec.memory.BufferAllocator;
 import org.apache.drill.exec.ops.FragmentContext;
 import org.apache.drill.exec.ops.OperatorContext;
-import org.apache.drill.exec.ops.OperatorExecContext;
 import org.apache.drill.exec.physical.base.PhysicalOperator;
 import org.apache.drill.exec.record.BatchSchema;
 import org.apache.drill.exec.record.BatchSchema.SelectionVectorMode;
@@ -165,9 +164,9 @@ public class ScanBatch implements CloseableRecordBatch {
     try {
       while (true) {
         if (currentReader == null && !getNextReaderIfHas()) {
-            releaseAssets(); // All data has been read. Release resource.
-            done = true;
-            return IterOutcome.NONE;
+          releaseAssets(); // All data has been read. Release resource.
+          done = true;
+          return IterOutcome.NONE;
         }
         injector.injectChecked(context.getExecutionControls(), "next-allocate", OutOfMemoryException.class);
         currentReader.allocate(mutator.fieldVectorMap());
@@ -235,15 +234,14 @@ public class ScanBatch implements CloseableRecordBatch {
   }
 
   private boolean getNextReaderIfHas() throws ExecutionSetupException {
-    if (readers.hasNext()) {
-      currentReader = readers.next();
-      implicitValues = implicitColumns.hasNext() ? implicitColumns.next() : null;
-      currentReader.setup(oContext, mutator);
-      currentReaderClassName = currentReader.getClass().getSimpleName();
-      return true;
-    } else {
+    if (!readers.hasNext()) {
       return false;
     }
+    currentReader = readers.next();
+    implicitValues = implicitColumns.hasNext() ? implicitColumns.next() : null;
+    currentReader.setup(oContext, mutator);
+    currentReaderClassName = currentReader.getClass().getSimpleName();
+    return true;
   }
 
   private void addImplicitVectors() {
@@ -251,8 +249,7 @@ public class ScanBatch implements CloseableRecordBatch {
       if (!implicitColumnList.isEmpty()) {
         for (String column : implicitColumnList.get(0).keySet()) {
           final MaterializedField field = MaterializedField.create(column, Types.optional(MinorType.VARCHAR));
-          @SuppressWarnings("resource")
-          final ValueVector v = mutator.addField(field, NullableVarCharVector.class, true /*implicit field*/);
+          mutator.addField(field, NullableVarCharVector.class, true /*implicit field*/);
         }
       }
     } catch(SchemaChangeException e) {
@@ -321,9 +318,9 @@ public class ScanBatch implements CloseableRecordBatch {
 
     private final VectorContainer container;
 
-    private final OperatorExecContext oContext;
+    private final OperatorContext oContext;
 
-    public Mutator(OperatorExecContext oContext, BufferAllocator allocator, VectorContainer container) {
+    public Mutator(OperatorContext oContext, BufferAllocator allocator, VectorContainer container) {
       this.oContext = oContext;
       this.allocator = allocator;
       this.container = container;
@@ -338,7 +335,6 @@ public class ScanBatch implements CloseableRecordBatch {
       return implicitFieldVectorMap;
     }
 
-    @SuppressWarnings("resource")
     @Override
     public <T extends ValueVector> T addField(MaterializedField field,
                                               Class<T> clazz) throws SchemaChangeException {
@@ -388,6 +384,7 @@ public class ScanBatch implements CloseableRecordBatch {
       schemaChanged = false;
     }
 
+    @SuppressWarnings("resource")
     private <T extends ValueVector> T addField(MaterializedField field,
         Class<T> clazz, boolean isImplicitField) throws SchemaChangeException {
       Map<String, ValueVector> fieldVectorMap;

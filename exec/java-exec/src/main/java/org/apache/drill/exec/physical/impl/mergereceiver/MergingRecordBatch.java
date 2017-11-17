@@ -325,12 +325,8 @@ public class MergingRecordBatch extends AbstractRecordBatch<MergingReceiverPOP> 
 
       // after this point all batches have been released and their bytebuf are in batchLoaders
 
-      // Canonicalize each incoming batch, so that vectors are alphabetically sorted based on SchemaPath.
-      for (final RecordBatchLoader loader : batchLoaders) {
-        loader.canonicalize();
-      }
-
       // Ensure all the incoming batches have the identical schema.
+      // Note: RecordBatchLoader permutes the columns to obtain the same columns order for all batches.
       if (!isSameSchemaAmongBatches(batchLoaders)) {
         context.fail(new SchemaChangeException("Incoming batches for merging receiver have different schemas!"));
         return IterOutcome.STOP;
@@ -581,7 +577,6 @@ public class MergingRecordBatch extends AbstractRecordBatch<MergingReceiverPOP> 
     } catch (final IOException e) {
       throw new DrillRuntimeException(e);
     }
-    outgoingContainer = VectorContainer.canonicalize(outgoingContainer);
     outgoingContainer.buildSchema(SelectionVectorMode.NONE);
   }
 
@@ -705,10 +700,6 @@ public class MergingRecordBatch extends AbstractRecordBatch<MergingReceiverPOP> 
     }
   }
 
-//  private boolean isOutgoingFull() {
-//    return outgoingPosition == DEFAULT_ALLOC_RECORD_COUNT;
-//  }
-
   /**
    * Creates a generate class which implements the copy and compare methods.
    *
@@ -718,7 +709,7 @@ public class MergingRecordBatch extends AbstractRecordBatch<MergingReceiverPOP> 
   private MergingReceiverGeneratorBase createMerger() throws SchemaChangeException {
 
     try {
-      final CodeGenerator<MergingReceiverGeneratorBase> cg = CodeGenerator.get(MergingReceiverGeneratorBase.TEMPLATE_DEFINITION, context.getFunctionRegistry(), context.getOptions());
+      final CodeGenerator<MergingReceiverGeneratorBase> cg = CodeGenerator.get(MergingReceiverGeneratorBase.TEMPLATE_DEFINITION, context.getOptions());
       cg.plainJavaCapable(true);
       // Uncomment out this line to debug the generated code.
       // cg.saveCodeForDebugging(true);

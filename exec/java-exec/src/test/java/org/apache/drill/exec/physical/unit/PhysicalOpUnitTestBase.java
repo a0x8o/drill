@@ -17,6 +17,8 @@
  */
 package org.apache.drill.exec.physical.unit;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import mockit.Delegate;
@@ -26,7 +28,9 @@ import org.antlr.runtime.ANTLRStringStream;
 import org.antlr.runtime.CommonTokenStream;
 import org.antlr.runtime.RecognitionException;
 import org.apache.calcite.rel.RelFieldCollation;
-import org.apache.drill.DrillTestWrapper;
+import org.apache.drill.exec.store.dfs.DrillFileSystem;
+import org.apache.drill.exec.store.easy.json.JSONRecordReader;
+import org.apache.drill.test.DrillTestWrapper;
 import org.apache.drill.common.config.DrillConfig;
 import org.apache.drill.common.exceptions.ExecutionSetupException;
 import org.apache.drill.common.expression.FieldReference;
@@ -64,9 +68,9 @@ import org.apache.drill.exec.physical.impl.project.ProjectorTemplate;
 import org.apache.drill.exec.proto.ExecProtos;
 import org.apache.drill.exec.record.RecordBatch;
 import org.apache.drill.exec.record.VectorAccessible;
+import org.apache.drill.exec.server.DrillbitContext;
 import org.apache.drill.exec.store.RecordReader;
 import org.apache.drill.exec.testing.ExecutionControls;
-import org.apache.drill.exec.util.TestUtilities;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -78,16 +82,12 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.apache.drill.exec.physical.base.AbstractBase.INIT_ALLOCATION;
-
 /**
  * Look! Doesn't extend BaseTestQuery!!
  */
 public class PhysicalOpUnitTestBase extends ExecTest {
-//  public static long INIT_ALLOCATION = 1_000_000l;
-//  public static long MAX_ALLOCATION = 10_000_000L;
-
   @Injectable FragmentContext fragContext;
+  @Injectable DrillbitContext drillbitContext;
   @Injectable OperatorContext opContext;
   @Injectable OperatorStats opStats;
   @Injectable PhysicalOperator popConf;
@@ -195,11 +195,12 @@ public class PhysicalOpUnitTestBase extends ExecTest {
     private long initReservation = AbstractBase.INIT_ALLOCATION;
     private long maxAllocation = AbstractBase.MAX_ALLOCATION;
 
+    @SuppressWarnings({ "unchecked", "resource" })
     public void go() {
       BatchCreator<PhysicalOperator> opCreator;
       RecordBatch testOperator;
       try {
-        mockOpContext(initReservation, maxAllocation);
+        mockOpContext(popConfig, initReservation, maxAllocation);
 
         opCreator = (BatchCreator<PhysicalOperator>)
             opCreatorReg.getOperatorCreator(popConfig.getClass());
@@ -296,17 +297,21 @@ public class PhysicalOpUnitTestBase extends ExecTest {
 //        // string options
 //        optManager.getOption(withAny(new TypeValidators.StringValidator("", "try"))); result = "try";
 //        optManager.getOption(withAny(new TypeValidators.PositiveLongValidator("", 1l, 1l))); result = 10;
+        drillbitContext.getCompiler(); result = new CodeCompiler(drillConf, optionManager);
         fragContext.getOptions(); result = optionManager;
+        fragContext.getOptionSet(); result = optionManager;
         fragContext.getManagedBuffer(); result = bufManager.getManagedBuffer();
         fragContext.shouldContinue(); result = true;
         fragContext.getExecutionControls(); result = executionControls;
         fragContext.getFunctionRegistry(); result = funcReg;
         fragContext.getConfig(); result = drillConf;
         fragContext.getHandle(); result = ExecProtos.FragmentHandle.getDefaultInstance();
+        fragContext.getFunctionRegistry(); result = funcReg;
+        fragContext.getDrillbitContext(); result = drillbitContext;
         try {
-          CodeGenerator<?> cg = CodeGenerator.get(templateClassDefinition, funcReg);
+          CodeGenerator<?> cg = CodeGenerator.get(templateClassDefinition);
           cg.plainJavaCapable(true);
-//          cg.saveCodeForDebugging(true);
+          // cg.saveCodeForDebugging(true);
           fragContext.getImplementationClass(withAny(cg));
           result = new Delegate<Object>()
           {
@@ -315,7 +320,7 @@ public class PhysicalOpUnitTestBase extends ExecTest {
               return compiler.createInstance(gen);
             }
           };
-          fragContext.getImplementationClass(withAny(CodeGenerator.get(templateClassDefinition, funcReg).getRoot()));
+          fragContext.getImplementationClass(withAny(CodeGenerator.get(templateClassDefinition).getRoot()));
           result = new Delegate<Object>()
           {
             @SuppressWarnings("unused")
@@ -332,13 +337,16 @@ public class PhysicalOpUnitTestBase extends ExecTest {
     };
   }
 
-  protected void mockOpContext(long initReservation, long maxAllocation) throws Exception{
+  protected void mockOpContext(final PhysicalOperator popConfig, long initReservation, long maxAllocation) throws Exception{
     final BufferAllocator allocator = this.allocator.newChildAllocator("allocator_for_operator_test", initReservation, maxAllocation);
     new NonStrictExpectations() {
       {
         opContext.getStats();result = opStats;
+        opContext.getStatsWriter(); result = opStats;
         opContext.getAllocator(); result = allocator;
-        fragContext.newOperatorContext(withAny(popConf));result = opContext;
+        opContext.getFragmentContext(); result = fragContext;
+        opContext.getOperatorDefn(); result = popConfig;
+        fragContext.newOperatorContext(withAny(popConf)); result = opContext;
       }
     };
   }
@@ -348,7 +356,7 @@ public class PhysicalOpUnitTestBase extends ExecTest {
   }
 
   private Iterator<RecordReader> getRecordReadersForJsonBatches(List<String> jsonBatches, FragmentContext fragContext) {
-    return TestUtilities.getJsonReadersFromBatchString(jsonBatches, fragContext, Collections.singletonList(SchemaPath.getSimplePath("*")));
+    return getJsonReadersFromBatchString(jsonBatches, fragContext, Collections.singletonList(SchemaPath.getSimplePath("*")));
   }
 
   private List<RecordReader> getReaderListForJsonBatches(List<String> jsonBatches, FragmentContext fragContext) {
@@ -360,4 +368,43 @@ public class PhysicalOpUnitTestBase extends ExecTest {
     return readerList;
   }
 
+
+  /**
+   * Create JSONRecordReader from input strings.
+   * @param jsonBatches : list of input strings, each element represent a batch. Each string could either
+   *                    be in the form of "[{...}, {...}, ..., {...}]", or in the form of "{...}".
+   * @param fragContext : fragment context
+   * @param columnsToRead : list of schema paths to read from JSON reader.
+   * @return
+   */
+  public static Iterator<RecordReader> getJsonReadersFromBatchString(List<String> jsonBatches, FragmentContext fragContext, List<SchemaPath> columnsToRead) {
+    ObjectMapper mapper = new ObjectMapper();
+    List<RecordReader> readers = new ArrayList<>();
+    for (String batchJason : jsonBatches) {
+      JsonNode records;
+      try {
+        records = mapper.readTree(batchJason);
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+      readers.add(new JSONRecordReader(fragContext, records, null, columnsToRead));
+    }
+    return readers.iterator();
+  }
+
+  /**
+   * Create JSONRecordReader from files on a file system.
+   * @param fs : file system.
+   * @param inputPaths : list of .json file paths.
+   * @param fragContext
+   * @param columnsToRead
+   * @return
+   */
+  public static Iterator<RecordReader> getJsonReadersFromInputFiles(DrillFileSystem fs, List<String> inputPaths, FragmentContext fragContext, List<SchemaPath> columnsToRead) {
+    List<RecordReader> readers = new ArrayList<>();
+    for (String inputPath : inputPaths) {
+      readers.add(new JSONRecordReader(fragContext, inputPath, fs, columnsToRead));
+    }
+    return readers.iterator();
+  }
 }

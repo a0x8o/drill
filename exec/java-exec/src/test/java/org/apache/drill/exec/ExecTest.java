@@ -18,9 +18,9 @@
 package org.apache.drill.exec;
 
 import com.codahale.metrics.MetricRegistry;
-import com.google.common.io.Files;
+import mockit.Mock;
+import mockit.MockUp;
 import mockit.NonStrictExpectations;
-import org.apache.commons.io.FileUtils;
 import org.antlr.runtime.ANTLRStringStream;
 import org.antlr.runtime.CommonTokenStream;
 import org.antlr.runtime.RecognitionException;
@@ -35,18 +35,19 @@ import org.apache.drill.exec.metrics.DrillMetrics;
 import org.apache.drill.exec.physical.impl.OperatorCreatorRegistry;
 import org.apache.drill.exec.planner.PhysicalPlanReaderTestFactory;
 import org.apache.drill.exec.server.DrillbitContext;
-import org.apache.drill.exec.server.options.OptionValue;
 import org.apache.drill.exec.server.options.SystemOptionManager;
 import org.apache.drill.exec.store.sys.store.provider.LocalPersistentStoreProvider;
 import org.apache.drill.exec.util.GuavaPatcher;
 import org.apache.drill.test.DrillTest;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
+import org.joda.time.DateTimeUtils;
+import org.joda.time.DateTimeZone;
 import org.junit.After;
 import org.junit.BeforeClass;
-
-import java.io.File;
 import java.io.IOException;
+import java.text.DateFormatSymbols;
+import java.util.Locale;
 
 
 public class ExecTest extends DrillTest {
@@ -84,23 +85,6 @@ public class ExecTest extends DrillTest {
     return FileSystem.get(configuration);
   }
 
-  /**
-   * Create a temp directory to store the given <i>dirName</i>.
-   * Directory will be deleted on exit.
-   * @param dirName directory name
-   * @return Full path including temp parent directory and given directory name.
-   */
-  public static String getTempDir(final String dirName) {
-    final File dir = Files.createTempDir();
-    Runtime.getRuntime().addShutdownHook(new Thread() {
-      @Override
-      public void run() {
-        FileUtils.deleteQuietly(dir);
-      }
-    });
-    return dir.getAbsolutePath() + File.separator + dirName;
-  }
-
   protected void mockDrillbitContext(final DrillbitContext bitContext) throws Exception {
     new NonStrictExpectations() {{
       bitContext.getMetrics(); result = new MetricRegistry();
@@ -120,4 +104,29 @@ public class ExecTest extends DrillTest {
     return ret.e;
   }
 
+  /**
+   * This utility is to mock the method DateTimeUtils.getDateFormatSymbols()
+   * to mock the current local as US.
+   */
+  public static void mockUsDateFormatSymbols() {
+    new MockUp<DateTimeUtils>() {
+      @Mock
+      public DateFormatSymbols getDateFormatSymbols(Locale locale) {
+        return new DateFormatSymbols(Locale.US);
+      }
+    };
+  }
+
+  /**
+   * This utility is to mock the method DateTimeZone.getDefault() to
+   * mock current timezone as UTC.
+   */
+  public static void mockUtcDateTimeZone() {
+    new MockUp<DateTimeZone>() {
+      @Mock
+      public DateTimeZone getDefault() {
+        return DateTimeZone.UTC;
+      }
+    };
+  }
 }

@@ -19,9 +19,7 @@ package org.apache.drill.test;
 
 import java.io.IOException;
 
-import org.apache.drill.TestBuilder;
 import org.apache.drill.common.AutoCloseables;
-import org.apache.drill.test.DrillTest;
 import org.junit.AfterClass;
 
 /**
@@ -77,7 +75,7 @@ public class ClusterTest extends DrillTest {
   protected static ClusterFixture cluster;
   protected static ClientFixture client;
 
-  protected static void startCluster(FixtureBuilder builder) throws Exception {
+  protected static void startCluster(ClusterFixtureBuilder builder) throws Exception {
     cluster = builder.build();
     client = cluster.clientFixture();
   }

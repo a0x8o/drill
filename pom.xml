@@ -39,7 +39,8 @@
     <calcite.version>1.4.0-drill-r23</calcite.version>
     <janino.version>2.7.6</janino.version>
     <sqlline.version>1.1.9-drill-r7</sqlline.version>
-    <jackson.version>2.7.8</jackson.version>
+    <jackson.version>2.7.9</jackson.version>
+    <jackson.databind.version>2.7.9.1</jackson.databind.version>
     <mapr.release.version>5.2.1-mapr</mapr.release.version>
     <ojai.version>1.1</ojai.version>
     <kerby.version>1.0.0-RC2</kerby.version>
@@ -55,6 +56,9 @@
     <hbase.version>1.1.3</hbase.version>
     <fmpp.version>0.9.15</fmpp.version>
     <freemarker.version>2.3.26-incubating</freemarker.version>
+    <javassist.version>3.16.1-GA</javassist.version>
+    <msgpack.version>0.6.6</msgpack.version>
+    <reflections.version>0.9.8</reflections.version>
     <excludedGroups></excludedGroups>
   </properties>
 
@@ -361,6 +365,7 @@
                     <exclude>org.mortbay.jetty:servlet-api-2.5</exclude>
                     <exclude>log4j:log4j</exclude>
                     <exclude>jdk.tools:jdk.tools</exclude>
+                    <exclude>org.json:json</exclude>
                   </excludes>
                 </bannedDependencies>
               </rules>
@@ -692,6 +697,27 @@
   <dependencyManagement>
     <dependencies>
       <dependency>
+        <groupId>org.msgpack</groupId>
+        <artifactId>msgpack</artifactId>
+        <version>${msgpack.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.reflections</groupId>
+        <artifactId>reflections</artifactId>
+        <version>${reflections.version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>javassist</groupId>
+            <artifactId>javassist</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>org.javassist</groupId>
+        <artifactId>javassist</artifactId>
+        <version>${javassist.version}</version>
+      </dependency>
+      <dependency>
         <groupId>org.freemarker</groupId>
         <artifactId>freemarker</artifactId>
         <version>${freemarker.version}</version>
@@ -929,6 +955,16 @@
         <version>${janino.version}</version>
       </dependency>
       <dependency>
+        <groupId>com.fasterxml.jackson.core</groupId>
+        <artifactId>jackson-annotations</artifactId>
+        <version>${jackson.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.fasterxml.jackson.core</groupId>
+        <artifactId>jackson-databind</artifactId>
+        <version>${jackson.databind.version}</version>
+      </dependency>
+      <dependency>
         <groupId>com.mapr.db</groupId>
         <artifactId>maprdb</artifactId>
         <version>${mapr.release.version}</version>
@@ -982,6 +1018,10 @@
             <groupId>io.netty</groupId>
             <artifactId>netty-all</artifactId>
           </exclusion>
+          <exclusion>
+            <groupId>org.json</groupId>
+            <artifactId>json</artifactId>
+          </exclusion>
         </exclusions>
       </dependency>
       <dependency>
@@ -1013,6 +1053,10 @@
             <groupId>io.netty</groupId>
             <artifactId>netty-all</artifactId>
           </exclusion>
+          <exclusion>
+            <groupId>org.json</groupId>
+            <artifactId>json</artifactId>
+          </exclusion>
         </exclusions>
       </dependency>
       <dependency>
@@ -1041,6 +1085,12 @@
         <classifier>${netty.tcnative.classifier}</classifier>
         <scope>runtime</scope>
         <optional>true</optional>
+      </dependency>
+      <dependency>
+        <groupId>com.tdunning</groupId>
+        <artifactId>json</artifactId>
+        <version>1.8</version>
+        <scope>runtime</scope>
       </dependency>
     </dependencies>
   </dependencyManagement>
@@ -1776,7 +1826,7 @@
         <rat.excludeSubprojects>true</rat.excludeSubprojects>
         <hive.version>1.2.0-mapr-1707</hive.version>
         <hbase.version>1.1.1-mapr-1602-m7-5.2.0</hbase.version>
-        <hadoop.version>2.7.0-mapr-1607</hadoop.version>
+        <hadoop.version>2.7.0-mapr-1707</hadoop.version>
       </properties>
       <dependencyManagement>
         <dependencies>

@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,30 +15,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.drill.exec.coord.zk;
 
-import org.apache.drill.exec.coord.ClusterCoordinator.RegistrationHandle;
-import org.apache.drill.exec.proto.CoordinationProtos.DrillbitEndpoint;
+package org.apache.drill.categories;
 
-public class ZKRegistrationHandle implements RegistrationHandle {
-  static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(ZKRegistrationHandle.class);
-
-  public final String id;
-  public DrillbitEndpoint endpoint;
-
-  public DrillbitEndpoint getEndPoint() {
-    return endpoint;
-  }
-
-  @Override
-  public void setEndPoint(DrillbitEndpoint endpoint) {
-    this.endpoint = endpoint;
-  }
-
-  public ZKRegistrationHandle(String id, DrillbitEndpoint endpoint) {
-    super();
-    this.id = id;
-    this.endpoint = endpoint;
-  }
-
+/**
+ * This is a category used to mark unit tests that test the Kafka storage plugin.
+ */
+public interface KafkaStorageTest {
 }

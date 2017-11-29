@@ -404,6 +404,25 @@ public class ClusterFixture extends BaseFixture implements AutoCloseable {
   }
 
   /**
+   * Shutdown the drillbit given the name of the drillbit.
+   */
+  public void closeDrillbit(final String drillbitName) throws Exception {
+    Exception ex = null;
+    for (Drillbit bit : drillbits()) {
+      if (bit.equals(bits.get(drillbitName))) {
+        try {
+          bit.close();
+        } catch (Exception e) {
+          ex = ex == null ? e :ex;
+        }
+      }
+    }
+    if (ex != null) {
+      throw ex;
+    }
+  }
+
+  /**
    * Close a resource, suppressing the exception, and keeping
    * only the first exception that may occur. We assume that only
    * the first is useful, any others are probably down-stream effects
@@ -461,7 +480,7 @@ public class ClusterFixture extends BaseFixture implements AutoCloseable {
     @SuppressWarnings("resource")
     final FileSystemPlugin plugin = (FileSystemPlugin) pluginRegistry.getPlugin(pluginName);
     final FileSystemConfig pluginConfig = (FileSystemConfig) plugin.getConfig();
-    final WorkspaceConfig newTmpWSConfig = new WorkspaceConfig(path, true, defaultFormat);
+    final WorkspaceConfig newTmpWSConfig = new WorkspaceConfig(path, true, defaultFormat, false);
 
     pluginConfig.workspaces.remove(schemaName);
     pluginConfig.workspaces.put(schemaName, newTmpWSConfig);

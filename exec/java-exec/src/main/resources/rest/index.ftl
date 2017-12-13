@@ -79,9 +79,11 @@
                   </span>
                 </td>
                 <td id="status" >${drillbit.getState()}</td>
-                <td>
-                    <button type="button" id="shutdown" onClick="shutdown('${drillbit.getAddress()}',$(this));"> SHUTDOWN </button>
-                </td>
+                <#if model.shouldShowAdminInfo()>
+                  <td>
+                      <button type="button" id="shutdown" onClick="shutdown('${drillbit.getAddress()}',$(this));"> SHUTDOWN </button>
+                  </td>
+                </#if>
                 <td id="queriesCount">  </td>
               </tr>
               <#assign i = i + 1>
@@ -112,7 +114,7 @@
       </div>
   </div>
 
-   <#if model.shouldShowUserInfo()>
+   <#if model.shouldShowAdminInfo()>
        <div class="row">
             <div class="col-md-12">
               <h3>User Info </h3>
@@ -185,11 +187,10 @@
       </div>
   </div>
    <script charset="utf-8">
-      var refreshTime = 2000;
+      var refreshTime = 10000;
       var refresh = getRefreshTime();
       var portNum = 0;
       var port = getPortNum();
-      console.log(portNum);
       var timeout;
       var size = $("#size").html();
 
@@ -206,19 +207,21 @@
       }
 
       function getRefreshTime() {
-          var refresh = $.ajax({
-                          type: 'GET',
-                          url: '/gracePeriod',
-                          dataType: "json",
-                          complete: function(data) {
-                                refreshTime = data.responseJSON["graceperiod"];
-                                refreshTime = refreshTime/3;
-                                timeout = setTimeout(reloadStatus,refreshTime );
-                                }
-                          });
+          $.ajax({
+              type: 'GET',
+              url: '/gracePeriod',
+              dataType: "json",
+              complete: function (data) {
+                  var gracePeriod = data.responseJSON["gracePeriod"];
+                  if (gracePeriod > 0) {
+                      refreshTime = gracePeriod / 3;
+                  }
+                  timeout = setTimeout(reloadStatus, refreshTime);
+              }
+          });
       }
+
       function reloadStatus () {
-          console.log(refreshTime);
           var result = $.ajax({
                       type: 'GET',
                       url: '/state',
@@ -266,18 +269,20 @@
                               }
                         });
       }
-      function shutdown(address,button) {
-          url = "http://"+address+":"+portNum+"/gracefulShutdown";
-          var result = $.ajax({
-                type: 'POST',
-                url: url,
-                contentType : 'text/plain',
-                complete: function(data) {
-                    alert(data.responseJSON["response"]);
-                    button.prop('disabled',true).css('opacity',0.5);
-                }
-          });
-      }
+       <#if model.shouldShowAdminInfo()>
+          function shutdown(address,button) {
+              url = "http://"+address+":"+portNum+"/gracefulShutdown";
+              var result = $.ajax({
+                    type: 'POST',
+                    url: url,
+                    contentType : 'text/plain',
+                    complete: function(data) {
+                        alert(data.responseJSON["response"]);
+                        button.prop('disabled',true).css('opacity',0.5);
+                    }
+              });
+          }
+      </#if>
     </script>
 </#macro>
 

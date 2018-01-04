@@ -30,7 +30,6 @@ import org.apache.drill.exec.server.options.TypeValidators.PowerOfTwoLongValidat
 import org.apache.drill.exec.server.options.TypeValidators.RangeDoubleValidator;
 import org.apache.drill.exec.server.options.TypeValidators.RangeLongValidator;
 import org.apache.drill.exec.server.options.TypeValidators.StringValidator;
-import org.apache.drill.exec.server.options.TypeValidators.MaxWidthValidator;
 import org.apache.drill.exec.server.options.TypeValidators.AdminUsersValidator;
 import org.apache.drill.exec.server.options.TypeValidators.AdminUserGroupsValidator;
 import org.apache.drill.exec.testing.ExecutionControls;
@@ -149,6 +148,9 @@ public final class ExecConstants {
   public static final String HTTP_KEYSTORE_PASSWORD = SSL_KEYSTORE_PASSWORD;
   public static final String HTTP_TRUSTSTORE_PATH = SSL_TRUSTSTORE_PATH;
   public static final String HTTP_TRUSTSTORE_PASSWORD = SSL_TRUSTSTORE_PASSWORD;
+  public static final String HTTP_AUTHENTICATION_MECHANISMS = "drill.exec.http.auth.mechanisms";
+  public static final String HTTP_SPNEGO_PRINCIPAL = "drill.exec.http.auth.spnego.principal";
+  public static final String HTTP_SPNEGO_KEYTAB = "drill.exec.http.auth.spnego.keytab";
   public static final String SYS_STORE_PROVIDER_CLASS = "drill.exec.sys.store.provider.class";
   public static final String SYS_STORE_PROVIDER_LOCAL_PATH = "drill.exec.sys.store.provider.local.path";
   public static final String SYS_STORE_PROVIDER_LOCAL_ENABLE_WRITE = "drill.exec.sys.store.provider.local.write";
@@ -165,6 +167,7 @@ public final class ExecConstants {
   public static final String USE_LOGIN_PRINCIPAL = "drill.exec.security.bit.auth.use_login_principal";
   public static final String USER_ENCRYPTION_SASL_ENABLED = "drill.exec.security.user.encryption.sasl.enabled";
   public static final String USER_ENCRYPTION_SASL_MAX_WRAPPED_SIZE = "drill.exec.security.user.encryption.sasl.max_wrapped_size";
+  public static final String WEB_SERVER_THREAD_POOL_MAX = "drill.exec.web_server.thread_pool_max";
 
   public static final String USER_SSL_ENABLED = "drill.exec.security.user.encryption.ssl.enabled";
   public static final String BIT_ENCRYPTION_SASL_ENABLED = "drill.exec.security.bit.encryption.sasl.enabled";

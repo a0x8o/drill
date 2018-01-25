@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -70,7 +70,7 @@ public abstract class SubsetTransformer<T extends RelNode, E extends Exception> 
 
     //2, convert the candidateSet to targeted taitSets
     for (RelTraitSet traitSet: traitSets) {
-      RelNode newRel = RelOptRule.convert(candidateSet, traitSet);
+      RelNode newRel = RelOptRule.convert(candidateSet, traitSet.simplify());
       if(transformedRels.contains(newRel)) {
         continue;
       }

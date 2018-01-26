@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,22 +15,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.drill.exec.physical.impl.limit;
+package org.apache.drill.exec.ops;
 
-import java.util.List;
+import org.apache.drill.exec.proto.CoordinationProtos;
+import org.apache.drill.exec.rpc.control.Controller;
+import org.apache.drill.exec.work.batch.IncomingBuffers;
 
-import org.apache.drill.common.exceptions.ExecutionSetupException;
-import org.apache.drill.exec.ops.ExecutorFragmentContext;
-import org.apache.drill.exec.physical.config.Limit;
-import org.apache.drill.exec.physical.impl.BatchCreator;
-import org.apache.drill.exec.record.RecordBatch;
+public interface ExchangeFragmentContext extends FragmentContext {
+  void waitForSendComplete();
 
-import com.google.common.collect.Iterables;
+  AccountingDataTunnel getDataTunnel(final CoordinationProtos.DrillbitEndpoint endpoint);
 
-public class LimitBatchCreator implements BatchCreator<Limit> {
-  @Override
-  public LimitRecordBatch getBatch(ExecutorFragmentContext context, Limit config, List<RecordBatch> children)
-      throws ExecutionSetupException {
-    return new LimitRecordBatch(config, context, Iterables.getOnlyElement(children));
-  }
+  AccountingUserConnection getUserDataTunnel();
+
+  Controller getController();
+
+  IncomingBuffers getBuffers();
 }

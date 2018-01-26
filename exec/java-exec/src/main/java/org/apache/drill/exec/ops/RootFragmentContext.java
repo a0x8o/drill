@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,22 +15,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.drill.exec.physical.impl.limit;
+package org.apache.drill.exec.ops;
 
-import java.util.List;
+public interface RootFragmentContext extends ExchangeFragmentContext {
+  FragmentStats getStats();
 
-import org.apache.drill.common.exceptions.ExecutionSetupException;
-import org.apache.drill.exec.ops.ExecutorFragmentContext;
-import org.apache.drill.exec.physical.config.Limit;
-import org.apache.drill.exec.physical.impl.BatchCreator;
-import org.apache.drill.exec.record.RecordBatch;
-
-import com.google.common.collect.Iterables;
-
-public class LimitBatchCreator implements BatchCreator<Limit> {
-  @Override
-  public LimitRecordBatch getBatch(ExecutorFragmentContext context, Limit config, List<RecordBatch> children)
-      throws ExecutionSetupException {
-    return new LimitRecordBatch(config, context, Iterables.getOnlyElement(children));
-  }
+  void setExecutorState(final ExecutorState executorState);
 }

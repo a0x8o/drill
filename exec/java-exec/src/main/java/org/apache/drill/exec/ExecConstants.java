@@ -59,6 +59,8 @@ public final class ExecConstants {
   public static final String CLIENT_RPC_THREADS = "drill.exec.rpc.user.client.threads";
   public static final String BIT_SERVER_RPC_THREADS = "drill.exec.rpc.bit.server.threads";
   public static final String USER_SERVER_RPC_THREADS = "drill.exec.rpc.user.server.threads";
+  public static final String FRAG_RUNNER_RPC_TIMEOUT = "drill.exec.rpc.fragrunner.timeout";
+  public static final PositiveLongValidator FRAG_RUNNER_RPC_TIMEOUT_VALIDATOR = new PositiveLongValidator(FRAG_RUNNER_RPC_TIMEOUT, Long.MAX_VALUE);
   public static final String TRACE_DUMP_DIRECTORY = "drill.exec.trace.directory";
   public static final String TRACE_DUMP_FILESYSTEM = "drill.exec.trace.filesystem";
   public static final String TEMP_DIRECTORIES = "drill.exec.tmp.directories";
@@ -77,7 +79,9 @@ public final class ExecConstants {
   public static final String SPILL_DIRS = "drill.exec.spill.directories";
 
   public static final String OUTPUT_BATCH_SIZE = "drill.exec.memory.operator.output_batch_size";
-  public static final LongValidator OUTPUT_BATCH_SIZE_VALIDATOR = new RangeLongValidator(OUTPUT_BATCH_SIZE, 1024, 512 * 1024 * 1024);
+  // Output Batch Size in Bytes. We have a small lower bound so we can test with unit tests without the
+  // need to produce very large batches that take up lot of memory.
+  public static final LongValidator OUTPUT_BATCH_SIZE_VALIDATOR = new RangeLongValidator(OUTPUT_BATCH_SIZE, 128, 512 * 1024 * 1024);
 
   // External Sort Boot configuration
 

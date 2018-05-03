@@ -180,7 +180,7 @@ public class Drillbit implements AutoCloseable {
     if (profileStoreProvider != storeProvider) {
       profileStoreProvider.start();
     }
-    final DrillbitEndpoint md = engine.start();
+    DrillbitEndpoint md = engine.start();
     manager.start(md, engine.getController(), engine.getDataConnectionCreator(), coord, storeProvider, profileStoreProvider);
     @SuppressWarnings("resource")
     final DrillbitContext drillbitContext = manager.getContext();
@@ -189,11 +189,14 @@ public class Drillbit implements AutoCloseable {
     drillbitContext.getOptionManager().init();
     javaPropertiesToSystemOptions();
     manager.getContext().getRemoteFunctionRegistry().init(context.getConfig(), storeProvider, coord);
-    registrationHandle = coord.register(md);
     webServer.start();
-
+    //Discovering HTTP port (in case of port hunting)
+    if (webServer.isRunning()) {
+      int httpPort = getWebServerPort();
+      md = md.toBuilder().setHttpPort(httpPort).build();
+    }
+    registrationHandle = coord.register(md);
     // Must start the RM after the above since it needs to read system options.
-
     drillbitContext.startRM();
 
     Runtime.getRuntime().addShutdownHook(new ShutdownThread(this, new StackTrace()));
@@ -206,6 +209,12 @@ public class Drillbit implements AutoCloseable {
   public void waitForGracePeriod() {
     ExtendedLatch exitLatch = new ExtendedLatch();
     exitLatch.awaitUninterruptibly(gracePeriod);
+  }
+
+  private void updateState(State state) {
+    if ( registrationHandle != null) {
+      coord.update(registrationHandle, state);
+    }
   }
 
   /*
@@ -225,14 +234,14 @@ public class Drillbit implements AutoCloseable {
     }
     final Stopwatch w = Stopwatch.createStarted();
     logger.debug("Shutdown begun.");
-    registrationHandle = coord.update(registrationHandle, State.QUIESCENT);
+    updateState(State.QUIESCENT);
     stateManager.setState(DrillbitState.GRACE);
     waitForGracePeriod();
     stateManager.setState(DrillbitState.DRAINING);
     // wait for all the in-flight queries to finish
     manager.waitToExit(forcefulShutdown);
     //safe to exit
-    registrationHandle = coord.update(registrationHandle, State.OFFLINE);
+    updateState(State.OFFLINE);
     stateManager.setState(DrillbitState.OFFLINE);
     if(quiescentMode == true) {
       return;

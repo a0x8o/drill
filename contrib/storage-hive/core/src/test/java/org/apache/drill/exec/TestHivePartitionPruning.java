@@ -120,25 +120,6 @@ public class TestHivePartitionPruning extends HiveTestBase {
     assertFalse(plan.contains("Filter"));
   }
 
-  @Test
-  public void pruneDataTypeSupportNativeReaders() throws Exception {
-    try {
-      test(String.format("alter session set `%s` = true", ExecConstants.HIVE_OPTIMIZE_SCAN_WITH_NATIVE_READERS));
-      final String query = "EXPLAIN PLAN FOR " +
-          "SELECT * FROM hive.readtest_parquet WHERE tinyint_part = 64";
-
-      final String plan = getPlanInString(query, OPTIQ_FORMAT);
-
-      // Check and make sure that Filter is not present in the plan
-      assertFalse(plan.contains("Filter"));
-
-      // Make sure the plan contains the Hive scan utilizing native parquet reader
-      assertTrue(plan.contains("groupscan=[HiveDrillNativeParquetScan"));
-    } finally {
-      test(String.format("alter session set `%s` = false", ExecConstants.HIVE_OPTIMIZE_SCAN_WITH_NATIVE_READERS));
-    }
-  }
-
   @Test // DRILL-3579
   public void selectFromPartitionedTableWithNullPartitions() throws Exception {
     final String query = "SELECT count(*) nullCount FROM hive.partition_pruning_test " +
@@ -178,6 +159,21 @@ public class TestHivePartitionPruning extends HiveTestBase {
     secondColumnIndex = resultString.indexOf(secondColumnString, secondColumnIndex + 1);
     // checks that column added to physical plan only one time
     assertEquals(-1, secondColumnIndex);
+  }
+
+  @Test // DRILL-6173
+  public void prunePartitionsBasedOnTransitivePredicates() throws Exception {
+    String query = String.format("SELECT * FROM hive.partition_pruning_test t1 " +
+            "JOIN hive.partition_with_few_schemas t2 ON t1.`d` = t2.`d` AND t1.`e` = t2.`e` " +
+            "WHERE t2.`e` IS NOT NULL AND t1.`d` = 1");
+
+    int actualRowCount = testSql(query);
+    int expectedRowCount = 450;
+    assertEquals("Expected and actual row count should match", expectedRowCount, actualRowCount);
+
+    final String[] expectedPlan =
+        {"partition_with_few_schemas.*numPartitions=6", "partition_pruning_test.*numPartitions=6"};
+    testPlanMatchingPatterns(query, expectedPlan);
   }
 
   @AfterClass

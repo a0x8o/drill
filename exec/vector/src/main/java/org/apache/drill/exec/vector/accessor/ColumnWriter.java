@@ -17,29 +17,112 @@
  */
 package org.apache.drill.exec.vector.accessor;
 
+import org.apache.drill.exec.record.metadata.ColumnMetadata;
+import org.apache.drill.exec.vector.accessor.ScalarWriter.ColumnWriterListener;
+import org.apache.drill.exec.vector.accessor.TupleWriter.TupleWriterListener;
+
 /**
- * Defines a writer to set values for value vectors using
- * a simple, uniform interface. Vector values are mapped to
- * their "natural" representations: the representation closest
- * to the actual vector value. For date and time values, this
- * generally means a numeric value. Applications can then map
- * this value to Java objects as desired. Decimal types all
- * map to BigDecimal as that is the only way in Java to
- * represent large decimal values.
- * <p>
- * In general, a column maps to just one value. However, derived
- * classes may choose to provide type conversions if convenient.
- * An exception is thrown if a call is made to a method that
- * is not supported by the column type.
- * <p>
- * Values of scalars are set directly, using the get method
- * for the target type. Maps and arrays are structured types and
- * require another level of writer abstraction to access each value
- * in the structure.
+ * Generic information about a column writer including:
+ * <ul>
+ * <li>Metadata</li>
+ * <li>Write position information about a writer needed by a vector overflow
+ * implementation. Hides the details of implementation and the writer class
+ * hierarchy, exposing just the required write position information.</li>
+ * <li>Generic methods for writing to the object, primarily used for
+ * testing.</li>
  */
 
-public interface ColumnWriter extends ColumnAccessor, ScalarWriter {
+public interface ColumnWriter extends WriterPosition {
+
+  interface TupleListenable {
+
+    /**
+     * Bind a listener to the underlying map or map array column. Not valid if the
+     * underlying writer is a scalar or scalar array.
+     *
+     * @param listener
+     *          the tuple listener to bind
+     */
+
+    void bindListener(TupleWriterListener listener);
+  }
+
+  interface ScalarListenable {
+    /**
+     * Bind a listener to the underlying scalar column, or array of scalar
+     * columns. Not valid if the underlying writer is a map or array of maps.
+     *
+     * @param listener
+     *          the column listener to bind
+     */
+
+    void bindListener(ColumnWriterListener listener);
+  }
+
+  /**
+   * Return the object (structure) type of this writer.
+   *
+   * @return type indicating if this is a scalar, tuple or array
+   */
+
+  ObjectType type();
+
+  /**
+   * Whether this writer allows nulls. This is not as simple as checking
+   * for the {@link DataMode#OPTIONAL} type in the schema. List entries
+   * are nullable, if they are primitive, but not if they are maps or lists.
+   * Unions are nullable, regardless of cardinality.
+   *
+   * @return true if a call to {@link #setNull()} is supported, false
+   * if not
+   */
+
+  boolean nullable();
+
+  /**
+   * Returns the schema of the column associated with this writer.
+   *
+   * @return schema for this writer's column
+   */
+
+  ColumnMetadata schema();
+
+  /**
+   * Set the current value to null. Support depends on the underlying
+   * implementation: only nullable types support this operation.
+   *
+   * throws IllegalStateException if called on a non-nullable value.
+   */
+
   void setNull();
-  TupleWriter map();
-  ArrayWriter array();
+
+  /**
+   * Generic technique to write data as a generic Java object. The
+   * type of the object must match the target writer.
+   * Primarily for testing.
+   * <ul>
+   * <li>Scalar: The type of the Java object must match the type of
+   * the target vector. <tt>String</tt> or <tt>byte[]</tt> can be
+   * used for Varchar vectors.</li>
+   * <li>Array: Write the array given an array of values. The object
+   * must be a Java array. The type of the array must match the type of
+   * element in the repeated vector. That is, if the vector is
+   * a <tt>Repeated Int</tt>, provide an <tt>int[]</tt> array.</tt></li>
+   * <li>Tuple (map or row): The Java object must be an array of objects
+   * in which the members of the array have a 1:1 correspondence with the
+   * members of the tuple in the order defined by the writer metadata.
+   * That is, if the map is (Int, Varchar), provide a <tt>Object[]</tt>
+   * array like this: <tt>{10, "fred"}</tt>.</li>
+   * <li>Union: Uses the Java object type to determine the type of the
+   * backing vector. Creates a vector
+   * of the required type if needed.</li>
+   *
+   * @param value value to write to the vector. The Java type of the
+   * object indicates the Drill storage type
+   * @throws IllegalArgumentException if the type of the Java object
+   * cannot be mapped to the type of the underlying vector or
+   * vector structure
+   */
+
+  void setObject(Object value);
 }

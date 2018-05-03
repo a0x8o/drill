@@ -430,7 +430,6 @@ public class RowSetTest extends SubOperatorTest {
 
     // Verify that the map accessor's value count was set.
 
-    @SuppressWarnings("resource")
     MapVector mapVector = (MapVector) actual.container().getValueVector(1).getValueVector();
     assertEquals(actual.rowCount(), mapVector.getAccessor().getValueCount());
 
@@ -574,7 +573,6 @@ public class RowSetTest extends SubOperatorTest {
 
     // Verify that the map accessor's value count was set.
 
-    @SuppressWarnings("resource")
     RepeatedMapVector mapVector = (RepeatedMapVector) actual.container().getValueVector(1).getValueVector();
     assertEquals(3, mapVector.getAccessor().getValueCount());
 
@@ -729,7 +727,7 @@ public class RowSetTest extends SubOperatorTest {
         writer.save();
         count++;
       }
-    } catch (IndexOutOfBoundsException e) {
+    } catch (Exception e) {
       assertTrue(e.getMessage().contains("Overflow"));
     }
     writer.done();

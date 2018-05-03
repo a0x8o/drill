@@ -20,7 +20,7 @@ package org.apache.drill.exec.metrics;
 import java.lang.management.ManagementFactory;
 import java.util.concurrent.TimeUnit;
 
-import com.codahale.metrics.JmxReporter;
+import com.codahale.metrics.jmx.JmxReporter;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricFilter;
 import com.codahale.metrics.MetricRegistry;
@@ -60,6 +60,7 @@ public final class DrillMetrics {
       REGISTRY.registerAll(new BufferPoolMetricSet(ManagementFactory.getPlatformMBeanServer()));
       REGISTRY.registerAll(new MemoryUsageGaugeSet());
       REGISTRY.registerAll(new ThreadStatesGaugeSet());
+      REGISTRY.registerAll(new CpuGaugeSet());
       register("fd.usage", new FileDescriptorRatioGauge());
     }
 

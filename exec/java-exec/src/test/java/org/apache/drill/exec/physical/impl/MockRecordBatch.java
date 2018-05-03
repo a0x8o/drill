@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -37,17 +37,18 @@ public class MockRecordBatch implements CloseableRecordBatch {
   private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(MockRecordBatch.class);
 
   // These resources are owned by this RecordBatch
-  private VectorContainer container;
+  protected VectorContainer container;
   private int currentContainerIndex;
   private int currentOutcomeIndex;
   private boolean isDone;
+  private boolean limitWithUnnest;
 
   // All the below resources are owned by caller
   private final List<VectorContainer> allTestContainers;
   private final List<IterOutcome> allOutcomes;
   private final FragmentContext context;
-  private final OperatorContext oContext;
-  private final BufferAllocator allocator;
+  protected final OperatorContext oContext;
+  protected final BufferAllocator allocator;
 
   public MockRecordBatch(FragmentContext context, OperatorContext oContext,
                          List<VectorContainer> testContainers, List<IterOutcome> iterOutcomes,
@@ -98,9 +99,11 @@ public class MockRecordBatch implements CloseableRecordBatch {
 
   @Override
   public void kill(boolean sendUpstream) {
-    isDone = true;
-    container.clear();
-    container.setRecordCount(0);
+    if (!limitWithUnnest) {
+      isDone = true;
+      container.clear();
+      container.setRecordCount(0);
+    }
   }
 
   @Override
@@ -181,5 +184,9 @@ public class MockRecordBatch implements CloseableRecordBatch {
 
   public boolean isCompleted() {
     return isDone;
+  }
+
+  public void useUnnestKillHandlingForLimit(boolean limitWithUnnest) {
+    this.limitWithUnnest = limitWithUnnest;
   }
 }

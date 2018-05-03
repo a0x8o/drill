@@ -178,6 +178,18 @@ public enum PlannerPhase {
           PlannerPhase.getPhysicalRules(context),
           getStorageRules(context, plugins, this));
     }
+  },
+
+  PRE_LOGICAL_PLANNING("Planning with Hep planner only for rules, which are failed for Volcano planner") {
+    public RuleSet getRules (OptimizerRulesContext context, Collection<StoragePlugin> plugins) {
+      return PlannerPhase.getSetOpTransposeRules();
+    }
+  },
+
+  TRANSITIVE_CLOSURE("Transitive closure") {
+    public RuleSet getRules(OptimizerRulesContext context, Collection<StoragePlugin> plugins) {
+      return getJoinTransitiveClosureRules();
+    }
   };
 
   public final String description;
@@ -258,8 +270,8 @@ public enum PlannerPhase {
        Filter push-down related rules
        */
       DrillPushFilterPastProjectRule.INSTANCE,
-      // Due to infinite loop in planning (DRILL-3257), temporarily disable this rule
-      //FilterSetOpTransposeRule.INSTANCE,
+      // Due to infinite loop in planning (DRILL-3257/CALCITE-1271), temporarily use this rule in Hep planner
+      // RuleInstance.FILTER_SET_OP_TRANSPOSE_RULE,
       DrillFilterAggregateTransposeRule.INSTANCE,
 
       RuleInstance.FILTER_MERGE_RULE,
@@ -276,8 +288,8 @@ public enum PlannerPhase {
       DrillPushProjectPastFilterRule.INSTANCE,
       DrillPushProjectPastJoinRule.INSTANCE,
 
-      // Due to infinite loop in planning (DRILL-3257), temporarily disable this rule
-      //DrillProjectSetOpTransposeRule.INSTANCE,
+      // Due to infinite loop in planning (DRILL-3257/CALCITE-1271), temporarily use this rule in Hep planner
+      // RuleInstance.PROJECT_SET_OP_TRANSPOSE_RULE,
       RuleInstance.PROJECT_WINDOW_TRANSPOSE_RULE,
       DrillPushProjectIntoScanRule.INSTANCE,
 
@@ -365,6 +377,7 @@ public enum PlannerPhase {
             // Ideally this should be done in logical planning, before join order planning is done.
             // Before we can make such change, we have to figure out how to adjust the selectivity
             // estimation of filter operator, after filter is pushed down to scan.
+
             ParquetPushDownFilter.getFilterOnProject(optimizerRulesContext),
             ParquetPushDownFilter.getFilterOnScan(optimizerRulesContext)
         )
@@ -392,7 +405,11 @@ public enum PlannerPhase {
 
   }
 
-  // Ruleset for join permutation, used only in VolcanoPlanner.
+  /**
+   * RuleSet for join permutation, used only in VolcanoPlanner.
+   * @param optimizerRulesContext shared state used during planning
+   * @return set of planning rules
+   */
   static RuleSet getJoinPermRules(OptimizerRulesContext optimizerRulesContext) {
     return RuleSets.ofList(ImmutableSet.<RelOptRule> builder().add(
         RuleInstance.JOIN_PUSH_THROUGH_JOIN_RULE_RIGHT,
@@ -425,6 +442,9 @@ public enum PlannerPhase {
     ruleList.add(UnionAllPrule.INSTANCE);
     ruleList.add(ValuesPrule.INSTANCE);
     ruleList.add(DirectScanPrule.INSTANCE);
+
+    ruleList.add(DrillPushLimitToScanRule.LIMIT_ON_PROJECT);
+    ruleList.add(DrillPushLimitToScanRule.LIMIT_ON_SCAN);
 
     if (ps.isHashAggEnabled()) {
       ruleList.add(HashAggPrule.INSTANCE);
@@ -486,5 +506,35 @@ public enum PlannerPhase {
        ).build();
   }
 
+  /**
+   *  Get an immutable list of rules to transpose SetOp(Union) operator with other operators.<p>
+   *  Note: Used by Hep planner only (failed for Volcano planner - CALCITE-1271)
+   *
+   * @return SetOp(Union) transpose rules
+   */
+  private static RuleSet getSetOpTransposeRules() {
+    return RuleSets.ofList(ImmutableSet.<RelOptRule> builder()
+        .add(
+            RuleInstance.FILTER_SET_OP_TRANSPOSE_RULE,
+            RuleInstance.PROJECT_SET_OP_TRANSPOSE_RULE
+        ).build());
+  }
 
+  /**
+   * RuleSet for join transitive closure, used only in HepPlanner.<p>
+   * TODO: {@link RuleInstance#JOIN_PUSH_TRANSITIVE_PREDICATES_RULE} should be copied to #staticRuleSet,
+   * once CALCITE-1048 is solved. This still should be present in {@link #TRANSITIVE_CLOSURE} stage
+   * for applying additional filters before {@link #DIRECTORY_PRUNING}.
+   *
+   * @return set of planning rules
+   */
+  static RuleSet getJoinTransitiveClosureRules() {
+    return RuleSets.ofList(ImmutableSet.<RelOptRule> builder()
+        .add(
+            DrillFilterJoinRules.DRILL_FILTER_ON_JOIN,
+            DrillFilterJoinRules.DRILL_JOIN,
+            RuleInstance.JOIN_PUSH_TRANSITIVE_PREDICATES_RULE,
+            RuleInstance.FILTER_MERGE_RULE
+        ).build());
+  }
 }

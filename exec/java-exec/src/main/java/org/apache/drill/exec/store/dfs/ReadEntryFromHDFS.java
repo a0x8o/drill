@@ -22,14 +22,14 @@ import org.apache.drill.exec.store.dfs.easy.FileWork;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-public class ReadEntryFromHDFS extends ReadEntryWithPath implements FileWork{
+public class ReadEntryFromHDFS extends ReadEntryWithPath implements FileWork {
 
   private long start;
   private long length;
 
   @JsonCreator
   public ReadEntryFromHDFS(@JsonProperty("path") String path,@JsonProperty("start") long start, @JsonProperty("length") long length) {
-    this.path = path;
+    super(path);
     this.start = start;
     this.length = length;
   }

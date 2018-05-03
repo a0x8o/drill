@@ -72,8 +72,7 @@ public class FlattenRecordBatch extends AbstractSingleRecordBatch<FlattenPOP> {
   private boolean hasRemainder = false;
   private int remainderIndex = 0;
   private int recordCount;
-  private int outputBatchSize;
-  private final FlattenMemoryManager flattenMemoryManager = new FlattenMemoryManager();
+  private final FlattenMemoryManager flattenMemoryManager;
 
   private final Flattener.Monitor monitor = new Flattener.Monitor() {
     @Override
@@ -118,6 +117,10 @@ public class FlattenRecordBatch extends AbstractSingleRecordBatch<FlattenPOP> {
 
   private class FlattenMemoryManager extends RecordBatchMemoryManager {
 
+    FlattenMemoryManager(int outputBatchSize) {
+      super(outputBatchSize);
+    }
+
     @Override
     public void update() {
       // Get sizing information for the batch.
@@ -138,11 +141,13 @@ public class FlattenRecordBatch extends AbstractSingleRecordBatch<FlattenPOP> {
       // Average rowWidth of single element in the flatten list.
       // subtract the offset vector size from column data size.
       final int avgRowWidthSingleFlattenEntry =
-        RecordBatchSizer.safeDivide(columnSize.getTotalNetSize() - (OFFSET_VECTOR_WIDTH * columnSize.getValueCount()), columnSize.getElementCount());
+        RecordBatchSizer.safeDivide(columnSize.getTotalNetSize() - (getOffsetVectorWidth() * columnSize.getValueCount()),
+          columnSize.getElementCount());
 
       // Average rowWidth of outgoing batch.
       final int avgOutgoingRowWidth = avgRowWidthWithOutFlattenColumn + avgRowWidthSingleFlattenEntry;
 
+      final int outputBatchSize = getOutputBatchSize();
       // Number of rows in outgoing batch
       setOutputRowCount(outputBatchSize, avgOutgoingRowWidth);
 
@@ -165,7 +170,8 @@ public class FlattenRecordBatch extends AbstractSingleRecordBatch<FlattenPOP> {
     super(pop, context, incoming);
 
     // get the output batch size from config.
-    outputBatchSize = (int) context.getOptions().getOption(ExecConstants.OUTPUT_BATCH_SIZE_VALIDATOR);
+    int configuredBatchSize = (int) context.getOptions().getOption(ExecConstants.OUTPUT_BATCH_SIZE_VALIDATOR);
+    flattenMemoryManager = new FlattenMemoryManager(configuredBatchSize);
   }
 
   @Override
@@ -185,7 +191,8 @@ public class FlattenRecordBatch extends AbstractSingleRecordBatch<FlattenPOP> {
   public IterOutcome innerNext() {
     if (hasRemainder) {
       handleRemainder();
-      return IterOutcome.OK;
+      // Check if we are supposed to return EMIT outcome and have consumed entire batch
+      return getFinalOutcome(hasRemainder);
     }
     return super.innerNext();
   }
@@ -255,7 +262,10 @@ public class FlattenRecordBatch extends AbstractSingleRecordBatch<FlattenPOP> {
     }
 
     flattenMemoryManager.updateOutgoingStats(outputRecords);
-    return IterOutcome.OK;
+
+    // Get the final outcome based on hasRemainder since that will determine if all the incoming records were
+    // consumed in current output batch or not
+    return getFinalOutcome(hasRemainder);
   }
 
   private void handleRemainder() {

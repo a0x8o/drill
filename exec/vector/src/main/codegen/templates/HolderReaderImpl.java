@@ -42,6 +42,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 
 import org.apache.drill.exec.expr.holders.*;
+import org.apache.drill.exec.expr.BasicTypeHelper;
 import org.joda.time.Period;
 
 // Source code generated using FreeMarker template ${.template_name}
@@ -96,10 +97,14 @@ public class ${holderMode}${name}HolderReaderImpl extends AbstractFieldReader {
 
   @Override
   public MajorType getType() {
-<#if holderMode == "Repeated">
-    return this.repeatedHolder.TYPE;
+<#if name?contains("Decimal")>
+    return BasicTypeHelper.getType(holder);
 <#else>
+  <#if holderMode == "Repeated">
+    return this.repeatedHolder.TYPE;
+  <#else>
     return this.holder.TYPE;
+  </#if>
 </#if>
   }
 
@@ -160,6 +165,8 @@ public class ${holderMode}${name}HolderReaderImpl extends AbstractFieldReader {
 
 <#if minor.class == "VarBinary">
       return value;
+<#elseif minor.class == "VarDecimal">
+      return org.apache.drill.exec.util.DecimalUtility.getBigDecimalFromDrillBuf(holder.buffer, holder.start, holder.end - holder.start, holder.scale);
 <#elseif minor.class == "Var16Char">
       return new String(value);
 <#elseif minor.class == "VarChar">
@@ -233,6 +240,8 @@ public class ${holderMode}${name}HolderReaderImpl extends AbstractFieldReader {
 
 <#if minor.class == "VarBinary">
       return value;
+<#elseif minor.class == "VarDecimal">
+      return org.apache.drill.exec.util.DecimalUtility.getBigDecimalFromDrillBuf(holder.buffer, holder.start, holder.end - holder.start, holder.scale);
 <#elseif minor.class == "Var16Char">
       return new String(value);
 <#elseif minor.class == "VarChar">

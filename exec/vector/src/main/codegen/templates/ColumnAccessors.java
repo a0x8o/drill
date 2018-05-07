@@ -28,6 +28,8 @@
       return ValueType.INTEGER;
   <#elseif drillType == "VarChar" || drillType == "Var16Char">
       return ValueType.STRING;
+  <#elseif drillType == "VarDecimal">
+    return ValueType.DECIMAL;
   <#else>
       return ValueType.${label?upper_case};
   </#if>
@@ -65,6 +67,7 @@
 package org.apache.drill.exec.vector.accessor;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 
 import org.apache.drill.common.types.TypeProtos.MajorType;
 import org.apache.drill.exec.vector.DateUtilities;
@@ -112,9 +115,9 @@ public class ColumnAccessors {
     <#if accessorType=="BigDecimal">
       <#assign label="Decimal">
     </#if>
-    <#assign varWidth = drillType == "VarChar" || drillType == "Var16Char" || drillType == "VarBinary" />
+    <#assign varWidth = drillType == "VarChar" || drillType == "Var16Char" || drillType == "VarBinary"  || drillType == "VarDecimal"/>
     <#assign decimal = drillType == "Decimal9" || drillType == "Decimal18" ||
-                       drillType == "Decimal28Sparse" || drillType == "Decimal38Sparse" />
+                       drillType == "Decimal28Sparse" || drillType == "Decimal38Sparse"  || drillType == "VarDecimal"/>
     <#if varWidth>
       <#assign accessorType = "byte[]">
       <#assign label = "Bytes">
@@ -135,18 +138,16 @@ public class ColumnAccessors {
 
     <#if varWidth>
   public static class ${drillType}ColumnReader extends BaseVarWidthReader {
-   
+
     <#else>
   public static class ${drillType}ColumnReader extends BaseFixedWidthReader {
-    
+
     private static final int VALUE_WIDTH = ${drillType}Vector.VALUE_WIDTH;
 
-      <#if decimal>
-    private MajorType type;
-    
-      </#if>
     </#if>
     <#if decimal>
+    private MajorType type;
+
     @Override
     public void bindVector(ColumnMetadata schema, VectorAccessor va) {
       super.bindVector(schema, va);
@@ -190,12 +191,12 @@ public class ColumnAccessors {
     <#elseif drillType == "IntervalDay">
       final int offset = ${getOffset};
       return DateUtilities.fromIntervalDay(
-          buf.getInt(offset), 
+          buf.getInt(offset),
           buf.getInt(offset + ${minor.millisecondsOffset}));
     <#elseif drillType == "Interval">
       final int offset = ${getOffset};
       return DateUtilities.fromInterval(
-          buf.getInt(offset), 
+          buf.getInt(offset),
           buf.getInt(offset + ${minor.daysOffset}),
           buf.getInt(offset + ${minor.millisecondsOffset}));
     <#elseif drillType == "Decimal28Sparse" || drillType == "Decimal38Sparse">
@@ -234,6 +235,14 @@ public class ColumnAccessors {
     public String getString() {
       return new String(getBytes(${indexVar}), Charsets.UTF_16);
     }
+  <#elseif drillType == "VarDecimal">
+
+    @Override
+    public BigDecimal getDecimal() {
+      byte[] bytes = getBytes();
+      BigInteger unscaledValue = bytes.length == 0 ? BigInteger.ZERO : new BigInteger(bytes);
+      return new BigDecimal(unscaledValue, type.getScale());
+    }
   </#if>
   }
 
@@ -241,9 +250,9 @@ public class ColumnAccessors {
   public static class ${drillType}ColumnWriter extends BaseVarWidthWriter {
       <#else>
   public static class ${drillType}ColumnWriter extends BaseFixedWidthWriter {
-    
+
     private static final int VALUE_WIDTH = ${drillType}Vector.VALUE_WIDTH;
-    
+
         <#if decimal>
     private MajorType type;
         </#if>
@@ -269,8 +278,8 @@ public class ColumnAccessors {
       </#if>
       <@getType drillType label />
       <#if ! varWidth>
-
     </#if>
+
     @Override
     public final void set${label}(final ${accessorType} value${putArgs}) {
       <#-- Must compute the write offset first; can't be inline because the
@@ -337,6 +346,15 @@ public class ColumnAccessors {
       final byte bytes[] = value.getBytes(Charsets.UTF_16);
       setBytes(bytes, bytes.length);
     }
+
+    <#elseif drillType = "VarDecimal">
+
+    @Override
+    public final void setDecimal(final BigDecimal bd) {
+      byte[] barr = bd.unscaledValue().toByteArray();
+      int len = barr.length;
+      setBytes(barr, len);
+    }
     </#if>
   }
 
@@ -355,7 +373,7 @@ import org.apache.drill.exec.vector.accessor.reader.BaseScalarReader;
 import org.apache.drill.exec.vector.accessor.writer.BaseScalarWriter;
 
 public class ColumnAccessorUtils {
-  
+
   private ColumnAccessorUtils() { }
 
 <@build vv.types "Required" "Reader" />

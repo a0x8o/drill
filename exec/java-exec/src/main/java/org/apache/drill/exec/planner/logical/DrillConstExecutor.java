@@ -62,10 +62,12 @@ import org.apache.drill.exec.expr.holders.NullableIntervalYearHolder;
 import org.apache.drill.exec.expr.holders.NullableTimeHolder;
 import org.apache.drill.exec.expr.holders.NullableTimeStampHolder;
 import org.apache.drill.exec.expr.holders.NullableVarCharHolder;
+import org.apache.drill.exec.expr.holders.NullableVarDecimalHolder;
 import org.apache.drill.exec.expr.holders.TimeHolder;
 import org.apache.drill.exec.expr.holders.TimeStampHolder;
 import org.apache.drill.exec.expr.holders.ValueHolder;
 import org.apache.drill.exec.expr.holders.VarCharHolder;
+import org.apache.drill.exec.expr.holders.VarDecimalHolder;
 import org.apache.drill.exec.ops.UdfUtilities;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
@@ -242,6 +244,32 @@ public class DrillConstExecutor implements RexExecutor {
                 new BigDecimal(BigInteger.valueOf(value), scale),
                 TypeInferenceUtils.createCalciteTypeWithNullability(typeFactory, SqlTypeName.DECIMAL, newCall.getType().isNullable()),
                 false);
+            }
+            case VARDECIMAL: {
+              DrillBuf buffer;
+              int start;
+              int end;
+              int scale;
+              int precision;
+              if (materializedExpr.getMajorType().getMode() == TypeProtos.DataMode.OPTIONAL) {
+                NullableVarDecimalHolder varDecimalHolder = (NullableVarDecimalHolder) output;
+                buffer = varDecimalHolder.buffer;
+                start = varDecimalHolder.start;
+                end = varDecimalHolder.end;
+                scale = varDecimalHolder.scale;
+                precision = varDecimalHolder.precision;
+              } else {
+                VarDecimalHolder varDecimalHolder = (VarDecimalHolder) output;
+                buffer = varDecimalHolder.buffer;
+                start = varDecimalHolder.start;
+                end = varDecimalHolder.end;
+                scale = varDecimalHolder.scale;
+                precision = varDecimalHolder.precision;
+              }
+              return rexBuilder.makeLiteral(
+                  org.apache.drill.exec.util.DecimalUtility.getBigDecimalFromDrillBuf(buffer, start, end - start, scale),
+                  typeFactory.createSqlType(SqlTypeName.DECIMAL, precision, scale),
+                  false);
             }
             case DECIMAL28SPARSE: {
               DrillBuf buffer;

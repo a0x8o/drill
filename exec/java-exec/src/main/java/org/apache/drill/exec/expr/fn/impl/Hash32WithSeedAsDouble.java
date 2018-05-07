@@ -23,18 +23,12 @@ import org.apache.drill.exec.expr.annotations.FunctionTemplate.FunctionScope;
 import org.apache.drill.exec.expr.annotations.Output;
 import org.apache.drill.exec.expr.annotations.Param;
 import org.apache.drill.exec.expr.holders.BigIntHolder;
-import org.apache.drill.exec.expr.holders.Decimal18Holder;
-import org.apache.drill.exec.expr.holders.Decimal28SparseHolder;
-import org.apache.drill.exec.expr.holders.Decimal38SparseHolder;
-import org.apache.drill.exec.expr.holders.Decimal9Holder;
+import org.apache.drill.exec.expr.holders.VarDecimalHolder;
+import org.apache.drill.exec.expr.holders.NullableVarDecimalHolder;
 import org.apache.drill.exec.expr.holders.Float4Holder;
 import org.apache.drill.exec.expr.holders.Float8Holder;
 import org.apache.drill.exec.expr.holders.IntHolder;
 import org.apache.drill.exec.expr.holders.NullableBigIntHolder;
-import org.apache.drill.exec.expr.holders.NullableDecimal18Holder;
-import org.apache.drill.exec.expr.holders.NullableDecimal28SparseHolder;
-import org.apache.drill.exec.expr.holders.NullableDecimal38SparseHolder;
-import org.apache.drill.exec.expr.holders.NullableDecimal9Holder;
 import org.apache.drill.exec.expr.holders.NullableFloat4Holder;
 import org.apache.drill.exec.expr.holders.NullableFloat8Holder;
 import org.apache.drill.exec.expr.holders.NullableIntHolder;
@@ -43,6 +37,7 @@ import org.apache.drill.exec.expr.holders.NullableIntHolder;
  * hash32 with seed function definitions for numeric data types. These functions cast the input numeric value to a
  * double before doing the hashing. See comments in {@link Hash64AsDouble} for the reason for doing this.
  */
+@SuppressWarnings("unused")
 public class Hash32WithSeedAsDouble {
   @FunctionTemplate(name = "hash32AsDouble", scope = FunctionScope.SIMPLE, nulls = FunctionTemplate.NullHandling.INTERNAL )
   public static class NullableFloatHash implements DrillSimpleFunc {
@@ -190,27 +185,26 @@ public class Hash32WithSeedAsDouble {
   }
 
   @FunctionTemplate(name = "hash32AsDouble", scope = FunctionScope.SIMPLE, nulls = FunctionTemplate.NullHandling.INTERNAL)
-  public static class Decimal9Hash implements DrillSimpleFunc {
-    @Param  Decimal9Holder in;
+  public static class VarDecimalHash implements DrillSimpleFunc {
+    @Param VarDecimalHolder in;
     @Param IntHolder seed;
     @Output IntHolder out;
-
 
     public void setup() {
     }
 
     public void eval() {
-      java.math.BigDecimal input = new java.math.BigDecimal(java.math.BigInteger.valueOf(in.value), in.scale);
-      out.value = org.apache.drill.exec.expr.fn.impl.HashHelper.hash32(input.doubleValue(), seed.value);
+      java.math.BigDecimal bd = org.apache.drill.exec.util.DecimalUtility.getBigDecimalFromDrillBuf(in.buffer,
+              in.start, in.end - in.start, in.scale);
+      out.value = org.apache.drill.exec.expr.fn.impl.HashHelper.hash32(bd.doubleValue(), seed.value);
     }
   }
 
   @FunctionTemplate(name = "hash32AsDouble", scope = FunctionScope.SIMPLE, nulls = FunctionTemplate.NullHandling.INTERNAL)
-  public static class NullableDecimal9Hash implements DrillSimpleFunc {
-    @Param  NullableDecimal9Holder in;
+  public static class NullableVarDecimalHash implements DrillSimpleFunc {
+    @Param  NullableVarDecimalHolder in;
     @Param IntHolder seed;
     @Output IntHolder out;
-
 
     public void setup() {
     }
@@ -219,120 +213,9 @@ public class Hash32WithSeedAsDouble {
       if (in.isSet == 0) {
         out.value = seed.value;
       } else {
-        java.math.BigDecimal input = new java.math.BigDecimal(java.math.BigInteger.valueOf(in.value), in.scale);
-        out.value = org.apache.drill.exec.expr.fn.impl.HashHelper.hash32(input.doubleValue(), seed.value);
-      }
-    }
-  }
-
-  @FunctionTemplate(name = "hash32AsDouble", scope = FunctionScope.SIMPLE, nulls = FunctionTemplate.NullHandling.INTERNAL)
-  public static class Decimal18Hash implements DrillSimpleFunc {
-    @Param  Decimal18Holder in;
-    @Param IntHolder seed;
-    @Output IntHolder out;
-
-
-    public void setup() {
-    }
-
-    public void eval() {
-      java.math.BigDecimal input = new java.math.BigDecimal(java.math.BigInteger.valueOf(in.value), in.scale);
-      out.value = org.apache.drill.exec.expr.fn.impl.HashHelper.hash32(input.doubleValue(), seed.value);
-    }
-  }
-
-  @FunctionTemplate(name = "hash32AsDouble", scope = FunctionScope.SIMPLE, nulls = FunctionTemplate.NullHandling.INTERNAL)
-  public static class NullableDecimal18Hash implements DrillSimpleFunc {
-    @Param  NullableDecimal18Holder in;
-    @Param IntHolder seed;
-    @Output IntHolder out;
-
-
-    public void setup() {
-    }
-
-    public void eval() {
-      if (in.isSet == 0) {
-        out.value = seed.value;
-      } else {
-        java.math.BigDecimal input = new java.math.BigDecimal(java.math.BigInteger.valueOf(in.value), in.scale);
-        out.value = org.apache.drill.exec.expr.fn.impl.HashHelper.hash32(input.doubleValue(), seed.value);
-      }
-    }
-  }
-
-  @FunctionTemplate(name = "hash32AsDouble", scope = FunctionScope.SIMPLE, nulls = FunctionTemplate.NullHandling.INTERNAL)
-  public static class Decimal28Hash implements DrillSimpleFunc {
-    @Param  Decimal28SparseHolder in;
-    @Param IntHolder seed;
-    @Output IntHolder out;
-
-
-    public void setup() {
-    }
-
-    public void eval() {
-      java.math.BigDecimal input = org.apache.drill.exec.util.DecimalUtility.getBigDecimalFromSparse(in.buffer,
-          in.start, in.nDecimalDigits, in.scale);
-      out.value = org.apache.drill.exec.expr.fn.impl.HashHelper.hash32(input.doubleValue(), seed.value);
-    }
-  }
-
-  @FunctionTemplate(name = "hash32AsDouble", scope = FunctionScope.SIMPLE, nulls = FunctionTemplate.NullHandling.INTERNAL)
-  public static class NullableDecimal28Hash implements DrillSimpleFunc {
-    @Param  NullableDecimal28SparseHolder in;
-    @Param IntHolder seed;
-    @Output IntHolder out;
-
-
-    public void setup() {
-    }
-
-    public void eval() {
-      if (in.isSet == 0) {
-        out.value = seed.value;
-      } else {
-        java.math.BigDecimal input = org.apache.drill.exec.util.DecimalUtility.getBigDecimalFromSparse(in.buffer,
-            in.start, in.nDecimalDigits, in.scale);
-        out.value = org.apache.drill.exec.expr.fn.impl.HashHelper.hash32(input.doubleValue(), seed.value);
-      }
-    }
-  }
-
-  @FunctionTemplate(name = "hash32AsDouble", scope = FunctionScope.SIMPLE, nulls = FunctionTemplate.NullHandling.INTERNAL)
-  public static class Decimal38Hash implements DrillSimpleFunc {
-    @Param  Decimal38SparseHolder in;
-    @Param IntHolder seed;
-    @Output IntHolder out;
-
-
-    public void setup() {
-    }
-
-    public void eval() {
-      java.math.BigDecimal input = org.apache.drill.exec.util.DecimalUtility.getBigDecimalFromSparse(in.buffer,
-          in.start, in.nDecimalDigits, in.scale);
-      out.value = org.apache.drill.exec.expr.fn.impl.HashHelper.hash32(input.doubleValue(), seed.value);
-    }
-  }
-
-  @FunctionTemplate(name = "hash32AsDouble", scope = FunctionScope.SIMPLE, nulls = FunctionTemplate.NullHandling.INTERNAL)
-  public static class NullableDecimal38Hash implements DrillSimpleFunc {
-    @Param  NullableDecimal38SparseHolder in;
-    @Param IntHolder seed;
-    @Output IntHolder out;
-
-
-    public void setup() {
-    }
-
-    public void eval() {
-      if (in.isSet == 0) {
-        out.value = seed.value;
-      } else {
-        java.math.BigDecimal input = org.apache.drill.exec.util.DecimalUtility.getBigDecimalFromSparse(in.buffer,
-            in.start, in.nDecimalDigits, in.scale);
-        out.value = org.apache.drill.exec.expr.fn.impl.HashHelper.hash32(input.doubleValue(), seed.value);
+        java.math.BigDecimal bd = org.apache.drill.exec.util.DecimalUtility.getBigDecimalFromDrillBuf(in.buffer,
+                in.start, in.end - in.start, in.scale);
+        out.value = org.apache.drill.exec.expr.fn.impl.HashHelper.hash32(bd.doubleValue(), seed.value);
       }
     }
   }

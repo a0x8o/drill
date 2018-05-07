@@ -28,6 +28,7 @@ import org.apache.drill.exec.vector.complex.writer.Decimal28SparseWriter;
 import org.apache.drill.exec.vector.complex.writer.Decimal38DenseWriter;
 import org.apache.drill.exec.vector.complex.writer.Decimal38SparseWriter;
 import org.apache.drill.exec.vector.complex.writer.Decimal9Writer;
+import org.apache.drill.exec.vector.complex.writer.VarDecimalWriter;
 import org.apache.drill.exec.vector.complex.writer.Float4Writer;
 import org.apache.drill.exec.vector.complex.writer.Float8Writer;
 import org.apache.drill.exec.vector.complex.writer.IntWriter;
@@ -220,6 +221,16 @@ public class MapOrListWriterImpl implements MapOrListWriter {
   @Override
   public Decimal38DenseWriter decimal38Dense(String name) {
     return (map != null) ? map.decimal38Dense(name) : list.decimal38Dense();
+  }
+
+  @Override
+  public VarDecimalWriter varDecimal(String name) {
+    return (map != null) ? map.varDecimal(name) : list.varDecimal();
+  }
+
+  @Override
+  public VarDecimalWriter varDecimal(String name, int scale, int precision) {
+    return (map != null) ? map.varDecimal(name, scale, precision) : list.varDecimal(scale, precision);
   }
 
   @Override

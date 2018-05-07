@@ -28,9 +28,9 @@ import org.apache.drill.common.exceptions.DrillRuntimeException;
 import org.apache.drill.common.types.TypeProtos.DataMode;
 import org.apache.drill.common.types.TypeProtos.MajorType;
 import org.apache.drill.common.types.TypeProtos.MinorType;
+import org.apache.drill.common.util.CoreDecimalUtility;
 
 import com.google.protobuf.TextFormat;
-import org.apache.drill.common.util.CoreDecimalUtility;
 
 public class Types {
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(Types.class);
@@ -73,6 +73,7 @@ public class Types {
 
     switch(type.getMinorType()) {
     case BIGINT:
+    case VARDECIMAL:
     case DECIMAL38SPARSE:
     case DECIMAL38DENSE:
     case DECIMAL28SPARSE:
@@ -106,6 +107,10 @@ public class Types {
     if (type.getMode() == DataMode.REPEATED || type.getMinorType() == MinorType.LIST) {
       return "ARRAY";
     }
+    return getBaseSqlTypeName(type);
+  }
+
+  public static String getBaseSqlTypeName(final MajorType type) {
 
     switch (type.getMinorType()) {
 
@@ -120,6 +125,7 @@ public class Types {
       case FLOAT4:          return "FLOAT";
       case FLOAT8:          return "DOUBLE";
 
+      case VARDECIMAL:
       case DECIMAL9:
       case DECIMAL18:
       case DECIMAL28DENSE:
@@ -170,6 +176,49 @@ public class Types {
       default:
         throw new AssertionError(
             "Unexpected/unhandled MinorType value " + type.getMinorType() );
+    }
+  }
+
+  /**
+   * Extend decimal type with precision and scale.
+   *
+   * @param type major type
+   * @param typeName type converted to a string
+   * @return type name augmented with precision and scale,
+   * if type is a decimal
+   */
+
+  public static String getExtendedSqlTypeName(MajorType type) {
+
+    String typeName = getSqlTypeName(type);
+    switch (type.getMinorType()) {
+    case DECIMAL9:
+    case DECIMAL18:
+    case DECIMAL28SPARSE:
+    case DECIMAL28DENSE:
+    case DECIMAL38SPARSE:
+    case DECIMAL38DENSE:
+    case VARDECIMAL:
+      // Disabled for now. See DRILL-6378
+      if (type.getPrecision() > 0) {
+        typeName += String.format("(%d, %d)",
+            type.getPrecision(), type.getScale());
+      }
+    default:
+    }
+    return typeName;
+  }
+
+  public static String getSqlModeName(final MajorType type) {
+    switch (type.getMode()) {
+    case REQUIRED:
+      return "NOT NULL";
+    case OPTIONAL:
+      return "NULLABLE";
+    case REPEATED:
+      return "ARRAY";
+    default:
+      return "UNKNOWN";
     }
   }
 
@@ -238,6 +287,7 @@ public class Types {
           case INTERVALYEAR:    // SQL INTERVAL w/YEAR and/or MONTH
           case INTERVALDAY:     // SQL INTERVAL w/DAY, HOUR, MINUTE and/or SECOND
           // Not-yet seen/verified signed types:
+          case VARDECIMAL:      // SQL DECIMAL (if used)
           case DECIMAL9:        // SQL DECIMAL (if used)
           case DECIMAL18:       // SQL DECIMAL (if used)
           case DECIMAL28SPARSE: // SQL DECIMAL (if used)
@@ -315,6 +365,7 @@ public class Types {
       case DECIMAL28SPARSE:
       case DECIMAL38DENSE:
       case DECIMAL38SPARSE:
+      case VARDECIMAL:
       case MONEY:           return 2 + precision; // precision of the column plus a sign and a decimal point
 
       case VARCHAR:
@@ -398,6 +449,7 @@ public class Types {
     case VAR16CHAR:
     case VARCHAR:
     case UNION:
+    case VARDECIMAL:
       return false;
     default:
       return true;
@@ -571,7 +623,7 @@ public class Types {
     case "double":
       return MinorType.FLOAT8;
     case "decimal":
-      return MinorType.DECIMAL38SPARSE;
+      return MinorType.VARDECIMAL;
     case "symbol":
     case "char":
     case "utf8":
@@ -633,12 +685,10 @@ public class Types {
         return "float";
       case FLOAT8:
         return "double";
+      case VARDECIMAL:
       case DECIMAL9:
-        return "decimal";
       case DECIMAL18:
-        return "decimal";
       case DECIMAL28SPARSE:
-        return "decimal";
       case DECIMAL38SPARSE:
         return "decimal";
       case VARCHAR:

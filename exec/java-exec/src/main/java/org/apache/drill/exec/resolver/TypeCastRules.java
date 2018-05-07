@@ -30,10 +30,11 @@ import org.apache.drill.common.types.TypeProtos.MajorType;
 import org.apache.drill.common.types.TypeProtos.MinorType;
 import org.apache.drill.exec.expr.annotations.FunctionTemplate.NullHandling;
 import org.apache.drill.exec.expr.fn.DrillFuncHolder;
-import org.apache.drill.exec.util.DecimalUtility;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
+import static org.apache.drill.exec.planner.types.DrillRelDataTypeSystem.DRILL_REL_DATATYPE_SYSTEM;
 
 public class TypeCastRules {
 
@@ -67,6 +68,7 @@ public class TypeCastRules {
     rule.add(MinorType.DECIMAL28DENSE);
     rule.add(MinorType.DECIMAL38SPARSE);
     rule.add(MinorType.DECIMAL38DENSE);
+    rule.add(MinorType.VARDECIMAL);
     rule.add(MinorType.MONEY);
     rule.add(MinorType.FLOAT4);
     rule.add(MinorType.FLOAT8);
@@ -95,6 +97,7 @@ public class TypeCastRules {
     rule.add(MinorType.DECIMAL28DENSE);
     rule.add(MinorType.DECIMAL38SPARSE);
     rule.add(MinorType.DECIMAL38DENSE);
+    rule.add(MinorType.VARDECIMAL);
     rule.add(MinorType.MONEY);
     rule.add(MinorType.FLOAT4);
     rule.add(MinorType.FLOAT8);
@@ -123,6 +126,7 @@ public class TypeCastRules {
     rule.add(MinorType.DECIMAL28DENSE);
     rule.add(MinorType.DECIMAL38SPARSE);
     rule.add(MinorType.DECIMAL38DENSE);
+    rule.add(MinorType.VARDECIMAL);
     rule.add(MinorType.MONEY);
     rule.add(MinorType.FLOAT4);
     rule.add(MinorType.FLOAT8);
@@ -151,6 +155,7 @@ public class TypeCastRules {
     rule.add(MinorType.DECIMAL28DENSE);
     rule.add(MinorType.DECIMAL38SPARSE);
     rule.add(MinorType.DECIMAL38DENSE);
+    rule.add(MinorType.VARDECIMAL);
     rule.add(MinorType.MONEY);
     rule.add(MinorType.FLOAT4);
     rule.add(MinorType.FLOAT8);
@@ -179,6 +184,7 @@ public class TypeCastRules {
     rule.add(MinorType.DECIMAL28DENSE);
     rule.add(MinorType.DECIMAL38SPARSE);
     rule.add(MinorType.DECIMAL38DENSE);
+    rule.add(MinorType.VARDECIMAL);
     rule.add(MinorType.MONEY);
     rule.add(MinorType.FLOAT4);
     rule.add(MinorType.FLOAT8);
@@ -207,6 +213,7 @@ public class TypeCastRules {
     rule.add(MinorType.DECIMAL28DENSE);
     rule.add(MinorType.DECIMAL38SPARSE);
     rule.add(MinorType.DECIMAL38DENSE);
+    rule.add(MinorType.VARDECIMAL);
     rule.add(MinorType.MONEY);
     rule.add(MinorType.FLOAT4);
     rule.add(MinorType.FLOAT8);
@@ -221,89 +228,30 @@ public class TypeCastRules {
 
     /** DECIMAL9 cast able from **/
     rule = new HashSet<>();
-    rule.add(MinorType.TINYINT);
-    rule.add(MinorType.SMALLINT);
-    rule.add(MinorType.INT);
-    rule.add(MinorType.BIGINT);
-    rule.add(MinorType.UINT1);
-    rule.add(MinorType.UINT2);
-    rule.add(MinorType.UINT4);
-    rule.add(MinorType.UINT8);
     rule.add(MinorType.DECIMAL9);
-    rule.add(MinorType.DECIMAL18);
-    rule.add(MinorType.DECIMAL28SPARSE);
-    rule.add(MinorType.DECIMAL28DENSE);
-    rule.add(MinorType.DECIMAL38SPARSE);
-    rule.add(MinorType.DECIMAL38DENSE);
-    rule.add(MinorType.MONEY);
-    rule.add(MinorType.FLOAT4);
-    rule.add(MinorType.FLOAT8);
-    rule.add(MinorType.BIT);
-    rule.add(MinorType.FIXEDCHAR);
-    rule.add(MinorType.FIXED16CHAR);
-    rule.add(MinorType.FIXEDBINARY);
-    rule.add(MinorType.VARCHAR);
-    rule.add(MinorType.VAR16CHAR);
-    rule.add(MinorType.VARBINARY);
+    rule.add(MinorType.VARDECIMAL);
     rules.put(MinorType.DECIMAL9, rule);
 
     /** DECIMAL18 cast able from **/
     rule = new HashSet<>();
-    rule.add(MinorType.TINYINT);
-    rule.add(MinorType.SMALLINT);
-    rule.add(MinorType.INT);
-    rule.add(MinorType.BIGINT);
-    rule.add(MinorType.UINT1);
-    rule.add(MinorType.UINT2);
-    rule.add(MinorType.UINT4);
-    rule.add(MinorType.UINT8);
-    rule.add(MinorType.DECIMAL9);
     rule.add(MinorType.DECIMAL18);
-    rule.add(MinorType.DECIMAL28SPARSE);
-    rule.add(MinorType.DECIMAL28DENSE);
-    rule.add(MinorType.DECIMAL38SPARSE);
-    rule.add(MinorType.DECIMAL38DENSE);
-    rule.add(MinorType.MONEY);
-    rule.add(MinorType.FLOAT4);
-    rule.add(MinorType.FLOAT8);
-    rule.add(MinorType.BIT);
-    rule.add(MinorType.FIXEDCHAR);
-    rule.add(MinorType.FIXED16CHAR);
-    rule.add(MinorType.FIXEDBINARY);
-    rule.add(MinorType.VARCHAR);
-    rule.add(MinorType.VAR16CHAR);
-    rule.add(MinorType.VARBINARY);
+    rule.add(MinorType.VARDECIMAL);
     rules.put(MinorType.DECIMAL18, rule);
 
     /** DECIMAL28Dense cast able from **/
     rule = new HashSet<>();
-    rule.add(MinorType.TINYINT);
-    rule.add(MinorType.SMALLINT);
-    rule.add(MinorType.INT);
-    rule.add(MinorType.BIGINT);
-    rule.add(MinorType.UINT1);
-    rule.add(MinorType.UINT2);
-    rule.add(MinorType.UINT4);
-    rule.add(MinorType.UINT8);
-    rule.add(MinorType.DECIMAL9);
-    rule.add(MinorType.DECIMAL18);
-    rule.add(MinorType.DECIMAL28SPARSE);
     rule.add(MinorType.DECIMAL28DENSE);
-    rule.add(MinorType.DECIMAL38SPARSE);
-    rule.add(MinorType.DECIMAL38DENSE);
-    rule.add(MinorType.MONEY);
-    rule.add(MinorType.FLOAT4);
-    rule.add(MinorType.FLOAT8);
-    rule.add(MinorType.BIT);
-    rule.add(MinorType.FIXEDCHAR);
-    rule.add(MinorType.FIXED16CHAR);
-    rule.add(MinorType.FIXEDBINARY);
-    rule.add(MinorType.VARCHAR);
-    rule.add(MinorType.VAR16CHAR);
-    rule.add(MinorType.VARBINARY);
+    rule.add(MinorType.VARDECIMAL);
     rules.put(MinorType.DECIMAL28DENSE, rule);
 
     /** DECIMAL28Sparse cast able from **/
+
+    rule = new HashSet<>();
+    rule.add(MinorType.DECIMAL28SPARSE);
+    rule.add(MinorType.VARDECIMAL);
+    rules.put(MinorType.DECIMAL28SPARSE, rule);
+
+    /* VARDECIMAL cast able from **/
     rule = new HashSet<>();
     rule.add(MinorType.TINYINT);
     rule.add(MinorType.SMALLINT);
@@ -313,79 +261,20 @@ public class TypeCastRules {
     rule.add(MinorType.UINT2);
     rule.add(MinorType.UINT4);
     rule.add(MinorType.UINT8);
-    rule.add(MinorType.DECIMAL9);
-    rule.add(MinorType.DECIMAL18);
-    rule.add(MinorType.DECIMAL28SPARSE);
-    rule.add(MinorType.DECIMAL28DENSE);
-    rule.add(MinorType.DECIMAL38SPARSE);
-    rule.add(MinorType.DECIMAL38DENSE);
-    rule.add(MinorType.MONEY);
-    rule.add(MinorType.FLOAT4);
-    rule.add(MinorType.FLOAT8);
-    rule.add(MinorType.BIT);
-    rule.add(MinorType.FIXEDCHAR);
-    rule.add(MinorType.FIXED16CHAR);
-    rule.add(MinorType.FIXEDBINARY);
-    rule.add(MinorType.VARCHAR);
-    rule.add(MinorType.VAR16CHAR);
-    rule.add(MinorType.VARBINARY);
-    rules.put(MinorType.DECIMAL28SPARSE, rule);
+    rule.add(MinorType.VARDECIMAL);
+    rules.put(MinorType.VARDECIMAL, rule);
 
     /** DECIMAL38Dense cast able from **/
     rule = new HashSet<>();
-    rule.add(MinorType.TINYINT);
-    rule.add(MinorType.SMALLINT);
-    rule.add(MinorType.INT);
-    rule.add(MinorType.BIGINT);
-    rule.add(MinorType.UINT1);
-    rule.add(MinorType.UINT2);
-    rule.add(MinorType.UINT4);
-    rule.add(MinorType.UINT8);
-    rule.add(MinorType.DECIMAL9);
-    rule.add(MinorType.DECIMAL18);
-    rule.add(MinorType.DECIMAL28SPARSE);
-    rule.add(MinorType.DECIMAL28DENSE);
-    rule.add(MinorType.DECIMAL38SPARSE);
     rule.add(MinorType.DECIMAL38DENSE);
-    rule.add(MinorType.MONEY);
-    rule.add(MinorType.FLOAT4);
-    rule.add(MinorType.FLOAT8);
-    rule.add(MinorType.BIT);
-    rule.add(MinorType.FIXEDCHAR);
-    rule.add(MinorType.FIXED16CHAR);
-    rule.add(MinorType.FIXEDBINARY);
-    rule.add(MinorType.VARCHAR);
-    rule.add(MinorType.VAR16CHAR);
-    rule.add(MinorType.VARBINARY);
+    rule.add(MinorType.VARDECIMAL);
     rules.put(MinorType.DECIMAL38DENSE, rule);
 
 
     /** DECIMAL38Sparse cast able from **/
     rule = new HashSet<>();
-    rule.add(MinorType.TINYINT);
-    rule.add(MinorType.SMALLINT);
-    rule.add(MinorType.INT);
-    rule.add(MinorType.BIGINT);
-    rule.add(MinorType.UINT1);
-    rule.add(MinorType.UINT2);
-    rule.add(MinorType.UINT4);
-    rule.add(MinorType.UINT8);
-    rule.add(MinorType.DECIMAL9);
-    rule.add(MinorType.DECIMAL18);
-    rule.add(MinorType.DECIMAL28SPARSE);
-    rule.add(MinorType.DECIMAL28DENSE);
     rule.add(MinorType.DECIMAL38SPARSE);
-    rule.add(MinorType.DECIMAL38DENSE);
-    rule.add(MinorType.MONEY);
-    rule.add(MinorType.FLOAT4);
-    rule.add(MinorType.FLOAT8);
-    rule.add(MinorType.BIT);
-    rule.add(MinorType.FIXEDCHAR);
-    rule.add(MinorType.FIXED16CHAR);
-    rule.add(MinorType.FIXEDBINARY);
-    rule.add(MinorType.VARCHAR);
-    rule.add(MinorType.VAR16CHAR);
-    rule.add(MinorType.VARBINARY);
+    rule.add(MinorType.VARDECIMAL);
     rules.put(MinorType.DECIMAL38SPARSE, rule);
 
     /** MONEY cast able from **/
@@ -404,6 +293,7 @@ public class TypeCastRules {
     rule.add(MinorType.DECIMAL28DENSE);
     rule.add(MinorType.DECIMAL38SPARSE);
     rule.add(MinorType.DECIMAL38DENSE);
+    rule.add(MinorType.VARDECIMAL);
     rule.add(MinorType.MONEY);
     rule.add(MinorType.FLOAT4);
     rule.add(MinorType.FLOAT8);
@@ -539,6 +429,7 @@ public class TypeCastRules {
     rule.add(MinorType.DECIMAL28DENSE);
     rule.add(MinorType.DECIMAL38SPARSE);
     rule.add(MinorType.DECIMAL38DENSE);
+    rule.add(MinorType.VARDECIMAL);
     rule.add(MinorType.MONEY);
     rule.add(MinorType.FLOAT4);
     rule.add(MinorType.BIT);
@@ -564,6 +455,7 @@ public class TypeCastRules {
     rule.add(MinorType.DECIMAL28DENSE);
     rule.add(MinorType.DECIMAL38SPARSE);
     rule.add(MinorType.DECIMAL38DENSE);
+    rule.add(MinorType.VARDECIMAL);
     rule.add(MinorType.MONEY);
     rule.add(MinorType.FLOAT4);
     rule.add(MinorType.FLOAT8);
@@ -592,7 +484,6 @@ public class TypeCastRules {
     rule.add(MinorType.INT);
     rule.add(MinorType.BIGINT);
     rule.add(MinorType.MONEY);
-    rule.add(MinorType.TIMESTAMPTZ);
     rule.add(MinorType.UINT1);
     rule.add(MinorType.UINT2);
     rule.add(MinorType.UINT4);
@@ -603,7 +494,7 @@ public class TypeCastRules {
     rule.add(MinorType.DECIMAL28DENSE);
     rule.add(MinorType.DECIMAL38SPARSE);
     rule.add(MinorType.DECIMAL38DENSE);
-    rule.add(MinorType.TIMESTAMP);
+    rule.add(MinorType.VARDECIMAL);
     rule.add(MinorType.FLOAT4);
     rule.add(MinorType.FLOAT8);
     rule.add(MinorType.BIT);
@@ -638,8 +529,8 @@ public class TypeCastRules {
     rule.add(MinorType.DECIMAL28DENSE);
     rule.add(MinorType.DECIMAL38SPARSE);
     rule.add(MinorType.DECIMAL38DENSE);
+    rule.add(MinorType.VARDECIMAL);
     rule.add(MinorType.MONEY);
-    rule.add(MinorType.TIMESTAMPTZ);
     rule.add(MinorType.FLOAT4);
     rule.add(MinorType.FLOAT8);
     rule.add(MinorType.BIT);
@@ -674,8 +565,8 @@ public class TypeCastRules {
     rule.add(MinorType.DECIMAL28DENSE);
     rule.add(MinorType.DECIMAL38SPARSE);
     rule.add(MinorType.DECIMAL38DENSE);
+    rule.add(MinorType.VARDECIMAL);
     rule.add(MinorType.MONEY);
-    rule.add(MinorType.TIMESTAMPTZ);
     rule.add(MinorType.FLOAT4);
     rule.add(MinorType.FLOAT8);
     rule.add(MinorType.BIT);
@@ -701,6 +592,7 @@ public class TypeCastRules {
     rule.add(MinorType.DECIMAL28DENSE);
     rule.add(MinorType.DECIMAL38SPARSE);
     rule.add(MinorType.DECIMAL38DENSE);
+    rule.add(MinorType.VARDECIMAL);
     rule.add(MinorType.MONEY);
     rule.add(MinorType.TIMESTAMPTZ);
     rule.add(MinorType.FLOAT4);
@@ -737,6 +629,7 @@ public class TypeCastRules {
     rule.add(MinorType.DECIMAL28DENSE);
     rule.add(MinorType.DECIMAL38SPARSE);
     rule.add(MinorType.DECIMAL38DENSE);
+    rule.add(MinorType.VARDECIMAL);
     rule.add(MinorType.MONEY);
     rule.add(MinorType.FLOAT4);
     rule.add(MinorType.FLOAT8);
@@ -772,6 +665,7 @@ public class TypeCastRules {
     rule.add(MinorType.DECIMAL28DENSE);
     rule.add(MinorType.DECIMAL38SPARSE);
     rule.add(MinorType.DECIMAL38DENSE);
+    rule.add(MinorType.VARDECIMAL);
     rule.add(MinorType.MONEY);
     rule.add(MinorType.TIMESTAMP);
     rule.add(MinorType.TIMESTAMPTZ);
@@ -800,7 +694,7 @@ public class TypeCastRules {
 
   public static boolean isCastable(MinorType from, MinorType to) {
     return from.equals(MinorType.NULL) ||      //null could be casted to any other type.
-        (rules.get(to) == null ? false : rules.get(to).contains(from));
+        (rules.get(to) != null && rules.get(to).contains(from));
   }
 
   public static DataMode getLeastRestrictiveDataMode(List<DataMode> dataModes) {
@@ -883,14 +777,14 @@ public class TypeCastRules {
      * If we are determining function holder for decimal data type, we need to make sure the output type of
      * the function can fit the precision that we need based on the input types.
      */
-    if (holder.checkPrecisionRange() == true) {
+    if (holder.checkPrecisionRange()) {
       List<LogicalExpression> logicalExpressions = Lists.newArrayList();
       for(MajorType majorType : argumentTypes) {
         logicalExpressions.add(
             new MajorTypeInLogicalExpression(majorType));
       }
 
-      if (DecimalUtility.getMaxPrecision(holder.getReturnType().getMinorType()) <
+      if (DRILL_REL_DATATYPE_SYSTEM.getMaxNumericPrecision() <
           holder.getReturnType(logicalExpressions).getPrecision()) {
         return -1;
       }
@@ -939,8 +833,8 @@ public class TypeCastRules {
          * if the seconday rules allow us to cast
          */
         Set<MinorType> rules;
-        if ((rules = (ResolverTypePrecedence.secondaryImplicitCastRules.get(parmType.getMinorType()))) != null &&
-            rules.contains(argType.getMinorType()) != false) {
+        if ((rules = (ResolverTypePrecedence.secondaryImplicitCastRules.get(parmType.getMinorType()))) != null
+            && rules.contains(argType.getMinorType())) {
           secondaryCast = true;
         } else {
           return -1;
@@ -1012,6 +906,7 @@ public class TypeCastRules {
       case DECIMAL18:
       case DECIMAL28SPARSE:
       case DECIMAL38SPARSE:
+      case VARDECIMAL:
       case FLOAT4:
       case FLOAT8:
         return true;

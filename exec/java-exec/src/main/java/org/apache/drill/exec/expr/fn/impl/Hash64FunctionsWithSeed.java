@@ -27,6 +27,9 @@ import org.apache.drill.exec.expr.holders.BitHolder;
 import org.apache.drill.exec.expr.holders.DateHolder;
 import org.apache.drill.exec.expr.holders.Decimal18Holder;
 import org.apache.drill.exec.expr.holders.Decimal28SparseHolder;
+import org.apache.drill.exec.expr.holders.VarDecimalHolder;
+import org.apache.drill.exec.expr.holders.NullableVarDecimalHolder;
+
 import org.apache.drill.exec.expr.holders.Decimal38SparseHolder;
 import org.apache.drill.exec.expr.holders.Decimal9Holder;
 import org.apache.drill.exec.expr.holders.Float4Holder;
@@ -56,6 +59,7 @@ import org.apache.drill.exec.expr.holders.VarCharHolder;
 /*
  * Class contains hash64 function definitions for different data types.
  */
+@SuppressWarnings("unused")
 public class Hash64FunctionsWithSeed {
   @FunctionTemplate(name = "hash64", scope = FunctionScope.SIMPLE, nulls = FunctionTemplate.NullHandling.INTERNAL )
   public static class NullableFloatHash implements DrillSimpleFunc {
@@ -412,79 +416,10 @@ public class Hash64FunctionsWithSeed {
   }
 
   @FunctionTemplate(name = "hash64", scope = FunctionScope.SIMPLE, nulls = FunctionTemplate.NullHandling.INTERNAL)
-  public static class Decimal9Hash implements DrillSimpleFunc {
-    @Param  Decimal9Holder in;
+  public static class VarDecimalHash implements DrillSimpleFunc {
+    @Param  VarDecimalHolder in;
     @Param BigIntHolder seed;
     @Output BigIntHolder out;
-
-
-    public void setup() {
-    }
-
-    public void eval() {
-      out.value = org.apache.drill.exec.expr.fn.impl.HashHelper.hash64(in.value, seed.value);
-    }
-  }
-
-  @FunctionTemplate(name = "hash64", scope = FunctionScope.SIMPLE, nulls = FunctionTemplate.NullHandling.INTERNAL)
-  public static class NullableDecimal9Hash implements DrillSimpleFunc {
-    @Param  NullableDecimal9Holder in;
-    @Param BigIntHolder seed;
-    @Output BigIntHolder out;
-
-
-    public void setup() {
-    }
-
-    public void eval() {
-      if (in.isSet == 0) {
-        out.value = seed.value;
-      } else {
-        out.value = org.apache.drill.exec.expr.fn.impl.HashHelper.hash64(in.value, seed.value);
-      }
-    }
-  }
-
-  @FunctionTemplate(name = "hash64", scope = FunctionScope.SIMPLE, nulls = FunctionTemplate.NullHandling.INTERNAL)
-  public static class Decimal18Hash implements DrillSimpleFunc {
-    @Param  Decimal18Holder in;
-    @Param BigIntHolder seed;
-    @Output BigIntHolder out;
-
-
-    public void setup() {
-    }
-
-    public void eval() {
-      out.value = org.apache.drill.exec.expr.fn.impl.HashHelper.hash64(in.value, seed.value);
-    }
-  }
-
-  @FunctionTemplate(name = "hash64", scope = FunctionScope.SIMPLE, nulls = FunctionTemplate.NullHandling.INTERNAL)
-  public static class NullableDecimal18Hash implements DrillSimpleFunc {
-    @Param  NullableDecimal18Holder in;
-    @Param BigIntHolder seed;
-    @Output BigIntHolder out;
-
-
-    public void setup() {
-    }
-
-    public void eval() {
-      if (in.isSet == 0) {
-        out.value = seed.value;
-      } else {
-        out.value = org.apache.drill.exec.expr.fn.impl.HashHelper.hash64(in.value, seed.value);
-      }
-    }
-  }
-
-  @FunctionTemplate(name = "hash64", scope = FunctionScope.SIMPLE, nulls = FunctionTemplate.NullHandling.INTERNAL)
-  public static class Decimal28Hash implements DrillSimpleFunc {
-    @Param  Decimal28SparseHolder in;
-    @Param BigIntHolder seed;
-    @Output BigIntHolder out;
-
 
     public void setup() {
     }
@@ -495,11 +430,10 @@ public class Hash64FunctionsWithSeed {
   }
 
   @FunctionTemplate(name = "hash64", scope = FunctionScope.SIMPLE, nulls = FunctionTemplate.NullHandling.INTERNAL)
-  public static class NullableDecimal28Hash implements DrillSimpleFunc {
-    @Param  NullableDecimal28SparseHolder in;
+  public static class NullableVarDecimalHash implements DrillSimpleFunc {
+    @Param  NullableVarDecimalHolder in;
     @Param BigIntHolder seed;
     @Output BigIntHolder out;
-
 
     public void setup() {
     }
@@ -509,40 +443,6 @@ public class Hash64FunctionsWithSeed {
         out.value = seed.value;
       } else {
         out.value = org.apache.drill.exec.expr.fn.impl.HashHelper.hash64(in.start, in.start + NullableDecimal28SparseHolder.WIDTH, in.buffer, seed.value);
-      }
-    }
-  }
-
-  @FunctionTemplate(name = "hash64", scope = FunctionScope.SIMPLE, nulls = FunctionTemplate.NullHandling.INTERNAL)
-  public static class Decimal38Hash implements DrillSimpleFunc {
-    @Param  Decimal38SparseHolder in;
-    @Param BigIntHolder seed;
-    @Output BigIntHolder out;
-
-
-    public void setup() {
-    }
-
-    public void eval() {
-      out.value = org.apache.drill.exec.expr.fn.impl.HashHelper.hash64(in.start, in.start + Decimal38SparseHolder.WIDTH, in.buffer, seed.value);
-    }
-  }
-
-  @FunctionTemplate(name = "hash64", scope = FunctionScope.SIMPLE, nulls = FunctionTemplate.NullHandling.INTERNAL)
-  public static class NullableDecimal38Hash implements DrillSimpleFunc {
-    @Param  NullableDecimal38SparseHolder in;
-    @Param BigIntHolder seed;
-    @Output BigIntHolder out;
-
-
-    public void setup() {
-    }
-
-    public void eval() {
-      if (in.isSet == 0) {
-        out.value = seed.value;
-      } else {
-        out.value = org.apache.drill.exec.expr.fn.impl.HashHelper.hash64(in.start, in.start + NullableDecimal38SparseHolder.WIDTH, in.buffer, seed.value);
       }
     }
   }

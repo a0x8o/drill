@@ -126,6 +126,30 @@ public class ${name}Accessor extends AbstractSqlAccessor {
     }
       <#break>
 
+    <#case "VarDecimal">
+
+    @Override
+    public String getString(int index) {
+      <#if mode == "Nullable">
+      if (ac.isNull(index)) {
+        return null;
+      }
+      </#if>
+      BigDecimal bd = getBigDecimal(index);
+      return bd.toString();
+    }
+
+    @Override
+    public BigDecimal getBigDecimal(int index) {
+    <#if mode == "Nullable">
+      if (ac.isNull(index)) {
+        return null;
+      }
+    </#if>
+      return ac.getObject(index);
+    }
+      <#break>
+
     <#case "VarChar">
 
     @Override
@@ -228,7 +252,7 @@ public class ${name}Accessor extends AbstractSqlAccessor {
     return String.valueOf(ac.getAsStringBuilder(index));
   }
 
-  <#elseif minor.class.startsWith("Decimal")>
+  <#elseif minor.class.contains("Decimal")>
 
   @Override
   public BigDecimal getBigDecimal(int index) {

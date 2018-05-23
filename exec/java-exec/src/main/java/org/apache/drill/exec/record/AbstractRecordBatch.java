@@ -29,6 +29,7 @@ import org.apache.drill.exec.ops.FragmentContext;
 import org.apache.drill.exec.ops.OperatorContext;
 import org.apache.drill.exec.ops.OperatorStats;
 import org.apache.drill.exec.physical.base.PhysicalOperator;
+import org.apache.drill.exec.physical.impl.aggregate.SpilledRecordbatch;
 import org.apache.drill.exec.record.selection.SelectionVector2;
 import org.apache.drill.exec.record.selection.SelectionVector4;
 import org.apache.drill.exec.server.options.OptionValue;
@@ -118,6 +119,13 @@ public abstract class AbstractRecordBatch<T extends PhysicalOperator> implements
       next = b.next();
     } finally {
       stats.startProcessing();
+    }
+
+    if (b instanceof SpilledRecordbatch) {
+      // Don't double count records which were already read and spilled.
+      // TODO evaluate whether swapping out upstream record batch with a SpilledRecordBatch
+      // is the right thing to do.
+      return next;
     }
 
     switch(next) {
@@ -227,5 +235,10 @@ public abstract class AbstractRecordBatch<T extends PhysicalOperator> implements
   @Override
   public VectorContainer getOutgoingContainer() {
     throw new UnsupportedOperationException(String.format(" You should not call getOutgoingContainer() for class %s", this.getClass().getCanonicalName()));
+  }
+
+  @Override
+  public VectorContainer getContainer() {
+    return  container;
   }
 }

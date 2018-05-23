@@ -315,15 +315,16 @@ public class DrillTestWrapper {
    * Iterate over batches, and combine the batches into a map, where key is schema path, and value is
    * the list of column values across all the batches.
    * @param batches
+   * @param expectedTotalRecords
    * @return
    * @throws SchemaChangeException
    * @throws UnsupportedEncodingException
    */
   public static Map<String, List<Object>> addToCombinedVectorResults(Iterable<VectorAccessible> batches,
-                                                                     Long expectedBatchSize, Integer expectedNumBatches)
+                                                                     Long expectedBatchSize, Integer expectedNumBatches, Integer expectedTotalRecords)
       throws SchemaChangeException, UnsupportedEncodingException {
     Map<String, List<Object>> combinedVectors = new TreeMap<>();
-    addToCombinedVectorResults(batches, null, expectedBatchSize, expectedNumBatches, combinedVectors);
+    addToCombinedVectorResults(batches, null, expectedBatchSize, expectedNumBatches, combinedVectors, expectedTotalRecords);
     return combinedVectors;
   }
 
@@ -340,7 +341,7 @@ public class DrillTestWrapper {
    */
   public static int addToCombinedVectorResults(Iterable<VectorAccessible> batches, BatchSchema expectedSchema,
                                                Long expectedBatchSize, Integer expectedNumBatches,
-                                               Map<String, List<Object>> combinedVectors)
+                                               Map<String, List<Object>> combinedVectors, Integer expectedTotalRecords)
        throws SchemaChangeException, UnsupportedEncodingException {
     // TODO - this does not handle schema changes
     int numBatch = 0;
@@ -443,6 +444,9 @@ public class DrillTestWrapper {
       Assert.assertTrue(numBatch <= (2*expectedNumBatches));
     }
 
+    if ( expectedTotalRecords != null ) {
+      Assert.assertEquals(expectedTotalRecords.longValue(), totalRecords);
+    }
     return numBatch;
   }
 
@@ -511,6 +515,15 @@ public class DrillTestWrapper {
       addTypeInfoIfMissing(actual.get(0), testBuilder);
       addToMaterializedResults(actualRecords, actual, loader);
 
+      // If actual result record number is 0,
+      // and the baseline records does not exist, and baselineColumns provided,
+      // compare actual column number/names with expected columns
+      if (actualRecords.size() == 0
+          && (baselineRecords == null || baselineRecords.size()==0)
+          && baselineColumns != null) {
+        checkColumnDef(loader.getSchema());
+      }
+
       // If baseline data was not provided to the test builder directly, we must run a query for the baseline, this includes
       // the cases where the baseline is stored in a file.
       if (baselineRecords == null) {
@@ -524,6 +537,18 @@ public class DrillTestWrapper {
       compareResults(expectedRecords, actualRecords);
     } finally {
       cleanupBatches(actual, expected);
+    }
+  }
+
+  public void checkColumnDef(BatchSchema batchSchema) throws Exception{
+    assert (batchSchema != null && batchSchema.getFieldCount()==baselineColumns.length);
+    for (int i=0; i<baselineColumns.length; ++i) {
+      if (!SchemaPath.parseFromString(baselineColumns[i]).equals(
+          SchemaPath.parseFromString(batchSchema.getColumn(i).getName()))) {
+        throw new Exception(i + "the expected column name is not matching: "
+            + baselineColumns[i] + " is not " +
+            batchSchema.getColumn(i).getName());
+      }
     }
   }
 
@@ -562,7 +587,7 @@ public class DrillTestWrapper {
       addTypeInfoIfMissing(actual.get(0), testBuilder);
 
       BatchIterator batchIter = new BatchIterator(actual, loader);
-      actualSuperVectors = addToCombinedVectorResults(batchIter, null, null);
+      actualSuperVectors = addToCombinedVectorResults(batchIter, null, null, null);
       batchIter.close();
 
       // If baseline data was not provided to the test builder directly, we must run a query for the baseline, this includes
@@ -575,7 +600,7 @@ public class DrillTestWrapper {
           test(baselineOptionSettingQueries);
           expected = testRunAndReturn(baselineQueryType, testBuilder.getValidationQuery());
           BatchIterator exBatchIter = new BatchIterator(expected, loader);
-          expectedSuperVectors = addToCombinedVectorResults(exBatchIter, null, null);
+          expectedSuperVectors = addToCombinedVectorResults(exBatchIter, null, null, null);
           exBatchIter.close();
         }
       } else {

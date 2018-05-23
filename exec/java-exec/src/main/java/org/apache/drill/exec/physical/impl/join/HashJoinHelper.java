@@ -103,6 +103,9 @@ public class HashJoinHelper {
     public BitSet getKeyMatchBitVector() {
       return keyMatchBitVector;
     }
+    public void clear() {
+      keyMatchBitVector.clear();
+    }
   }
 
   public SelectionVector4 getNewSV4(int recordCount) throws SchemaChangeException {
@@ -125,6 +128,12 @@ public class HashJoinHelper {
     buildInfoList.add(info);
   }
 
+  /**
+   * Takes a composite index for a key produced by {@link HashTable#probeForKey(int, int)}, and uses it to look up the
+   * index of the first original key in the original data.
+   * @param keyIndex A composite index for a key produced by {@link HashTable#probeForKey(int, int)}
+   * @return The composite index for the first added key record in the original data.
+   */
   public int getStartIndex(int keyIndex) {
     int batchIdx  = keyIndex / HashTable.BATCH_SIZE;
     int offsetIdx = keyIndex % HashTable.BATCH_SIZE;
@@ -136,6 +145,12 @@ public class HashJoinHelper {
     return sv4.get(offsetIdx);
   }
 
+  /**
+   * Takes a composite index for a key produced by {@link HashJoinHelper#getStartIndex(int)}, and returns the composite index for the
+   * next record in the list of records that match a key. The result is a composite index for a record within the original data set.
+   * @param currentIdx A composite index for a key produced by {@link HashJoinHelper#getStartIndex(int)}.
+   * @return The composite index for the next record in the list of records that match a key. The result is a composite index for a record within the original data set.
+   */
   public int getNextIndex(int currentIdx) {
     // Get to the links field of the current index to get the next index
     int batchIdx = currentIdx >>> SHIFT_SIZE;
@@ -231,5 +246,6 @@ public class HashJoinHelper {
     for (BuildInfo info : buildInfoList) {
       info.getLinks().clear();
     }
+    buildInfoList.clear();
   }
 }

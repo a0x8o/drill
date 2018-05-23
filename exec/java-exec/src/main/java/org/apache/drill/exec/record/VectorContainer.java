@@ -42,7 +42,10 @@ public class VectorContainer implements VectorAccessible {
   private final BufferAllocator allocator;
   protected final List<VectorWrapper<?>> wrappers = Lists.newArrayList();
   private BatchSchema schema;
-  private int recordCount = -1;
+
+  private int recordCount = 0;
+  private boolean initialized = false;
+  // private BufferAllocator allocator;
   private boolean schemaChanged = true; // Schema has changed since last built. Must rebuild schema
 
   public VectorContainer() {
@@ -132,6 +135,15 @@ public class VectorContainer implements VectorAccessible {
     return addOrGet(field, null);
   }
 
+  /**
+   * This method should be called with MaterializedField which also has correct children field list specially when
+   * the field type is MAP. Otherwise after calling this method if caller is not creating TransferPair on the
+   * ValueVector, then the new ValueVector will not have information about it's list of children MaterializedField.
+   * @param field
+   * @param callBack
+   * @param <T>
+   * @return
+   */
   @SuppressWarnings("unchecked")
   public <T extends ValueVector> T addOrGet(final MaterializedField field, final SchemaChangeCallBack callBack) {
     final TypedFieldId id = getValueVectorId(SchemaPath.getSimplePath(field.getName()));
@@ -209,6 +221,22 @@ public class VectorContainer implements VectorAccessible {
     }
   }
 
+  /**
+    * This works with non-hyper {@link VectorContainer}s which have no selection vectors.
+    * Appends a row taken from a source {@link VectorContainer} to this {@link VectorContainer}.
+    * @param srcContainer The {@link VectorContainer} to copy a row from.
+    * @param srcIndex The index of the row to copy from the source {@link VectorContainer}.
+    * @return Position one above where the row was appended
+    */
+    public int appendRow(VectorContainer srcContainer, int srcIndex) {
+      for (int vectorIndex = 0; vectorIndex < wrappers.size(); vectorIndex++) {
+        ValueVector destVector = wrappers.get(vectorIndex).getValueVector();
+        ValueVector srcVector = srcContainer.wrappers.get(vectorIndex).getValueVector();
+        destVector.copyEntry(recordCount, srcVector, srcIndex);
+      }
+      return incRecordCount();
+    }
+
   public TypedFieldId add(ValueVector vv) {
     schemaChanged = true;
     schema = null;
@@ -217,6 +245,11 @@ public class VectorContainer implements VectorAccessible {
     return new TypedFieldId(vv.getField().getType(), i);
   }
 
+  public ValueVector getLast() {
+    int sz = wrappers.size();
+    if ( sz == 0 ) { return null; }
+    return wrappers.get(sz - 1).getValueVector();
+  }
   public void add(ValueVector[] hyperVector) {
     add(hyperVector, true);
   }
@@ -343,7 +376,17 @@ public class VectorContainer implements VectorAccessible {
   }
 
   public void setRecordCount(int recordCount) {
-    this.recordCount = recordCount;
+      this.recordCount = recordCount;
+      initialized = true;
+  }
+
+  /**
+   * Increment the record count
+   * @return the new record count
+   */
+  public int incRecordCount() {
+    initialized = true;
+    return ++recordCount;
   }
 
   @Override
@@ -352,7 +395,7 @@ public class VectorContainer implements VectorAccessible {
     return recordCount;
   }
 
-  public boolean hasRecordCount() { return recordCount != -1; }
+  public boolean hasRecordCount() { return initialized; }
 
   @Override
   public SelectionVector2 getSelectionVector2() {
@@ -418,6 +461,7 @@ public class VectorContainer implements VectorAccessible {
     merged.wrappers.addAll(wrappers);
     merged.wrappers.addAll(otherContainer.wrappers);
     merged.schemaChanged = false;
+    merged.initialized = true;
     return merged;
   }
 
@@ -445,5 +489,29 @@ public class VectorContainer implements VectorAccessible {
     boolean temp2 = schemaChanged;
     schemaChanged = other.schemaChanged;
     other.schemaChanged = temp2;
+  }
+
+  /**
+   * This method create a pretty string for a record in the {@link VectorContainer}.
+   * @param index The index of the record of interest.
+   * @return The string representation of a record.
+   */
+  public String prettyPrintRecord(int index) {
+    final StringBuilder sb = new StringBuilder();
+    String separator = "";
+    sb.append("[");
+
+    for (VectorWrapper vectorWrapper: wrappers) {
+      sb.append(separator);
+      separator = ", ";
+      final String columnName = vectorWrapper.getField().getName();
+      final Object value = vectorWrapper.getValueVector().getAccessor().getObject(index);
+
+      // "columnName" = 11
+      sb.append("\"").append(columnName).append("\" = ").append(value);
+    }
+
+    sb.append("]");
+    return sb.toString();
   }
 }

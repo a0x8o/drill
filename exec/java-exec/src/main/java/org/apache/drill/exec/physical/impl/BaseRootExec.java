@@ -32,8 +32,6 @@ import org.apache.drill.exec.record.CloseableRecordBatch;
 import org.apache.drill.exec.record.RecordBatch;
 import org.apache.drill.exec.record.RecordBatch.IterOutcome;
 
-import com.google.common.base.Supplier;
-
 public abstract class BaseRootExec implements RootExec {
   private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(BaseRootExec.class);
 
@@ -139,12 +137,7 @@ public abstract class BaseRootExec implements RootExec {
 
     // close all operators.
     if (operators != null) {
-      final DeferredException df = new DeferredException(new Supplier<Exception>() {
-        @Override
-        public Exception get() {
-          return new RuntimeException("Error closing operators");
-        }
-      });
+      final DeferredException df = new DeferredException();
 
       for (final CloseableRecordBatch crb : operators) {
         df.suppressingClose(crb);

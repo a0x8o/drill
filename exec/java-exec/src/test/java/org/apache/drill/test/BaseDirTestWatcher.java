@@ -66,6 +66,8 @@ public class BaseDirTestWatcher extends DirTestWatcher {
     TEST_TMP // Corresponds to the directory that should be mapped to dfs.tmp
   }
 
+  private File codegenDir;
+  private File spillDir;
   private File tmpDir;
   private File storeDir;
   private File dfsTestTmpParentDir;
@@ -91,6 +93,8 @@ public class BaseDirTestWatcher extends DirTestWatcher {
   protected void starting(Description description) {
     super.starting(description);
 
+    codegenDir = makeSubDir(Paths.get("codegen"));
+    spillDir = makeSubDir(Paths.get("spill"));
     rootDir = makeSubDir(Paths.get("root"));
     tmpDir = makeSubDir(Paths.get("tmp"));
     storeDir = makeSubDir(Paths.get("store"));
@@ -104,6 +108,8 @@ public class BaseDirTestWatcher extends DirTestWatcher {
    */
   public void clear() {
     try {
+      FileUtils.cleanDirectory(codegenDir);
+      FileUtils.cleanDirectory(spillDir);
       FileUtils.cleanDirectory(rootDir);
       FileUtils.cleanDirectory(tmpDir);
       FileUtils.cleanDirectory(storeDir);
@@ -143,6 +149,18 @@ public class BaseDirTestWatcher extends DirTestWatcher {
    */
   public File getRootDir() {
     return rootDir;
+  }
+
+  /**
+   * Gets the temp directory that should be used to save generated code files.
+   * @return The temp directory that should be used to save generated code files.
+   */
+  public File getCodegenDir() {
+    return codegenDir;
+  }
+
+  public File getSpillDir() {
+    return spillDir;
   }
 
   /**
@@ -224,6 +242,22 @@ public class BaseDirTestWatcher extends DirTestWatcher {
    */
   public File copyResourceToRoot(Path relPath, Path destPath) {
     return copyTo(relPath, destPath, TestTools.FileSource.RESOURCE, DirType.ROOT);
+  }
+
+  /**
+   * Removes a file or directory copied at relativePath inside the root directory
+   * @param relPath - relative path of file/directory to be deleted from the root directory
+   * @throws IOException - Throws exception in case of failure
+   */
+  public void removeFileFromRoot(Path relPath) throws IOException {
+    removeFromRoot(relPath, DirType.ROOT);
+  }
+
+  private void removeFromRoot(Path relPath, DirType dirType) throws IOException {
+    final File baseDir = getDir(dirType);
+    final Path finalPath = baseDir.toPath().resolve(relPath);
+    final File file = finalPath.toFile();
+    FileUtils.forceDelete(file);
   }
 
   /**

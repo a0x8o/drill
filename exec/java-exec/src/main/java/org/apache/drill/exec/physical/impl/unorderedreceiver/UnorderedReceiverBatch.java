@@ -86,6 +86,9 @@ public class UnorderedReceiverBatch implements CloseableRecordBatch {
     this.stats = oContext.getStats();
     this.stats.setLongStat(Metric.NUM_SENDERS, config.getNumSenders());
     this.config = config;
+
+    // Register this operator's buffer allocator so that incoming buffers are owned by this allocator
+    context.getBuffers().getCollector(config.getOppositeMajorFragmentId()).setAllocator(oContext.getAllocator());
   }
 
   @Override
@@ -218,6 +221,11 @@ public class UnorderedReceiverBatch implements CloseableRecordBatch {
   @Override
   public VectorContainer getOutgoingContainer() {
     throw new UnsupportedOperationException(String.format(" You should not call getOutgoingContainer() for class %s", this.getClass().getCanonicalName()));
+  }
+
+  @Override
+  public VectorContainer getContainer() {
+    return batchLoader.getContainer();
   }
 
   private void informSenders() {

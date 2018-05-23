@@ -19,14 +19,18 @@ package org.apache.drill.test;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 
 public class SubOperatorTest extends DrillTest {
 
   protected static OperatorFixture fixture;
 
+  @ClassRule
+  public static final BaseDirTestWatcher dirTestWatcher = new BaseDirTestWatcher();
+
   @BeforeClass
   public static void classSetup() throws Exception {
-    fixture = OperatorFixture.standardFixture();
+    fixture = OperatorFixture.standardFixture(dirTestWatcher);
   }
 
   @AfterClass

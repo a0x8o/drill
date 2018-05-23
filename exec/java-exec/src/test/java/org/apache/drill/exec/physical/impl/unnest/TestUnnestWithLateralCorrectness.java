@@ -28,10 +28,13 @@ import org.apache.drill.exec.ops.OperatorContext;
 import org.apache.drill.exec.physical.base.LateralContract;
 import org.apache.drill.exec.physical.base.PhysicalOperator;
 import org.apache.drill.exec.physical.config.LateralJoinPOP;
+import org.apache.drill.exec.physical.config.Project;
 import org.apache.drill.exec.physical.config.UnnestPOP;
 import org.apache.drill.exec.physical.impl.MockRecordBatch;
 import org.apache.drill.exec.physical.impl.join.LateralJoinBatch;
+import org.apache.drill.exec.physical.impl.project.ProjectRecordBatch;
 import org.apache.drill.exec.physical.impl.sort.RecordBatchData;
+import org.apache.drill.exec.planner.logical.DrillLogicalTestutils;
 import org.apache.drill.exec.record.RecordBatch;
 import org.apache.drill.exec.record.metadata.TupleMetadata;
 import org.apache.drill.exec.record.VectorContainer;
@@ -223,8 +226,12 @@ public class TestUnnestWithLateralCorrectness extends SubOperatorTest {
 
     Object[][][] baseline = {
         {
-          {1, 1, 2, 2, 2, 3, 3, 4},
-          {"0", "1", "2", "3", "4", "5", "6", "9"}
+          {1, 1, 2, 2, 2, 3, 3},
+          {"0", "1", "2", "3", "4", "5", "6"}
+        },
+        {
+          {4},
+          {"9"}
         }
     };
 
@@ -462,7 +469,6 @@ public class TestUnnestWithLateralCorrectness extends SubOperatorTest {
 
   }
 
-
   @Test
   public void testUnnestNonArrayColumn() {
 
@@ -551,8 +557,15 @@ public class TestUnnestWithLateralCorrectness extends SubOperatorTest {
     final UnnestRecordBatch unnestBatch =
         new UnnestRecordBatch(unnestPopConfig, fixture.getFragmentContext());
 
+    // project is required to rename the columns so as to disambiguate the same column name from
+    // unnest operator and the regular scan.
+    final Project projectPopConfig = new Project(DrillLogicalTestutils.parseExprs("unnestColumn", "unnestColumn1"), null);
+
+    final ProjectRecordBatch projectBatch =
+        new ProjectRecordBatch( projectPopConfig, unnestBatch, fixture.getFragmentContext());
+
     final LateralJoinBatch lateralJoinBatch =
-        new LateralJoinBatch(ljPopConfig, fixture.getFragmentContext(), incomingMockBatch, unnestBatch);
+        new LateralJoinBatch(ljPopConfig, fixture.getFragmentContext(), incomingMockBatch, projectBatch);
 
     // set pointer to Lateral in unnest
     unnestBatch.setIncoming((LateralContract) lateralJoinBatch);

@@ -53,7 +53,9 @@ import org.apache.drill.exec.vector.ValueVector;
 import com.sun.codemodel.JConditional;
 import com.sun.codemodel.JExpr;
 
-
+/**
+ * This is a master class used to generate code for {@link HashTable}s.
+ */
 public class ChainedHashTable {
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(ChainedHashTable.class);
 
@@ -116,7 +118,7 @@ public class ChainedHashTable {
   private final FragmentContext context;
   private final BufferAllocator allocator;
   private RecordBatch incomingBuild;
-  private final RecordBatch incomingProbe;
+  private RecordBatch incomingProbe;
   private final RecordBatch outgoing;
 
   public ChainedHashTable(HashTableConfig htConfig, FragmentContext context, BufferAllocator allocator,
@@ -130,11 +132,12 @@ public class ChainedHashTable {
     this.outgoing = outgoing;
   }
 
-  public void updateIncoming(RecordBatch incomingBuild) {
+  public void updateIncoming(RecordBatch incomingBuild, RecordBatch incomingProbe) {
     this.incomingBuild = incomingBuild;
+    this.incomingProbe = incomingProbe;
   }
 
-  public HashTable createAndSetupHashTable(TypedFieldId[] outKeyFieldIds, int numPartitions) throws ClassTransformationException,
+  public HashTable createAndSetupHashTable(TypedFieldId[] outKeyFieldIds) throws ClassTransformationException,
       IOException, SchemaChangeException {
     CodeGenerator<HashTable> top = CodeGenerator.get(HashTable.TEMPLATE_DEFINITION, context.getOptions());
     top.plainJavaCapable(true);
@@ -225,14 +228,13 @@ public class ChainedHashTable {
     setupGetHash(cg /* use top level code generator for getHash */, GetHashIncomingProbeMapping, incomingProbe, keyExprsProbe, true);
 
     HashTable ht = context.getImplementationClass(top);
-    ht.setup(htConfig, allocator, incomingBuild, incomingProbe, outgoing, htContainerOrig);
+    ht.setup(htConfig, allocator, incomingBuild.getContainer(), incomingProbe, outgoing, htContainerOrig);
 
     return ht;
   }
 
   private void setupIsKeyMatchInternal(ClassGenerator<HashTable> cg, MappingSet incomingMapping, MappingSet htableMapping,
-      LogicalExpression[] keyExprs, List<Comparator> comparators, TypedFieldId[] htKeyFieldIds)
-      throws SchemaChangeException {
+      LogicalExpression[] keyExprs, List<Comparator> comparators, TypedFieldId[] htKeyFieldIds) {
     cg.setMappingSet(incomingMapping);
 
     if (keyExprs == null || keyExprs.length == 0) {
@@ -276,15 +278,13 @@ public class ChainedHashTable {
   }
 
   private void setupSetValue(ClassGenerator<HashTable> cg, LogicalExpression[] keyExprs,
-                             TypedFieldId[] htKeyFieldIds) throws SchemaChangeException {
+                             TypedFieldId[] htKeyFieldIds) {
 
     cg.setMappingSet(SetValueMapping);
 
     int i = 0;
     for (LogicalExpression expr : keyExprs) {
-      boolean useSetSafe = !Types.isFixedWidthType(expr.getMajorType()) || Types.isRepeated(expr.getMajorType());
-      ValueVectorWriteExpression vvwExpr = new ValueVectorWriteExpression(htKeyFieldIds[i++], expr, useSetSafe);
-
+      ValueVectorWriteExpression vvwExpr = new ValueVectorWriteExpression(htKeyFieldIds[i++], expr, true);
       cg.addExpr(vvwExpr, ClassGenerator.BlkCreateMode.TRUE_IF_BOUND);
     }
   }

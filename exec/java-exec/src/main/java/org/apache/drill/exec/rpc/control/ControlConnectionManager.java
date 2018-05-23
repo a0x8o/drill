@@ -25,14 +25,10 @@ import org.apache.drill.exec.rpc.ReconnectingConnection;
 /**
  * Maintains connection between two particular bits.
  */
-public class ControlConnectionManager extends ReconnectingConnection<ControlConnection, BitControlHandshake>{
+public abstract class ControlConnectionManager extends ReconnectingConnection<ControlConnection, BitControlHandshake>{
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(ControlConnectionManager.class);
 
-  private final ControlConnectionConfig config;
-  private final DrillbitEndpoint remoteEndpoint;
-
-  public ControlConnectionManager(ControlConnectionConfig config, DrillbitEndpoint localEndpoint,
-                                  DrillbitEndpoint remoteEndpoint) {
+  public ControlConnectionManager(DrillbitEndpoint localEndpoint, DrillbitEndpoint remoteEndpoint) {
     super(
         BitControlHandshake.newBuilder()
             .setRpcVersion(ControlRpcConfig.RPC_VERSION)
@@ -40,14 +36,8 @@ public class ControlConnectionManager extends ReconnectingConnection<ControlConn
             .build(),
         remoteEndpoint.getAddress(),
         remoteEndpoint.getControlPort());
-
-    this.config = config;
-    this.remoteEndpoint = remoteEndpoint;
   }
 
   @Override
-  protected BasicClient<?, ControlConnection, BitControlHandshake, ?> getNewClient() {
-    return new ControlClient(config, remoteEndpoint, new CloseHandlerCreator());
-  }
-
+  protected abstract BasicClient<?, ControlConnection, BitControlHandshake, ?> getNewClient();
 }

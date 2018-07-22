@@ -24,6 +24,7 @@ import org.apache.drill.common.expression.FieldReference;
 import org.apache.drill.exec.ExecConstants;
 import org.apache.drill.exec.exception.OutOfMemoryException;
 import org.apache.drill.exec.exception.SchemaChangeException;
+import org.apache.drill.exec.expr.TypeHelper;
 import org.apache.drill.exec.ops.FragmentContext;
 import org.apache.drill.exec.ops.MetricDef;
 import org.apache.drill.exec.physical.config.UnnestPOP;
@@ -48,7 +49,10 @@ import static org.apache.drill.exec.record.RecordBatch.IterOutcome.OK_NEW_SCHEMA
 public class UnnestRecordBatch extends AbstractTableFunctionRecordBatch<UnnestPOP> {
   private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(UnnestRecordBatch.class);
 
-  private Unnest unnest;
+  private Unnest unnest = new UnnestImpl();
+  private boolean hasNewSchema = false; // set to true if a new schema was encountered and an empty batch was
+                                        // sent. The next iteration, we need to make sure the record batch sizer
+                                        // is updated before we process the actual data.
   private boolean hasRemainder = false; // set to true if there is data left over for the current row AND if we want
                                         // to keep processing it. Kill may be called by a limit in a subquery that
                                         // requires us to stop processing thecurrent row, but not stop processing
@@ -180,6 +184,12 @@ public class UnnestRecordBatch extends AbstractTableFunctionRecordBatch<UnnestPO
       return nextState;
     }
 
+    if (hasNewSchema) {
+      memoryManager.update();
+      hasNewSchema = false;
+      return doWork();
+    }
+
     if (hasRemainder) {
       return doWork();
     }
@@ -194,11 +204,12 @@ public class UnnestRecordBatch extends AbstractTableFunctionRecordBatch<UnnestPO
       state = BatchState.NOT_FIRST;
       try {
         stats.startSetup();
-        hasRemainder = true; // next call to next will handle the actual data.
+        hasNewSchema = true; // next call to next will handle the actual data.
         logger.debug("First batch received");
         schemaChanged(); // checks if schema has changed (redundant in this case becaause it has) AND saves the
                          // current field metadata for check in subsequent iterations
         setupNewSchema();
+        stats.batchReceived(0, incoming.getRecordCount(), true);
       } catch (SchemaChangeException ex) {
         kill(false);
         logger.error("Failure during query", ex);
@@ -207,32 +218,43 @@ public class UnnestRecordBatch extends AbstractTableFunctionRecordBatch<UnnestPO
       } finally {
         stats.stopSetup();
       }
-      // since we never called next on an upstream operator, incoming stats are
-      // not updated. update input stats explicitly.
-      stats.batchReceived(0, incoming.getRecordCount(), true);
       return IterOutcome.OK_NEW_SCHEMA;
     } else {
-      assert state != BatchState.FIRST : "First batch should be OK_NEW_SCHEMA";
       container.zeroVectors();
-
       // Check if schema has changed
-      if (lateral.getRecordIndex() == 0 && schemaChanged()) {
-        hasRemainder = true;     // next call to next will handle the actual data.
-        try {
-          setupNewSchema();
-        } catch (SchemaChangeException ex) {
-          kill(false);
-          logger.error("Failure during query", ex);
-          context.getExecutorState().fail(ex);
-          return IterOutcome.STOP;
-        }
-        stats.batchReceived(0, incoming.getRecordCount(), true);
-        return OK_NEW_SCHEMA;
-      }
       if (lateral.getRecordIndex() == 0) {
+        hasNewSchema = schemaChanged();
+        stats.batchReceived(0, incoming.getRecordCount(), hasNewSchema);
+        if (hasNewSchema) {
+          try {
+            setupNewSchema();
+          } catch (SchemaChangeException ex) {
+            kill(false);
+            logger.error("Failure during query", ex);
+            context.getExecutorState().fail(ex);
+            return IterOutcome.STOP;
+          }
+          return OK_NEW_SCHEMA;
+        } else { // Unnest field schema didn't changed but new left empty/nonempty batch might come with OK_NEW_SCHEMA
+          try {
+            // This means even though there is no schema change for unnest field the reference of unnest field
+            // ValueVector must have changed hence we should just refresh the transfer pairs and keep output vector
+            // same as before. In case when new left batch is received with SchemaChange but was empty Lateral will
+            // not call next on unnest and will change it's left outcome to OK. Whereas for non-empty batch next will
+            // be called on unnest by Lateral. Hence UNNEST cannot rely on lateral current outcome to setup transfer
+            // pair. It should do for each new left incoming batch.
+            resetUnnestTransferPair();
+            container.zeroVectors();
+          } catch (SchemaChangeException ex) {
+            kill(false);
+            logger.error("Failure during query", ex);
+            context.getExecutorState().fail(ex);
+            return IterOutcome.STOP;
+          }
+        } // else
         unnest.resetGroupIndex();
+        memoryManager.update();
       }
-      stats.batchReceived(0, incoming.getRecordCount(), false);
       return doWork();
     }
 
@@ -243,7 +265,8 @@ public class UnnestRecordBatch extends AbstractTableFunctionRecordBatch<UnnestPO
     return this.container;
   }
 
-  @SuppressWarnings("resource") private void setUnnestVector() {
+  @SuppressWarnings("resource")
+  private void setUnnestVector() {
     final TypedFieldId typedFieldId = incoming.getValueVectorId(popConfig.getColumn());
     final MaterializedField field = incoming.getSchema().getColumn(typedFieldId.getFieldIds()[0]);
     final RepeatedValueVector vector;
@@ -267,7 +290,6 @@ public class UnnestRecordBatch extends AbstractTableFunctionRecordBatch<UnnestPO
 
   protected IterOutcome doWork() {
     Preconditions.checkNotNull(lateral);
-    memoryManager.update();
     unnest.setOutputCount(memoryManager.getOutputRowCount());
     final int incomingRecordCount = incoming.getRecordCount();
     final int currentRecord = lateral.getRecordIndex();
@@ -347,25 +369,27 @@ public class UnnestRecordBatch extends AbstractTableFunctionRecordBatch<UnnestPO
     return tp;
   }
 
-  @Override protected boolean setupNewSchema() throws SchemaChangeException {
+  private TransferPair resetUnnestTransferPair() throws SchemaChangeException {
+    final List<TransferPair> transfers = Lists.newArrayList();
+    final FieldReference fieldReference = new FieldReference(popConfig.getColumn());
+    final TransferPair transferPair = getUnnestFieldTransferPair(fieldReference);
+    transfers.add(transferPair);
+    logger.debug("Added transfer for unnest expression.");
+    unnest.close();
+    unnest.setup(context, incoming, this, transfers, lateral);
+    setUnnestVector();
+    return transferPair;
+  }
+
+  @Override
+  protected boolean setupNewSchema() throws SchemaChangeException {
     Preconditions.checkNotNull(lateral);
     container.clear();
     recordCount = 0;
-    final List<TransferPair> transfers = Lists.newArrayList();
-
-    final FieldReference fieldReference = new FieldReference(popConfig.getColumn());
-
-    final TransferPair transferPair = getUnnestFieldTransferPair(fieldReference);
-
-    final ValueVector unnestVector = transferPair.getTo();
-    transfers.add(transferPair);
-    container.add(unnestVector);
-    logger.debug("Added transfer for unnest expression.");
+    unnest = new UnnestImpl();
+    final TransferPair tp = resetUnnestTransferPair();
+    container.add(TypeHelper.getNewVector(tp.getTo().getField(), oContext.getAllocator()));
     container.buildSchema(SelectionVectorMode.NONE);
-
-    this.unnest = new UnnestImpl();
-    unnest.setup(context, incoming, this, transfers, lateral);
-    setUnnestVector();
     return true;
   }
 
@@ -421,6 +445,7 @@ public class UnnestRecordBatch extends AbstractTableFunctionRecordBatch<UnnestPO
   @Override
   public void close() {
     updateStats();
+    unnest.close();
     super.close();
   }
 

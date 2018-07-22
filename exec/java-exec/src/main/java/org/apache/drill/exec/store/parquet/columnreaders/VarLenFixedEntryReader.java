@@ -17,32 +17,35 @@
  */
 package org.apache.drill.exec.store.parquet.columnreaders;
 
+import com.google.common.base.Preconditions;
 import java.nio.ByteBuffer;
 import org.apache.drill.exec.store.parquet.columnreaders.VarLenColumnBulkInput.ColumnPrecisionInfo;
 import org.apache.drill.exec.store.parquet.columnreaders.VarLenColumnBulkInput.PageDataInfo;
+import org.apache.drill.exec.store.parquet.columnreaders.VarLenColumnBulkInput.VarLenColumnBulkInputCallback;
 
 /** Handles fixed data types that have been erroneously tagged as Variable Length. */
-final class VarLenFixedEntryReader extends VarLenAbstractEntryReader {
+final class VarLenFixedEntryReader extends VarLenAbstractPageEntryReader {
 
   VarLenFixedEntryReader(ByteBuffer buffer,
     PageDataInfo pageInfo,
     ColumnPrecisionInfo columnPrecInfo,
-    VarLenColumnBulkEntry entry) {
+    VarLenColumnBulkEntry entry,
+    VarLenColumnBulkInputCallback containerCallback) {
 
-    super(buffer, pageInfo, columnPrecInfo, entry);
+    super(buffer, pageInfo, columnPrecInfo, entry, containerCallback);
+    Preconditions.checkArgument(columnPrecInfo.precision >= 0, "Fixed length precision [%s] cannot be lower than zero", columnPrecInfo.precision);
   }
 
   /** {@inheritDoc} */
   @Override
   final VarLenColumnBulkEntry getEntry(int valuesToRead) {
-    assert columnPrecInfo.precision >= 0 : "Fixed length precision cannot be lower than zero";
-
     load(true); // load new data to process
 
     final int expectedDataLen = columnPrecInfo.precision;
     final int entrySz = 4 + columnPrecInfo.precision;
-    final int maxValues = Math.min(entry.getMaxEntries(), (pageInfo.pageDataLen - pageInfo.pageDataOff) / entrySz);
-    final int readBatch = Math.min(maxValues, valuesToRead);
+    final int readBatch = Math.min(entry.getMaxEntries(), valuesToRead);
+    Preconditions.checkState(readBatch > 0, "Read batch count [%d] should be greater than zero", readBatch);
+
     final int[] valueLengths = entry.getValuesLength();
     final byte[] tgtBuff = entry.getInternalDataArray();
     final byte[] srcBuff = buffer.array();

@@ -18,6 +18,7 @@
 package org.apache.drill.exec.planner.sql;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -52,7 +53,6 @@ import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.sql.SqlCall;
 import org.apache.calcite.sql.SqlIdentifier;
 import org.apache.calcite.sql.SqlNode;
-import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.SqlOperatorTable;
 import org.apache.calcite.sql.parser.SqlParseException;
 import org.apache.calcite.sql.parser.SqlParser;
@@ -64,7 +64,6 @@ import org.apache.calcite.sql.validate.SqlValidatorCatalogReader;
 import org.apache.calcite.sql.validate.SqlValidatorImpl;
 import org.apache.calcite.sql.validate.SqlValidatorScope;
 import org.apache.calcite.sql.validate.SqlValidatorUtil;
-import org.apache.calcite.sql2rel.RelDecorrelator;
 import org.apache.calcite.sql2rel.SqlToRelConverter;
 import org.apache.calcite.tools.RelBuilderFactory;
 import org.apache.calcite.util.Util;
@@ -79,6 +78,7 @@ import org.apache.drill.exec.ops.UdfUtilities;
 import org.apache.drill.exec.planner.cost.DrillCostBase;
 import org.apache.drill.exec.planner.logical.DrillConstExecutor;
 import org.apache.drill.exec.planner.logical.DrillRelFactories;
+import org.apache.drill.exec.planner.logical.DrillTable;
 import org.apache.drill.exec.planner.physical.DrillDistributionTraitDef;
 import org.apache.drill.exec.planner.physical.PlannerSettings;
 import org.apache.drill.exec.rpc.user.UserSession;
@@ -86,6 +86,7 @@ import static org.apache.calcite.util.Static.RESOURCE;
 
 import com.google.common.base.Joiner;
 import org.apache.drill.exec.store.ColumnExplorer;
+import org.apache.drill.exec.util.DecimalUtility;
 
 /**
  * Class responsible for managing parsing, validation and toRel conversion for sql statements.
@@ -114,7 +115,6 @@ public class SqlConverter {
   private final DrillConfig drillConfig;
   private RelOptCluster cluster;
 
-  private String sql;
   private VolcanoPlanner planner;
   private boolean useRootSchema = false;
 
@@ -188,12 +188,10 @@ public class SqlConverter {
 
   public SqlNode validate(final SqlNode parsedNode) {
     try {
-      SqlNode validatedNode = validator.validate(parsedNode);
-      return validatedNode;
+      return validator.validate(parsedNode);
     } catch (RuntimeException e) {
       UserException.Builder builder = UserException
-          .validationError(e)
-          .addContext("SQL Query", sql);
+          .validationError(e);
       if (isInnerQuery) {
         builder.message("Failure validating a view your query is dependent upon.");
       }
@@ -241,7 +239,7 @@ public class SqlConverter {
 
   private class DrillValidator extends SqlValidatorImpl {
 
-    protected DrillValidator(SqlOperatorTable opTab, SqlValidatorCatalogReader catalogReader,
+    DrillValidator(SqlOperatorTable opTab, SqlValidatorCatalogReader catalogReader,
         RelDataTypeFactory typeFactory, SqlConformance conformance) {
       super(opTab, catalogReader, typeFactory, conformance);
     }
@@ -253,24 +251,24 @@ public class SqlConverter {
         SqlValidatorScope scope) {
       switch (node.getKind()) {
         case AS:
-          if (((SqlCall) node).operand(0) instanceof SqlIdentifier) {
-            SqlIdentifier tempNode = ((SqlCall) node).operand(0);
-            DrillCalciteCatalogReader catalogReader = (SqlConverter.DrillCalciteCatalogReader) getCatalogReader();
+          SqlNode sqlNode = ((SqlCall) node).operand(0);
+          switch (sqlNode.getKind()) {
+            case IDENTIFIER:
+              SqlIdentifier tempNode = (SqlIdentifier) sqlNode;
+              DrillCalciteCatalogReader catalogReader = (SqlConverter.DrillCalciteCatalogReader) getCatalogReader();
 
-            // Check the schema and throw a valid SchemaNotFound exception instead of TableNotFound exception.
-            if (catalogReader.getTable(Lists.newArrayList(tempNode.names)) == null) {
-              catalogReader.isValidSchema(tempNode.names);
-            }
-            changeNamesIfTableIsTemporary(tempNode);
+              changeNamesIfTableIsTemporary(tempNode);
+
+              // Check the schema and throw a valid SchemaNotFound exception instead of TableNotFound exception.
+              if (catalogReader.getTable(tempNode.names) == null) {
+                catalogReader.isValidSchema(tempNode.names);
+              }
+              break;
+            case UNNEST:
+              if (((SqlCall) node).operandCount() < 3) {
+                throw RESOURCE.validationError("Alias table and column name are required for UNNEST").ex();
+              }
           }
-          else  if (((SqlCall) node).operand(0).getKind() == SqlKind.UNNEST) {
-            if (((SqlCall) node).operandCount() < 3) {
-              throw RESOURCE.validationError("Alias table and column name are required for UNNEST").ex();
-            }
-          }
-          break;
-        default:
-          break;
       }
       super.validateFrom(node, targetRowType, scope);
     }
@@ -383,17 +381,10 @@ public class SqlConverter {
 
     //To avoid unexpected column errors set a value of top to false
     final RelRoot rel = sqlToRelConverter.convertQuery(validatedNode, false, false);
-    final RelRoot rel2 = rel.withRel(sqlToRelConverter.flattenTypes(rel.rel, true));
-    final RelRoot rel3 = rel2.withRel(
-        RelDecorrelator.decorrelateQuery(rel2.rel,
-            sqlToRelConverterConfig.getRelBuilderFactory().create(cluster, null)));
-    return rel3;
+    return rel.withRel(sqlToRelConverter.flattenTypes(rel.rel, true));
   }
 
   private class Expander implements RelOptTable.ViewExpander {
-
-    public Expander() {
-    }
 
     @Override
     public RelRoot expandView(RelDataType rowType, String queryString, List<String> schemaPath, List<String> viewPath) {
@@ -478,7 +469,7 @@ public class SqlConverter {
 
     @Override
     public boolean isExpand() {
-      return SqlToRelConverterConfig.DEFAULT.isExpand();
+      return false;
     }
 
     @Override
@@ -554,7 +545,7 @@ public class SqlConverter {
      * also preserving nullability.
      *
      * <p>Tries to expand the cast, and therefore the result may be something
-     * other than a {@link RexCall} to the CAST operator, such as a
+     * other than a {@link org.apache.calcite.rex.RexCall} to the CAST operator, such as a
      * {@link RexLiteral} if {@code matchNullability} is false.
      *
      * @param type             Type to cast to
@@ -572,10 +563,22 @@ public class SqlConverter {
       // that differs from the value from specified RelDataType, cast cannot be removed
       // TODO: remove this code when CALCITE-1468 is fixed
       if (type.getSqlTypeName() == SqlTypeName.DECIMAL && exp instanceof RexLiteral) {
+        if (type.getPrecision() < 1) {
+          throw UserException.validationError()
+              .message("Expected precision greater than 0, but was %s.", type.getPrecision())
+              .build(logger);
+        }
+        if (type.getScale() > type.getPrecision()) {
+          throw UserException.validationError()
+              .message("Expected scale less than or equal to precision, " +
+                  "but was scale %s and precision %s.", type.getScale(), type.getPrecision())
+              .build(logger);
+        }
         RexLiteral literal = (RexLiteral) exp;
         Comparable value = literal.getValueAs(Comparable.class);
         if (value instanceof BigDecimal) {
           BigDecimal bigDecimal = (BigDecimal) value;
+          DecimalUtility.checkValueOverflow(bigDecimal, type.getPrecision(), type.getScale());
           if (bigDecimal.scale() != type.getScale() || bigDecimal.precision() != type.getPrecision()) {
             return makeAbstractCast(type, exp);
           }
@@ -615,7 +618,7 @@ public class SqlConverter {
     /**
      * Disallow temporary tables presence in sql statement (ex: in view definitions)
      */
-    public void disallowTemporaryTables() {
+    void disallowTemporaryTables() {
       this.allowTemporaryTables = false;
     }
 
@@ -623,7 +626,9 @@ public class SqlConverter {
       if (mightBeTemporaryTable(names, session.getDefaultSchemaPath(), drillConfig)) {
         String temporaryTableName = session.resolveTemporaryTableName(names.get(names.size() - 1));
         if (temporaryTableName != null) {
-          return Lists.newArrayList(temporarySchema, temporaryTableName);
+          List<String> temporaryNames = new ArrayList<>(SchemaUtilites.getSchemaPathAsList(temporarySchema));
+          temporaryNames.add(temporaryTableName);
+          return temporaryNames;
         }
       }
       return null;
@@ -651,13 +656,19 @@ public class SqlConverter {
         }
       }
 
-      return super.getTable(names);
+      Prepare.PreparingTable table = super.getTable(names);
+      DrillTable unwrap;
+      // add session options if found table is Drill table
+      if (table != null && (unwrap = table.unwrap(DrillTable.class)) != null) {
+        unwrap.setOptions(session.getOptions());
+      }
+      return table;
     }
 
     @Override
     public List<List<String>> getSchemaPaths() {
       if (useRootSchema) {
-        return ImmutableList.<List<String>>of(ImmutableList.<String>of());
+        return ImmutableList.of(ImmutableList.of());
       }
       return super.getSchemaPaths();
     }
@@ -666,8 +677,8 @@ public class SqlConverter {
      * check if the schema provided is a valid schema:
      * <li>schema is not indicated (only one element in the names list)<li/>
      *
-     * @param names             list of schema and table names, table name is always the last element
-     * @return throws a userexception if the schema is not valid.
+     * @param names list of schema and table names, table name is always the last element
+     * @throws UserException if the schema is not valid.
      */
     private void isValidSchema(final List<String> names) throws UserException {
       SchemaPlus defaultSchema = session.getDefaultSchema(this.rootSchema);

@@ -55,6 +55,7 @@ import org.apache.calcite.rex.RexUtil;
 import org.apache.calcite.sql.SqlExplainLevel;
 import org.apache.calcite.sql.SqlNode;
 import org.apache.calcite.sql.validate.SqlValidatorUtil;
+import org.apache.calcite.sql2rel.RelDecorrelator;
 import org.apache.calcite.tools.Program;
 import org.apache.calcite.tools.Programs;
 import org.apache.calcite.tools.RelConversionException;
@@ -78,6 +79,7 @@ import org.apache.drill.exec.planner.common.DrillRelOptUtil;
 import org.apache.drill.exec.planner.cost.DrillDefaultRelMetadataProvider;
 import org.apache.drill.exec.planner.logical.DrillProjectRel;
 import org.apache.drill.exec.planner.logical.DrillRel;
+import org.apache.drill.exec.planner.logical.DrillRelFactories;
 import org.apache.drill.exec.planner.logical.DrillScreenRel;
 import org.apache.drill.exec.planner.logical.DrillStoreRel;
 import org.apache.drill.exec.planner.logical.PreProcessLogicalRel;
@@ -86,11 +88,11 @@ import org.apache.drill.exec.planner.physical.PhysicalPlanCreator;
 import org.apache.drill.exec.planner.physical.PlannerSettings;
 import org.apache.drill.exec.planner.physical.Prel;
 import org.apache.drill.exec.planner.physical.explain.PrelSequencer;
+import org.apache.drill.exec.planner.physical.visitor.AdjustOperatorsSchemaVisitor;
 import org.apache.drill.exec.planner.physical.visitor.ComplexToJsonPrelVisitor;
 import org.apache.drill.exec.planner.physical.visitor.ExcessiveExchangeIdentifier;
 import org.apache.drill.exec.planner.physical.visitor.FinalColumnReorderer;
 import org.apache.drill.exec.planner.physical.visitor.InsertLocalExchangeVisitor;
-import org.apache.drill.exec.planner.physical.visitor.JoinPrelRenameVisitor;
 import org.apache.drill.exec.planner.physical.visitor.MemoryEstimationVisitor;
 import org.apache.drill.exec.planner.physical.visitor.RelUniqifier;
 import org.apache.drill.exec.planner.physical.visitor.RewriteProjectToFlatten;
@@ -510,8 +512,9 @@ public class DefaultSqlHandler extends AbstractSqlHandler {
      * 2.)
      * Join might cause naming conflicts from its left and right child.
      * In such case, we have to insert Project to rename the conflicting names.
+     * Unnest operator might need to adjust the correlated field after the physical planning.
      */
-    phyRelNode = JoinPrelRenameVisitor.insertRenameProject(phyRelNode);
+    phyRelNode = AdjustOperatorsSchemaVisitor.adjustSchema(phyRelNode);
 
     /*
      * 2.1) Swap left / right for INNER hash join, if left's row count is < (1 + margin) right's row count.
@@ -658,10 +661,16 @@ public class DefaultSqlHandler extends AbstractSqlHandler {
     return typedSqlNode;
   }
 
-  private RelNode convertToRel(SqlNode node) throws RelConversionException {
+  private RelNode convertToRel(SqlNode node) {
     final RelNode convertedNode = config.getConverter().toRel(node).rel;
     log("INITIAL", convertedNode, logger, null);
-    return transform(PlannerType.HEP, PlannerPhase.WINDOW_REWRITE, convertedNode);
+    RelNode transformedNode = transform(PlannerType.HEP,
+        PlannerPhase.SUBQUERY_REWRITE, convertedNode);
+
+    RelNode decorrelatedNode = RelDecorrelator.decorrelateQuery(transformedNode,
+        DrillRelFactories.LOGICAL_BUILDER.create(transformedNode.getCluster(), null));
+
+    return transform(PlannerType.HEP, PlannerPhase.WINDOW_REWRITE, decorrelatedNode);
   }
 
   private RelNode preprocessNode(RelNode rel) throws SqlUnsupportedException {

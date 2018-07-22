@@ -29,10 +29,10 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import org.apache.drill.common.config.DrillConfig;
 import org.apache.drill.common.exceptions.UserException;
+import org.apache.drill.common.exceptions.UserRemoteException;
 import org.apache.drill.common.expression.SchemaPath;
-import org.apache.drill.exec.client.PrintingResultsListener;
+import org.apache.drill.exec.client.LoggingResultsListener;
 import org.apache.drill.exec.client.QuerySubmitter.Format;
 import org.apache.drill.exec.exception.SchemaChangeException;
 import org.apache.drill.exec.proto.BitControl.PlanFragment;
@@ -393,6 +393,27 @@ public class QueryBuilder {
 
   /**
    * Run the query that is expected to return (at least) one row
+   * with the only (or first) column returning a double value.
+   * The double value cannot be null.
+   *
+   * @return the value of the first column of the first row
+   * @throws RpcException if anything goes wrong
+   */
+
+  public double singletonDouble() throws RpcException {
+    RowSet rowSet = rowSet();
+    if (rowSet == null) {
+      throw new IllegalStateException("No rows returned");
+    }
+    RowSetReader reader = rowSet.reader();
+    reader.next();
+    double value = reader.scalar(0).getDouble();
+    rowSet.clear();
+    return value;
+  }
+
+  /**
+   * Run the query that is expected to return (at least) one row
    * with the only (or first) column returning a int value.
    * The int value cannot be null.
    *
@@ -475,6 +496,31 @@ public class QueryBuilder {
     return listener;
   }
 
+  public long logCsv() {
+    return log(Format.CSV);
+  }
+
+  public long log(Format format) {
+    return log(format,20);
+  }
+
+  public long log(Format format, int colWidth) {
+    return runAndWait(new LoggingResultsListener(client.cluster().config(), format, colWidth));
+  }
+
+  /**
+   * <p>
+   *   Run a query and logs the output in TSV format.
+   *   Similar to {@link QueryTestUtil#testRunAndLog} with one query.
+   * </p>
+   *
+   * @return The number of rows returned.
+   * @throws Exception If anything goes wrong with query execution.
+   */
+  public long log() throws Exception {
+    return log(Format.TSV, VectorUtil.DEFAULT_COLUMN_WIDTH);
+  }
+
   public long printCsv() {
     return print(Format.CSV);
   }
@@ -485,6 +531,19 @@ public class QueryBuilder {
 
   public long print(Format format, int colWidth) {
     return runAndWait(new PrintingResultsListener(client.cluster().config(), format, colWidth));
+  }
+
+  /**
+   * <p>
+   *   Runs a query and prints the output to stdout in TSV format.
+   *   Similar to {@link QueryTestUtil#testRunAndLog} with one query.
+   * </p>
+   *
+   * @return The number of rows returned.
+   * @throws Exception If anything goes wrong with query execution.
+   */
+  public long print() throws Exception {
+    return print(Format.TSV, VectorUtil.DEFAULT_COLUMN_WIDTH);
   }
 
   /**
@@ -499,33 +558,14 @@ public class QueryBuilder {
     return future;
   }
 
-  /**
-   * Run a query and optionally print the output in TSV format.
-   * Similar to {@link QueryTestUtil#test} with one query. Output is printed
-   * only if the tests are running as verbose.
-   *
-   * @return the number of rows returned
-   * @throws Exception if anything goes wrong with query execution
-   */
-
-  public long print() throws Exception {
-    DrillConfig config = client.cluster().config( );
-
-    boolean verbose = ! config.getBoolean(QueryTestUtil.TEST_QUERY_PRINTING_SILENT) ||
-                      DrillTest.verbose();
-    if (verbose) {
-      return print(Format.TSV, VectorUtil.DEFAULT_COLUMN_WIDTH);
-    } else {
-      return run().recordCount();
-    }
-  }
-
   public long runAndWait(UserResultsListener listener) {
     AwaitableUserResultsListener resultListener =
         new AwaitableUserResultsListener(listener);
     withListener(resultListener);
     try {
       return resultListener.await();
+    } catch (UserRemoteException e) {
+      throw e;
     } catch (Exception e) {
       throw new IllegalStateException(e);
     }

@@ -51,6 +51,7 @@ import org.apache.drill.test.rowSet.RowSetBuilder;
  */
 
 public class ClientFixture implements AutoCloseable {
+  private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(ClientFixture.class);
 
   public static class ClientBuilder {
 
@@ -179,14 +180,10 @@ public class ClientFixture implements AutoCloseable {
   }
 
   /**
-   * Run zero or more queries and optionally print the output in TSV format.
-   * Similar to {@link QueryTestUtil#test}. Output is printed
-   * only if the tests are running as verbose.
-   *
-   * @return the number of rows returned
+   * Run zero or more queries and output the results in TSV format.
    */
-
-  public void runQueries(final String queryString) throws Exception{
+  private void runQueriesAndOutput(final String queryString,
+                                   final boolean print) throws Exception {
     final String query = QueryTestUtil.normalizeQuery(queryString);
     String[] queries = query.split(";");
     for (String q : queries) {
@@ -194,8 +191,27 @@ public class ClientFixture implements AutoCloseable {
       if (trimmedQuery.isEmpty()) {
         continue;
       }
-      queryBuilder().sql(trimmedQuery).print();
+
+      if (print) {
+        queryBuilder().sql(trimmedQuery).print();
+      } else {
+        queryBuilder().sql(trimmedQuery).log();
+      }
     }
+  }
+
+  /**
+   * Run zero or more queries and log the output in TSV format.
+   */
+  public void runQueriesAndLog(final String queryString) throws Exception {
+    runQueriesAndOutput(queryString, false);
+  }
+
+  /**
+   * Run zero or more queries and print the output in TSV format.
+   */
+  public void runQueriesAndPrint(final String queryString) throws Exception {
+    runQueriesAndOutput(queryString, true);
   }
 
   /**
@@ -334,30 +350,21 @@ public class ClientFixture implements AutoCloseable {
     }
   }
 
-  private boolean trace = false;
-
-  public void enableTrace(boolean flag) {
-    this.trace = flag;
-  }
-
   public int exec(Reader in) throws IOException {
     StatementParser parser = new StatementParser(in);
     int count = 0;
     for (;;) {
       String stmt = parser.parseNext();
       if (stmt == null) {
-        if (trace) {
-          System.out.println("----");
-        }
+        logger.debug("----");
         return count;
       }
       if (stmt.isEmpty()) {
         continue;
       }
-      if (trace) {
-        System.out.println("----");
-        System.out.println(stmt);
-      }
+
+      logger.debug("----");
+      logger.debug(stmt);
       runSqlSilently(stmt);
       count++;
     }

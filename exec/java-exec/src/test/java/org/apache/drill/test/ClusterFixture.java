@@ -30,6 +30,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 
 import org.apache.drill.test.DrillTestWrapper.TestServices;
@@ -90,7 +91,6 @@ public class ClusterFixture extends BaseFixture implements AutoCloseable {
 
       put(ExecConstants.DEFAULT_TEMPORARY_WORKSPACE, DFS_TMP_SCHEMA);
       put(ExecConstants.HTTP_ENABLE, false);
-      put(QueryTestUtil.TEST_QUERY_PRINTING_SILENT, true);
       put("drill.catastrophic_to_standard_out", true);
 
       // Verbose errors.
@@ -276,7 +276,7 @@ public class ClusterFixture extends BaseFixture implements AutoCloseable {
     MockStorageEngine plugin = new MockStorageEngine(
         MockStorageEngineConfig.INSTANCE, bit.getContext(),
         MockStorageEngineConfig.NAME);
-    ((StoragePluginRegistryImpl) pluginRegistry).definePlugin(MockStorageEngineConfig.NAME, config, plugin);
+    ((StoragePluginRegistryImpl) pluginRegistry).addPluginToPersistentStoreIfAbsent(MockStorageEngineConfig.NAME, config, plugin);
   }
 
   private void applyOptions() throws Exception {
@@ -498,13 +498,26 @@ public class ClusterFixture extends BaseFixture implements AutoCloseable {
     final FileSystemConfig pluginConfig = (FileSystemConfig) plugin.getConfig();
     final WorkspaceConfig newTmpWSConfig = new WorkspaceConfig(path, true, defaultFormat, false);
 
-    pluginConfig.workspaces.remove(schemaName);
-    pluginConfig.workspaces.put(schemaName, newTmpWSConfig);
-    if (format != null) {
-      pluginConfig.formats.put(defaultFormat, format);
-    }
+    Map<String, WorkspaceConfig> newWorkspaces = new HashMap<>();
+    Optional.ofNullable(pluginConfig.getWorkspaces())
+      .ifPresent(newWorkspaces::putAll);
+    newWorkspaces.put(schemaName, newTmpWSConfig);
 
-    pluginRegistry.createOrUpdate(pluginName, pluginConfig, true);
+    Map<String, FormatPluginConfig> newFormats = new HashMap<>(pluginConfig.getFormats());
+    Optional.ofNullable(pluginConfig.getFormats())
+      .ifPresent(newFormats::putAll);
+    Optional.ofNullable(format)
+      .ifPresent(f -> newFormats.put(defaultFormat, f));
+
+    FileSystemConfig newPluginConfig = new FileSystemConfig(
+        pluginConfig.getConnection(),
+        pluginConfig.getConfig(),
+        newWorkspaces,
+        newFormats);
+    newPluginConfig.setEnabled(pluginConfig.isEnabled());
+
+
+    pluginRegistry.createOrUpdate(pluginName, newPluginConfig, true);
   }
 
   public static final String EXPLAIN_PLAN_TEXT = "text";
@@ -556,7 +569,7 @@ public class ClusterFixture extends BaseFixture implements AutoCloseable {
 
     @Override
     public void test(String query) throws Exception {
-      client.runQueries(query);
+      client.runQueriesAndLog(query);
     }
 
     @Override

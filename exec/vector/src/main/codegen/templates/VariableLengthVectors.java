@@ -19,7 +19,7 @@ import java.lang.Override;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Set;
-
+import org.apache.drill.common.exceptions.DrillRuntimeException;
 import org.apache.drill.exec.exception.OutOfMemoryException;
 import org.apache.drill.exec.memory.AllocationManager.BufferLedger;
 import org.apache.drill.exec.vector.BaseDataValueVector;
@@ -632,11 +632,17 @@ public final class ${minor.class}Vector extends BaseDataValueVector implements V
       // Let's process the input
       while (input.hasNext()) {
         T entry = input.next();
+
+        if (entry == null || entry.getNumValues() == 0) {
+          break; // this could happen when handling columnar batch sizing constraints
+        }
         bufferedMutator.setSafe(entry);
 
         if (callback != null) {
           callback.onNewBulkEntry(entry);
         }
+
+        DrillRuntimeException.checkInterrupted(); // Ensures fast handling of query cancellation
       }
 
       // Flush any data not yet copied to this VL container
@@ -897,7 +903,7 @@ public final class ${minor.class}Vector extends BaseDataValueVector implements V
       this.parent = parent;
       this.dataBuffOff = this.parent.offsetVector.getAccessor().get(startIdx);
       this.totalDataLen = this.dataBuffOff;
-      this.offsetsMutator = new UInt4Vector.BufferedMutator(startIdx, buffSz * 4, parent.offsetVector);
+      this.offsetsMutator = new UInt4Vector.BufferedMutator(startIdx, buffSz, parent.offsetVector);
 
       // Forcing the offsetsMutator to operate at index+1
       this.offsetsMutator.setSafe(this.dataBuffOff);
@@ -970,6 +976,7 @@ public final class ${minor.class}Vector extends BaseDataValueVector implements V
 
       // Update counters
       dataBuffOff += buffer.position();
+      assert dataBuffOff == totalDataLen;
 
       // Reset the byte buffer
       buffer.clear();
@@ -1008,6 +1015,11 @@ public final class ${minor.class}Vector extends BaseDataValueVector implements V
         remaining -= toCopy;
 
       } while (remaining > 0);
+
+      // We need to flush as offset data can be accessed during loading to
+      // figure out current payload size.
+      offsetsMutator.flush();
+
     }
   }
 }

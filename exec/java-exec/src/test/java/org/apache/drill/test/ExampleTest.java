@@ -67,6 +67,7 @@ import ch.qos.logback.classic.Level;
 
 @Ignore
 public class ExampleTest {
+  static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(ExampleTest.class);
 
   /**
    * This test watcher creates all the temp directories that are required for an integration test with a Drillbit. The
@@ -89,7 +90,7 @@ public class ExampleTest {
   public void firstTest() throws Exception {
     try (ClusterFixture cluster = ClusterFixture.standardCluster(dirTestWatcher);
          ClientFixture client = cluster.clientFixture()) {
-      client.queryBuilder().sql("SELECT * FROM `cp`.`employee.json` LIMIT 10").printCsv();
+      client.queryBuilder().sql("SELECT * FROM `cp`.`employee.json` LIMIT 10").logCsv();
     }
   }
 
@@ -135,9 +136,9 @@ public class ExampleTest {
 
       try (ClusterFixture cluster = builder.build(); ClientFixture client = cluster.clientFixture()) {
         String sql = "SELECT * FROM `dfs`.`test/employee.json`";
-        System.out.println(client.queryBuilder().sql(sql).explainJson());
+        logger.info(client.queryBuilder().sql(sql).explainJson());
         QuerySummary results = client.queryBuilder().sql(sql).run();
-        System.out.println(String.format("Read %d rows", results.recordCount()));
+        logger.info(String.format("Read %d rows", results.recordCount()));
         // Usually we want to test something. Here, just test that we got
         // the 2 records.
         assertEquals(2, results.recordCount());
@@ -169,7 +170,7 @@ public class ExampleTest {
     try (ClusterFixture cluster = ClusterFixture.standardCluster(dirTestWatcher);
          ClientFixture client = cluster.clientFixture()) {
       String sql = "SELECT id_i, name_s10 FROM `mock`.`employees_5`";
-      client.queryBuilder().sql(sql).printCsv();
+      client.queryBuilder().sql(sql).logCsv();
     }
   }
 
@@ -251,9 +252,9 @@ public class ExampleTest {
       String sql = "SELECT id_i, name_s10 FROM `mock`.`employees_10K` ORDER BY id_i";
 
       QuerySummary summary = client.queryBuilder().sql(sql).run();
-      System.out.println(String.format("Results: %,d records, %d batches, %,d ms", summary.recordCount(), summary.batchCount(), summary.runTimeMs() ) );
+      logger.info(String.format("Results: %,d records, %d batches, %,d ms", summary.recordCount(), summary.batchCount(), summary.runTimeMs() ) );
 
-      System.out.println("Query ID: " + summary.queryIdString());
+      logger.info("Query ID: " + summary.queryIdString());
       ProfileParser profile = client.parseProfile(summary.queryIdString());
       profile.print();
     }
@@ -267,7 +268,7 @@ public class ExampleTest {
     try (ClusterFixture cluster = ClusterFixture.standardCluster(dirTestWatcher);
          ClientFixture client = cluster.clientFixture()) {
       cluster.defineWorkspace("dfs", "resources", TestTools.TEST_RESOURCES_ABS.toFile().getAbsolutePath(), "tsv");
-      client.queryBuilder().sql("SELECT * from dfs.resources.`testframework/small_test_data.tsv`").printCsv();
+      client.queryBuilder().sql("SELECT * from dfs.resources.`testframework/small_test_data.tsv`").logCsv();
     }
   }
 
@@ -279,7 +280,7 @@ public class ExampleTest {
     try (ClusterFixture cluster = ClusterFixture.standardCluster(dirTestWatcher);
          ClientFixture client = cluster.clientFixture()) {
       cluster.defineWorkspace("dfs", "sampledata", TestTools.SAMPLE_DATA.toFile().getAbsolutePath(), "parquet");
-      client.queryBuilder().sql("SELECT * from dfs.sampledata.`nation.parquet`").printCsv();
+      client.queryBuilder().sql("SELECT * from dfs.sampledata.`nation.parquet`").logCsv();
     }
   }
 

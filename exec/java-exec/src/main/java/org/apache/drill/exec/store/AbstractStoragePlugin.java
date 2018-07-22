@@ -24,19 +24,22 @@ import java.util.Set;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.drill.common.JSONOptions;
 import org.apache.drill.common.expression.SchemaPath;
+import org.apache.drill.common.logical.FormatPluginConfig;
 import org.apache.drill.exec.ops.OptimizerRulesContext;
 import org.apache.drill.exec.physical.base.AbstractGroupScan;
 import org.apache.drill.exec.planner.PlannerPhase;
 
 import com.google.common.collect.ImmutableSet;
 import org.apache.drill.exec.server.DrillbitContext;
+import org.apache.drill.exec.server.options.SessionOptionManager;
+import org.apache.drill.exec.store.dfs.FormatPlugin;
 
 /** Abstract class for StorePlugin implementations.
  * See StoragePlugin for description of the interface intent and its methods.
  */
 public abstract class AbstractStoragePlugin implements StoragePlugin {
 
-  private final DrillbitContext context;
+  protected final DrillbitContext context;
   private final String name;
 
   protected AbstractStoragePlugin(DrillbitContext inContext, String inName) {
@@ -102,9 +105,20 @@ public abstract class AbstractStoragePlugin implements StoragePlugin {
     }
   }
 
+
+  @Override
+  public AbstractGroupScan getPhysicalScan(String userName, JSONOptions selection, SessionOptionManager options) throws IOException {
+    return getPhysicalScan(userName, selection);
+  }
+
   @Override
   public AbstractGroupScan getPhysicalScan(String userName, JSONOptions selection) throws IOException {
     return getPhysicalScan(userName, selection, AbstractGroupScan.ALL_COLUMNS);
+  }
+
+  @Override
+  public AbstractGroupScan getPhysicalScan(String userName, JSONOptions selection, List<SchemaPath> columns, SessionOptionManager options) throws IOException {
+    return getPhysicalScan(userName, selection, columns);
   }
 
   @Override
@@ -118,6 +132,11 @@ public abstract class AbstractStoragePlugin implements StoragePlugin {
   @Override
   public void close() throws Exception { }
 
+  @Override
+  public FormatPlugin getFormatPlugin(FormatPluginConfig config) {
+    throw new UnsupportedOperationException(String.format("%s doesn't support format plugins", getClass().getName()));
+  }
+
   public DrillbitContext getContext() {
     return context;
   }
@@ -125,4 +144,5 @@ public abstract class AbstractStoragePlugin implements StoragePlugin {
   public String getName() {
     return name;
   }
+
 }

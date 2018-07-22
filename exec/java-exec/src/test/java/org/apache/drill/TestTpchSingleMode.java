@@ -17,10 +17,13 @@
  */
 package org.apache.drill;
 
+import org.apache.drill.categories.SlowTest;
 import org.apache.drill.test.BaseTestQuery;
 import org.junit.Ignore;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
+@Category({SlowTest.class})
 public class TestTpchSingleMode extends BaseTestQuery {
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(TestTpchSingleMode.class);
 
@@ -139,7 +142,6 @@ public class TestTpchSingleMode extends BaseTestQuery {
   }
 
   @Test
-  @Ignore
   public void tpch21() throws Exception{
     testSingleMode("queries/tpch/21.sql");
   }

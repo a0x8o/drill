@@ -18,9 +18,10 @@
 package org.apache.drill.exec.planner.physical;
 
 import java.io.IOException;
-
+import java.util.List;
 import org.apache.calcite.plan.Convention;
 import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.rel.RelNode;
 import org.apache.drill.exec.physical.base.PhysicalOperator;
 import org.apache.drill.exec.planner.common.DrillRelNode;
 import org.apache.drill.exec.planner.physical.visitor.PrelVisitor;
@@ -54,4 +55,16 @@ public interface Prel extends DrillRelNode, Iterable<Prel> {
    */
   SelectionVectorMode getEncoding();
   boolean needsFinalColumnReordering();
+
+  /**
+   * If the operator is in Lateral/Unnest pipeline, then it generates a new operator which knows how to process
+   * the rows accordingly during execution.
+   * eg: TopNPrel -> SortPrel and LimitPrel
+   * Other operators like FilterPrel, ProjectPrel etc will add an implicit row id to the output.
+   */
+  default Prel prepareForLateralUnnestPipeline(List<RelNode> children) {
+    throw new UnsupportedOperationException("Adding Implicit RowID column is not supported for " +
+            this.getClass().getSimpleName() + " operator ");
+  }
+
 }

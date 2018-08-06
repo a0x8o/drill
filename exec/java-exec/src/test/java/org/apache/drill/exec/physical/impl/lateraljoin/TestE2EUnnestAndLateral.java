@@ -82,24 +82,30 @@ public class TestE2EUnnestAndLateral extends ClusterTest {
 
   @Test
   public void testLateral_WithTopNInSubQuery() throws Exception {
+    runAndLog("alter session set `planner.enable_topn`=false");
+
     String Sql = "SELECT customer.c_name, orders.o_id, orders.o_amount " +
       "FROM cp.`lateraljoin/nested-customer.parquet` customer, LATERAL " +
       "(SELECT t.ord.o_id as o_id, t.ord.o_amount as o_amount FROM UNNEST(customer.orders) t(ord) ORDER BY " +
       "o_amount DESC LIMIT 1) orders";
 
-    testBuilder()
-      .sqlQuery(Sql)
-      .unOrdered()
-      .baselineColumns("c_name", "o_id", "o_amount")
-      .baselineValues("customer1", 3.0,  294.5)
-      .baselineValues("customer2", 10.0,  724.5)
-      .baselineValues("customer3", 23.0,  772.2)
-      .baselineValues("customer4", 32.0,  1030.1)
-      .go();
+    try {
+      testBuilder()
+         .sqlQuery(Sql)
+         .unOrdered()
+         .baselineColumns("c_name", "o_id", "o_amount")
+         .baselineValues("customer1", 3.0,  294.5)
+         .baselineValues("customer2", 10.0,  724.5)
+         .baselineValues("customer3", 23.0,  772.2)
+         .baselineValues("customer4", 32.0,  1030.1)
+         .go();
+    } finally {
+      runAndLog("alter session set `planner.enable_topn`=true");
+    }
   }
 
   /**
-   * Test which disables the TopN operator from planner settings before running query using SORT and LIMIT in
+   * Test which disables the TopN operator from planner settintestLateral_WithTopNInSubQuerygs before running query using SORT and LIMIT in
    * subquery. The same query as in above test is executed and same result is expected.
    */
   @Test
@@ -174,7 +180,7 @@ public class TestE2EUnnestAndLateral extends ClusterTest {
   public void testUnnestWithItem() throws Exception {
     String sql = "select u.item from\n" +
         "cp.`lateraljoin/nested-customer.parquet` c," +
-        "unnest(c.orders['items']) as u(item)\n" +
+        "unnest(c.orders[0]['items']) as u(item)\n" +
         "limit 1";
 
     testBuilder()
@@ -207,7 +213,7 @@ public class TestE2EUnnestAndLateral extends ClusterTest {
   public void testUnnestWithMap() throws Exception {
     String sql = "select u.item from\n" +
         "cp.`lateraljoin/nested-customer.parquet` c," +
-        "unnest(c.orders.items) as u(item)\n" +
+        "unnest(c.orders[0].items) as u(item)\n" +
         "limit 1";
 
     testBuilder()
@@ -225,8 +231,8 @@ public class TestE2EUnnestAndLateral extends ClusterTest {
   public void testMultiUnnestWithMap() throws Exception {
     String sql = "select u.item from\n" +
         "cp.`lateraljoin/nested-customer.parquet` c," +
-        "unnest(c.orders.items) as u(item)," +
-        "unnest(c.orders.items) as u1(item1)\n" +
+        "unnest(c.orders[0].items) as u(item)," +
+        "unnest(c.orders[0].items) as u1(item1)\n" +
         "limit 1";
 
     testBuilder()
@@ -286,6 +292,8 @@ public class TestE2EUnnestAndLateral extends ClusterTest {
 
   @Test
   public void testMultipleBatchesLateral_WithTopNInSubQuery() throws Exception {
+    runAndLog("alter session set `planner.enable_topn`=false");
+
     String sql = "SELECT customer.c_name, orders.o_orderkey, orders.o_totalprice " +
       "FROM dfs.`lateraljoin/multipleFiles` customer, LATERAL " +
       "(SELECT t.ord.o_orderkey as o_orderkey, t.ord.o_totalprice as o_totalprice FROM UNNEST(customer.c_orders) t(ord)" +

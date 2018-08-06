@@ -40,7 +40,7 @@ public abstract class StreamingAggTemplate implements StreamingAggregator {
 
   // First batch after build schema phase
   private boolean first = true;
-  private boolean firstBatchForSchema = true; // true if the current batch came in with an OK_NEW_SCHEMA.
+  private boolean firstBatchForSchema = false; // true if the current batch came in with an OK_NEW_SCHEMA.
   private boolean firstBatchForDataSet = true; // true if the current batch is the first batch in a data set
 
   private boolean newSchema = false;
@@ -136,12 +136,14 @@ public abstract class StreamingAggTemplate implements StreamingAggregator {
                   outcome = out;
                   return AggOutcome.RETURN_OUTCOME;
                 case EMIT:
+                  outerOutcome = EMIT;
                   if (incoming.getRecordCount() == 0) {
                     // When we see an EMIT we let the  agg record batch know that it should either
                     // send out an EMIT or an OK_NEW_SCHEMA, followed by an EMIT. To do that we simply return
                     // RETURN_AND_RESET with the outcome so the record batch can take care of it.
                     return setOkAndReturnEmit();
                   } else {
+                    currentIndex = this.getVectorIndex(underlyingIndex);
                     break outer;
                   }
 

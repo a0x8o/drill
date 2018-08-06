@@ -71,6 +71,10 @@ public class LimitRecordBatch extends AbstractSingleRecordBatch<Limit> {
           for (VectorWrapper<?> wrapper : incoming) {
             wrapper.getValueVector().clear();
           }
+          // clear memory for incoming sv (if any)
+          if (incomingSv != null) {
+            incomingSv.clear();
+          }
           upStream = next(incoming);
           if (upStream == IterOutcome.OUT_OF_MEMORY) {
             return upStream;
@@ -78,6 +82,16 @@ public class LimitRecordBatch extends AbstractSingleRecordBatch<Limit> {
         }
         // If EMIT that means leaf operator is UNNEST, in this case refresh the limit states and return EMIT.
         if (upStream == EMIT) {
+          // Clear the memory for the incoming batch
+          for (VectorWrapper<?> wrapper : incoming) {
+            wrapper.getValueVector().clear();
+          }
+
+          // clear memory for incoming sv (if any)
+          if (incomingSv != null) {
+            incomingSv.clear();
+          }
+
           refreshLimitState();
           return upStream;
         }
@@ -105,7 +119,7 @@ public class LimitRecordBatch extends AbstractSingleRecordBatch<Limit> {
 
   @Override
   protected boolean setupNewSchema() throws SchemaChangeException {
-    container.zeroVectors();
+    container.clear();
     transfers.clear();
 
     for(final VectorWrapper<?> v : incoming) {
@@ -177,6 +191,12 @@ public class LimitRecordBatch extends AbstractSingleRecordBatch<Limit> {
       outgoingSv.allocateNew(inputRecordCount);
       limit(inputRecordCount);
     }
+
+    // clear memory for incoming sv (if any)
+    if (incomingSv != null) {
+      incomingSv.clear();
+    }
+
     return getFinalOutcome(false);
   }
 

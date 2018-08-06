@@ -21,6 +21,8 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import org.apache.drill.common.exceptions.UserException;
 import org.apache.drill.common.expression.FieldReference;
+import org.apache.drill.common.types.TypeProtos;
+import org.apache.drill.common.types.Types;
 import org.apache.drill.exec.ExecConstants;
 import org.apache.drill.exec.exception.OutOfMemoryException;
 import org.apache.drill.exec.exception.SchemaChangeException;
@@ -36,33 +38,27 @@ import org.apache.drill.exec.record.RecordBatchSizer;
 import org.apache.drill.exec.record.TransferPair;
 import org.apache.drill.exec.record.TypedFieldId;
 import org.apache.drill.exec.record.VectorContainer;
+import org.apache.drill.exec.vector.IntVector;
 import org.apache.drill.exec.vector.ValueVector;
 import org.apache.drill.exec.vector.complex.RepeatedMapVector;
 import org.apache.drill.exec.vector.complex.RepeatedValueVector;
 
 import java.util.List;
 
-import static org.apache.drill.exec.record.RecordBatch.IterOutcome.OK;
 import static org.apache.drill.exec.record.RecordBatch.IterOutcome.OK_NEW_SCHEMA;
 
 // TODO - handle the case where a user tries to unnest a scalar, should just return the column as is
 public class UnnestRecordBatch extends AbstractTableFunctionRecordBatch<UnnestPOP> {
   private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(UnnestRecordBatch.class);
 
+  private final String rowIdColumnName; // name of the field holding the rowId implicit column
+  private IntVector rowIdVector; // vector to keep the implicit rowId column in
+
   private Unnest unnest = new UnnestImpl();
-  private boolean hasNewSchema = false; // set to true if a new schema was encountered and an empty batch was
-                                        // sent. The next iteration, we need to make sure the record batch sizer
-                                        // is updated before we process the actual data.
   private boolean hasRemainder = false; // set to true if there is data left over for the current row AND if we want
                                         // to keep processing it. Kill may be called by a limit in a subquery that
                                         // requires us to stop processing thecurrent row, but not stop processing
                                         // the data.
-  // In some cases we need to return a predetermined state from a call to next. These are:
-  // 1) Kill is called due to an error occurring in the processing of the query. IterOutcome should be NONE
-  // 2) Kill is called by LIMIT to stop processing of the current row (This occurs when the LIMIT is part of a subquery
-  //    between UNNEST and LATERAL. Iteroutcome should be EMIT
-  // 3) Kill is called by LIMIT downstream from LATERAL. IterOutcome should be NONE
-  private IterOutcome nextState = OK;
   private int remainderIndex = 0;
   private int recordCount;
   private MaterializedField unnestFieldMetadata;
@@ -103,7 +99,10 @@ public class UnnestRecordBatch extends AbstractTableFunctionRecordBatch<UnnestPO
       final MaterializedField field = incoming.getSchema().getColumn(typedFieldId.getFieldIds()[0]);
 
       // Get column size of unnest column.
+
       RecordBatchSizer.ColumnSize columnSize = getRecordBatchSizer().getColumn(field.getName());
+
+      final int rowIdColumnSize = TypeHelper.getSize(rowIdVector.getField().getType());
 
       // Average rowWidth of single element in the unnest list.
       // subtract the offset vector size from column data size.
@@ -112,7 +111,7 @@ public class UnnestRecordBatch extends AbstractTableFunctionRecordBatch<UnnestPO
               .getElementCount());
 
       // Average rowWidth of outgoing batch.
-      final int avgOutgoingRowWidth = avgRowWidthSingleUnnestEntry;
+      final int avgOutgoingRowWidth = avgRowWidthSingleUnnestEntry + rowIdColumnSize;
 
       // Number of rows in outgoing batch
       final int outputBatchSize = getOutputBatchSize();
@@ -141,6 +140,7 @@ public class UnnestRecordBatch extends AbstractTableFunctionRecordBatch<UnnestPO
     // get the output batch size from config.
     int configuredBatchSize = (int) context.getOptions().getOption(ExecConstants.OUTPUT_BATCH_SIZE_VALIDATOR);
     memoryManager = new UnnestMemoryManager(configuredBatchSize);
+    rowIdColumnName = pop.getImplicitColumn();
   }
 
   @Override
@@ -149,24 +149,21 @@ public class UnnestRecordBatch extends AbstractTableFunctionRecordBatch<UnnestPO
   }
 
   protected void killIncoming(boolean sendUpstream) {
-    // Kill may be received from an operator downstream of the corresponding lateral, or from
-    // a limit that is in a subqueruy between unnest and lateral. In the latter case, unnest has to handle the limit.
-    // In the former case, Lateral will handle most of the kill handling.
-
+    //
+    // In some cases we need to return a predetermined state from a call to next. These are:
+    // 1) Kill is called due to an error occurring in the processing of the query. IterOutcome should be NONE
+    // 2) Kill is called by LIMIT downstream from LATERAL. IterOutcome should be NONE
+    // With PartitionLimitBatch occurring between Lateral and Unnest subquery, kill won't be triggered by it hence no
+    // special handling is needed in that case.
+    //
     Preconditions.checkNotNull(lateral);
     // Do not call kill on incoming. Lateral Join has the responsibility for killing incoming
-    if (context.getExecutorState().isFailed() || lateral.getLeftOutcome() == IterOutcome.STOP) {
+    Preconditions.checkState(context.getExecutorState().isFailed() ||
+      lateral.getLeftOutcome() == IterOutcome.STOP, "Kill received by unnest with unexpected state. " +
+      "Neither the LateralOutcome is STOP nor executor state is failed");
       logger.debug("Kill received. Stopping all processing");
-      nextState = IterOutcome.NONE ;
-    } else {
-      // if we have already processed the record, then kill from a limit has no meaning.
-      // if, however, we have values remaining to be emitted, and limit has been reached,
-      // we abandon the remainder and send an empty batch with EMIT.
-      logger.debug("Kill received from subquery. Stopping processing of current input row.");
-      if(hasRemainder) {
-        nextState = IterOutcome.EMIT;
-      }
-    }
+    state = BatchState.DONE;
+    recordCount = 0;
     hasRemainder = false; // whatever the case, we need to stop processing the current row.
   }
 
@@ -178,16 +175,6 @@ public class UnnestRecordBatch extends AbstractTableFunctionRecordBatch<UnnestPO
     // Short circuit if record batch has already sent all data and is done
     if (state == BatchState.DONE) {
       return IterOutcome.NONE;
-    }
-
-    if (nextState == IterOutcome.NONE || nextState == IterOutcome.EMIT) {
-      return nextState;
-    }
-
-    if (hasNewSchema) {
-      memoryManager.update();
-      hasNewSchema = false;
-      return doWork();
     }
 
     if (hasRemainder) {
@@ -204,12 +191,13 @@ public class UnnestRecordBatch extends AbstractTableFunctionRecordBatch<UnnestPO
       state = BatchState.NOT_FIRST;
       try {
         stats.startSetup();
-        hasNewSchema = true; // next call to next will handle the actual data.
         logger.debug("First batch received");
         schemaChanged(); // checks if schema has changed (redundant in this case becaause it has) AND saves the
                          // current field metadata for check in subsequent iterations
         setupNewSchema();
         stats.batchReceived(0, incoming.getRecordCount(), true);
+        memoryManager.update();
+        hasRemainder = incoming.getRecordCount() > 0;
       } catch (SchemaChangeException ex) {
         kill(false);
         logger.error("Failure during query", ex);
@@ -220,14 +208,18 @@ public class UnnestRecordBatch extends AbstractTableFunctionRecordBatch<UnnestPO
       }
       return IterOutcome.OK_NEW_SCHEMA;
     } else {
+      Preconditions.checkState(incoming.getRecordCount() > 0,
+        "Incoming batch post buildSchema phase should never be empty for Unnest");
       container.zeroVectors();
       // Check if schema has changed
       if (lateral.getRecordIndex() == 0) {
-        hasNewSchema = schemaChanged();
+        boolean hasNewSchema = schemaChanged();
         stats.batchReceived(0, incoming.getRecordCount(), hasNewSchema);
         if (hasNewSchema) {
           try {
             setupNewSchema();
+            hasRemainder = true;
+            memoryManager.update();
           } catch (SchemaChangeException ex) {
             kill(false);
             logger.error("Failure during query", ex);
@@ -297,9 +289,13 @@ public class UnnestRecordBatch extends AbstractTableFunctionRecordBatch<UnnestPO
     // inside of the the unnest for the current batch
     setUnnestVector();
 
-    //Expected output count is the num of values in the unnest colum array for the current record
-    final int childCount =
-        incomingRecordCount == 0 ? 0 : unnest.getUnnestField().getAccessor().getInnerValueCountAt(currentRecord) - remainderIndex;
+    int remainingRecordCount = unnest.getUnnestField().getAccessor().getInnerValueCount() - remainderIndex;
+
+    // Allocate vector for rowId
+    rowIdVector.allocateNew(Math.min(remainingRecordCount, memoryManager.getOutputRowCount()));
+
+    //Expected output count is the num of values in the unnest column array
+    final int childCount = incomingRecordCount == 0 ? 0 : remainingRecordCount;
 
     // Unnest the data
     final int outputRecords = childCount == 0 ? 0 : unnest.unnestRecords(childCount);
@@ -317,6 +313,7 @@ public class UnnestRecordBatch extends AbstractTableFunctionRecordBatch<UnnestPO
       logger.debug("IterOutcome: EMIT.");
     }
     this.recordCount = outputRecords;
+    this.rowIdVector.getMutator().setValueCount(outputRecords);
 
     memoryManager.updateOutgoingStats(outputRecords);
     // If the current incoming record has spilled into two batches, we return
@@ -376,7 +373,7 @@ public class UnnestRecordBatch extends AbstractTableFunctionRecordBatch<UnnestPO
     transfers.add(transferPair);
     logger.debug("Added transfer for unnest expression.");
     unnest.close();
-    unnest.setup(context, incoming, this, transfers, lateral);
+    unnest.setup(context, incoming, this, transfers);
     setUnnestVector();
     return transferPair;
   }
@@ -386,7 +383,12 @@ public class UnnestRecordBatch extends AbstractTableFunctionRecordBatch<UnnestPO
     Preconditions.checkNotNull(lateral);
     container.clear();
     recordCount = 0;
+    final MaterializedField rowIdField = MaterializedField.create(rowIdColumnName, Types.required(TypeProtos
+        .MinorType.INT));
+    this.rowIdVector= (IntVector)TypeHelper.getNewVector(rowIdField, oContext.getAllocator());
+    container.add(rowIdVector);
     unnest = new UnnestImpl();
+    unnest.setRowIdVector(rowIdVector);
     final TransferPair tp = resetUnnestTransferPair();
     container.add(TypeHelper.getNewVector(tp.getTo().getField(), oContext.getAllocator()));
     container.buildSchema(SelectionVectorMode.NONE);

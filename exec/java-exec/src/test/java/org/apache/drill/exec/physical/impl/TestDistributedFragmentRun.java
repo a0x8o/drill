@@ -31,8 +31,8 @@ import org.apache.drill.exec.server.Drillbit;
 import org.apache.drill.exec.server.RemoteServiceSet;
 import org.junit.Test;
 
-import com.google.common.base.Charsets;
-import com.google.common.io.Files;
+import org.apache.drill.shaded.guava.com.google.common.base.Charsets;
+import org.apache.drill.shaded.guava.com.google.common.io.Files;
 import org.junit.experimental.categories.Category;
 
 @Category({SlowTest.class})
@@ -43,10 +43,11 @@ public class TestDistributedFragmentRun extends PopUnitTestBase{
   public void oneBitOneExchangeOneEntryRun() throws Exception{
     RemoteServiceSet serviceSet = RemoteServiceSet.getLocalServiceSet();
 
-    try(Drillbit bit1 = new Drillbit(CONFIG, serviceSet); DrillClient client = new DrillClient(CONFIG, serviceSet.getCoordinator());){
+    try (Drillbit bit1 = new Drillbit(CONFIG, serviceSet);
+         DrillClient client = new DrillClient(CONFIG, serviceSet.getCoordinator())) {
       bit1.run();
       client.connect();
-      List<QueryDataBatch> results = client.runQuery(QueryType.PHYSICAL, Files.toString(DrillFileUtils.getResourceAsFile("/physical_single_exchange.json"), Charsets.UTF_8));
+      List<QueryDataBatch> results = client.runQuery(QueryType.PHYSICAL, Files.asCharSource(DrillFileUtils.getResourceAsFile("/physical_single_exchange.json"), Charsets.UTF_8).read());
       int count = 0;
       for(QueryDataBatch b : results){
         count += b.getHeader().getRowCount();
@@ -63,10 +64,11 @@ public class TestDistributedFragmentRun extends PopUnitTestBase{
   public void oneBitOneExchangeTwoEntryRun() throws Exception{
     RemoteServiceSet serviceSet = RemoteServiceSet.getLocalServiceSet();
 
-    try(Drillbit bit1 = new Drillbit(CONFIG, serviceSet); DrillClient client = new DrillClient(CONFIG, serviceSet.getCoordinator());){
+    try (Drillbit bit1 = new Drillbit(CONFIG, serviceSet);
+         DrillClient client = new DrillClient(CONFIG, serviceSet.getCoordinator())) {
       bit1.run();
       client.connect();
-      List<QueryDataBatch> results = client.runQuery(QueryType.PHYSICAL, Files.toString(DrillFileUtils.getResourceAsFile("/physical_single_exchange_double_entry.json"), Charsets.UTF_8));
+      List<QueryDataBatch> results = client.runQuery(QueryType.PHYSICAL, Files.asCharSource(DrillFileUtils.getResourceAsFile("/physical_single_exchange_double_entry.json"), Charsets.UTF_8).read());
       int count = 0;
       for(QueryDataBatch b : results){
         count += b.getHeader().getRowCount();
@@ -82,16 +84,17 @@ public class TestDistributedFragmentRun extends PopUnitTestBase{
     public void oneBitOneExchangeTwoEntryRunLogical() throws Exception{
         RemoteServiceSet serviceSet = RemoteServiceSet.getLocalServiceSet();
 
-        try(Drillbit bit1 = new Drillbit(CONFIG, serviceSet); DrillClient client = new DrillClient(CONFIG, serviceSet.getCoordinator());){
-            bit1.run();
-            client.connect();
-            List<QueryDataBatch> results = client.runQuery(QueryType.LOGICAL, Files.toString(DrillFileUtils.getResourceAsFile("/scan_screen_logical.json"), Charsets.UTF_8));
-            int count = 0;
-            for(QueryDataBatch b : results){
-                count += b.getHeader().getRowCount();
-                b.release();
-            }
-            assertEquals(100, count);
+        try (Drillbit bit1 = new Drillbit(CONFIG, serviceSet);
+             DrillClient client = new DrillClient(CONFIG, serviceSet.getCoordinator())) {
+          bit1.run();
+          client.connect();
+          List<QueryDataBatch> results = client.runQuery(QueryType.LOGICAL, Files.asCharSource(DrillFileUtils.getResourceAsFile("/scan_screen_logical.json"), Charsets.UTF_8).read());
+          int count = 0;
+          for (QueryDataBatch b : results) {
+            count += b.getHeader().getRowCount();
+            b.release();
+          }
+          assertEquals(100, count);
         }
 
 
@@ -101,11 +104,13 @@ public class TestDistributedFragmentRun extends PopUnitTestBase{
     public void twoBitOneExchangeTwoEntryRun() throws Exception{
       RemoteServiceSet serviceSet = RemoteServiceSet.getLocalServiceSet();
 
-      try(Drillbit bit1 = new Drillbit(CONFIG, serviceSet); Drillbit bit2 = new Drillbit(CONFIG, serviceSet); DrillClient client = new DrillClient(CONFIG, serviceSet.getCoordinator());){
+      try (Drillbit bit1 = new Drillbit(CONFIG, serviceSet);
+           Drillbit bit2 = new Drillbit(CONFIG, serviceSet);
+           DrillClient client = new DrillClient(CONFIG, serviceSet.getCoordinator())) {
         bit1.run();
         bit2.run();
         client.connect();
-        List<QueryDataBatch> results = client.runQuery(QueryType.PHYSICAL, Files.toString(DrillFileUtils.getResourceAsFile("/physical_single_exchange_double_entry.json"), Charsets.UTF_8));
+        List<QueryDataBatch> results = client.runQuery(QueryType.PHYSICAL, Files.asCharSource(DrillFileUtils.getResourceAsFile("/physical_single_exchange_double_entry.json"), Charsets.UTF_8).read());
         int count = 0;
       for(QueryDataBatch b : results){
         count += b.getHeader().getRowCount();

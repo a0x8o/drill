@@ -38,8 +38,8 @@ import org.apache.drill.exec.vector.ValueVector;
  */
 public interface RecordBatch extends VectorAccessible {
 
-  /** max batch size, limited by 2-byte length in SV2: 65536 = 2^16 */
-  int MAX_BATCH_SIZE = ValueVector.MAX_ROW_COUNT;
+  /** max num of rows in a batch, limited by 2-byte length in SV2: 65536 = 2^16 */
+  int MAX_BATCH_ROW_COUNT = ValueVector.MAX_ROW_COUNT;
 
   /**
    * Describes the outcome of incrementing RecordBatch forward by a call to
@@ -116,7 +116,7 @@ public interface RecordBatch extends VectorAccessible {
      *   returned at least once (not necessarily <em>immediately</em> after).
      * </p>
      */
-    NONE,
+    NONE(false),
 
     /**
      * Zero or more records with same schema.
@@ -134,7 +134,7 @@ public interface RecordBatch extends VectorAccessible {
      *   returned at least once (not necessarily <em>immediately</em> after).
      * </p>
      */
-    OK,
+    OK(false),
 
     /**
      * New schema, maybe with records.
@@ -147,7 +147,7 @@ public interface RecordBatch extends VectorAccessible {
      *     ({@code next()} should be called again.)
      * </p>
      */
-    OK_NEW_SCHEMA,
+    OK_NEW_SCHEMA(false),
 
     /**
      * Non-completion (abnormal) termination.
@@ -162,7 +162,7 @@ public interface RecordBatch extends VectorAccessible {
      *   of things.
      * </p>
      */
-    STOP,
+    STOP(true),
 
     /**
      * No data yet.
@@ -184,7 +184,7 @@ public interface RecordBatch extends VectorAccessible {
      *   Used by batches that haven't received incoming data yet.
      * </p>
      */
-    NOT_YET,
+    NOT_YET(false),
 
     /**
      * Out of memory (not fatal).
@@ -198,7 +198,7 @@ public interface RecordBatch extends VectorAccessible {
      *     {@code OUT_OF_MEMORY} to its caller) and call {@code next()} again.
      * </p>
      */
-    OUT_OF_MEMORY,
+    OUT_OF_MEMORY(true),
 
     /**
      * Emit record to produce output batches.
@@ -223,7 +223,17 @@ public interface RecordBatch extends VectorAccessible {
      *   input and again start from build side.
      * </p>
      */
-    EMIT,
+    EMIT(false);
+
+    private boolean error;
+
+    IterOutcome(boolean error) {
+      this.error = error;
+    }
+
+    public boolean isError() {
+      return error;
+    }
   }
 
   /**

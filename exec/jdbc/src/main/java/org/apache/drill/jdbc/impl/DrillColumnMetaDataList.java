@@ -35,7 +35,7 @@ import org.apache.drill.exec.proto.UserProtos.ResultColumnMetadata;
 import org.apache.drill.exec.record.BatchSchema;
 import org.apache.drill.exec.record.MaterializedField;
 
-import com.google.common.collect.ImmutableList;
+import org.apache.drill.shaded.guava.com.google.common.collect.ImmutableList;
 
 public class DrillColumnMetaDataList extends BasicList<ColumnMetaData>{
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(DrillColumnMetaDataList.class);
@@ -128,10 +128,16 @@ public class DrillColumnMetaDataList extends BasicList<ColumnMetaData>{
 
       final int nullability;
       switch ( field.getDataMode() ) {
-        case OPTIONAL: nullability = ResultSetMetaData.columnNullable; break;
-        case REQUIRED: nullability = ResultSetMetaData.columnNoNulls;  break;
+        case OPTIONAL:
+          nullability = ResultSetMetaData.columnNullable;
+          break;
+        case REQUIRED:
+          nullability = ResultSetMetaData.columnNoNulls;
+          break;
         // Should REPEATED still map to columnNoNulls? or to columnNullable?
-        case REPEATED: nullability = ResultSetMetaData.columnNoNulls;  break;
+        case REPEATED:
+          nullability = ResultSetMetaData.columnNoNulls;
+          break;
         default:
           throw new AssertionError( "Unexpected new DataMode value '"
                                     + field.getDataMode().name() + "'" );

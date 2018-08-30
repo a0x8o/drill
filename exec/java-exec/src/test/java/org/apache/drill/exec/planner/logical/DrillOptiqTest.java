@@ -17,7 +17,8 @@
  */
 package org.apache.drill.exec.planner.logical;
 
-import com.google.common.collect.ImmutableList;
+import org.apache.drill.common.util.GuavaUtils;
+import org.apache.drill.shaded.guava.com.google.common.collect.ImmutableList;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
@@ -55,8 +56,8 @@ public class DrillOptiqTest {
       ImmutableList<RexFieldCollation> e = ImmutableList.copyOf(new RexFieldCollation[0]);
 
       // create a dummy RexOver object.
-      RexNode window = rex.makeOver(anyType, SqlStdOperatorTable.AVG, emptyList, emptyList, e, null, null, true,
-          false, false, false);
+      RexNode window = rex.makeOver(anyType, SqlStdOperatorTable.AVG, emptyList, emptyList, GuavaUtils.convertToUnshadedImmutableList(e),
+          null, null, true, false, false, false);
       DrillOptiq.toDrill(null, (RelNode) null, window);
     } catch (UserException e) {
       if (e.getMessage().contains(DrillOptiq.UNSUPPORTED_REX_NODE_ERROR)) {

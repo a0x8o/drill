@@ -43,8 +43,8 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.rules.ExpectedException;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
+import org.apache.drill.shaded.guava.com.google.common.collect.ImmutableMap;
+import org.apache.drill.shaded.guava.com.google.common.collect.Maps;
 
 @Category({SlowTest.class, HiveStorageTest.class})
 public class TestHiveStorage extends HiveTestBase {
@@ -433,6 +433,11 @@ public class TestHiveStorage extends HiveTestBase {
     thrown.expect(UserRemoteException.class);
     thrown.expectMessage(containsString("IOException: Not a file"));
     test(query);
+  }
+
+  @Test
+  public void testSchemaCaseInsensitive() throws Exception {
+    test("select * from Hive.`Default`.Kv");
   }
 
   private void verifyColumnsMetadata(List<UserProtos.ResultColumnMetadata> columnsList, Map<String, Integer> expectedResult) {

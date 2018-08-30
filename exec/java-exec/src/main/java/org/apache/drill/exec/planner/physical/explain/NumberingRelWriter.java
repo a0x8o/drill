@@ -38,7 +38,7 @@ import org.apache.drill.exec.planner.physical.Prel;
 import org.apache.drill.exec.planner.physical.UnnestPrel;
 import org.apache.drill.exec.planner.physical.explain.PrelSequencer.OpId;
 
-import com.google.common.collect.ImmutableList;
+import org.apache.drill.shaded.guava.com.google.common.collect.ImmutableList;
 
 /**
  * Copied mostly from RelWriterImpl but customized to create user useful ids.
@@ -84,7 +84,9 @@ class NumberingRelWriter implements RelWriter {
     s.append("  ");
 
     if (id != null && id.opId == 0) {
-      for(int i =0; i < spacer.get(); i++){ s.append('-');}
+      for (int i = 0; i < spacer.get(); i++) {
+        s.append('-');
+      }
     }else{
       spacer.spaces(s);
     }

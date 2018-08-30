@@ -20,13 +20,15 @@ package org.apache.drill.exec.planner.fragment;
 import java.util.Iterator;
 import java.util.Map;
 
-import com.google.common.collect.Maps;
+import org.apache.drill.shaded.guava.com.google.common.collect.Maps;
 
 public class PlanningSet implements Iterable<Wrapper> {
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(PlanningSet.class);
 
   private final Map<Fragment, Wrapper> fragmentMap = Maps.newHashMap();
   private int majorFragmentIdIndex = 0;
+
+  private Wrapper rootWrapper = null;
 
   public Wrapper get(Fragment node) {
     Wrapper wrapper = fragmentMap.get(node);
@@ -60,6 +62,27 @@ public class PlanningSet implements Iterable<Wrapper> {
   @Override
   public String toString() {
     return "FragmentPlanningSet:\n" + fragmentMap.values() + "]";
+  }
+
+  /**
+   * find the root Wrapper which contains the root Fragment and
+   * hold the root wrapper
+   * @param rootFragment
+   * @return root wrapper
+   */
+  public Wrapper findRootWrapper(Fragment rootFragment){
+    for (Wrapper wrapper : this) {
+      Fragment fragment = wrapper.getNode();
+      if (fragment == rootFragment) {
+        rootWrapper = wrapper;
+        break;
+      }
+    }
+    return rootWrapper;
+  }
+
+  public Wrapper getRootWrapper(){
+    return rootWrapper;
   }
 
 }

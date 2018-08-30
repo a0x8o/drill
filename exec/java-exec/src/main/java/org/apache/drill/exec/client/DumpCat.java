@@ -37,7 +37,7 @@ import com.beust.jcommander.IParameterValidator;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
-import com.google.common.collect.Lists;
+import org.apache.drill.shaded.guava.com.google.common.collect.Lists;
 
 public class DumpCat {
   private final static DrillConfig drillConfig = DrillConfig.create();
@@ -180,7 +180,7 @@ public class DumpCat {
       aggBatchMetaInfo.add(getBatchMetaInfo(vcSerializable));
 
       if (vectorContainer.getRecordCount() == 0) {
-        emptyBatchNum ++;
+        emptyBatchNum++;
       }
 
       if (prevSchema != null && !vectorContainer.getSchema().equals(prevSchema)) {
@@ -188,7 +188,7 @@ public class DumpCat {
       }
 
       prevSchema = vectorContainer.getSchema();
-      batchNum ++;
+      batchNum++;
 
       vectorContainer.zeroVectors();
     }
@@ -219,7 +219,7 @@ public class DumpCat {
 
     VectorAccessibleSerializable vcSerializable = null;
 
-    while (input.available() > 0 && batchNum ++ < targetBatchNum) {
+    while (input.available() > 0 && batchNum++ < targetBatchNum) {
       vcSerializable = new VectorAccessibleSerializable(DumpCat.allocator);
       vcSerializable.readFromStream(input);
 

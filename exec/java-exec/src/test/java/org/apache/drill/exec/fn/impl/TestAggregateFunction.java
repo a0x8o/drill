@@ -35,8 +35,8 @@ import org.apache.drill.exec.server.RemoteServiceSet;
 import org.apache.drill.exec.vector.ValueVector;
 import org.junit.Test;
 
-import com.google.common.base.Charsets;
-import com.google.common.io.Files;
+import org.apache.drill.shaded.guava.com.google.common.base.Charsets;
+import org.apache.drill.shaded.guava.com.google.common.io.Files;
 import org.junit.experimental.categories.Category;
 
 @Category(OperatorTest.class)
@@ -52,7 +52,7 @@ public class TestAggregateFunction extends PopUnitTestBase {
       bit.run();
       client.connect();
       List<QueryDataBatch> results = client.runQuery(QueryType.PHYSICAL,
-              Files.toString(DrillFileUtils.getResourceAsFile(planPath), Charsets.UTF_8).replace("#{TEST_FILE}", dataPath));
+          Files.asCharSource(DrillFileUtils.getResourceAsFile(planPath), Charsets.UTF_8).read().replace("#{TEST_FILE}", dataPath));
 
       RecordBatchLoader batchLoader = new RecordBatchLoader(bit.getContext().getAllocator());
 
@@ -85,7 +85,7 @@ public class TestAggregateFunction extends PopUnitTestBase {
   public void testCovarianceCorrelation() throws Throwable {
     String planPath = "/functions/test_covariance.json";
     String dataPath = "/covariance_input.json";
-    Double expectedValues[] = {4.571428571428571d, 4.857142857142857d, -6.000000000000002d, 4.0d , 4.25d, -5.250000000000002d, 1.0d, 0.9274260335029677d, -1.0000000000000004d};
+    Double expectedValues[] = {4.571428571428571d, 4.857142857142857d, -6.000000000000002d, 4.0d, 4.25d, -5.250000000000002d, 1.0d, 0.9274260335029677d, -1.0000000000000004d};
 
     runTest(expectedValues, planPath, dataPath);
   }

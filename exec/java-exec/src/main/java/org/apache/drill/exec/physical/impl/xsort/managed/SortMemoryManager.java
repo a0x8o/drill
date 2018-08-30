@@ -17,7 +17,7 @@
  */
 package org.apache.drill.exec.physical.impl.xsort.managed;
 
-import com.google.common.annotations.VisibleForTesting;
+import org.apache.drill.shaded.guava.com.google.common.annotations.VisibleForTesting;
 
 /**
  * Computes the memory needs for input batches, spill batches and merge
@@ -266,7 +266,7 @@ public class SortMemoryManager {
     memoryLimit = (configMemoryLimit == 0) ? opMemoryLimit
                 : Math.min(opMemoryLimit, configMemoryLimit);
 
-    preferredSpillBatchSize = config.spillBatchSize();;
+    preferredSpillBatchSize = config.spillBatchSize();
     preferredMergeBatchSize = config.mergeBatchSize();
 
     // Initialize the buffer memory limit for the first batch.

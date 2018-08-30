@@ -29,7 +29,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
-import com.google.common.base.Preconditions;
+import org.apache.drill.shaded.guava.com.google.common.base.Preconditions;
 
 import java.io.IOException;
 
@@ -86,6 +86,10 @@ public class PersistedOptionValue {
    * This constant cannot be changed for backward and forward compatibility reasons.
    */
   public static final String JSON_FLOAT_VAL = "float_val";
+  /**
+   * This constant cannot be changed for backward and forward compatibility reasons.
+   */
+  public static final String JSON_INTEGER_VAL = "int_val";
 
   private String value;
   private OptionValue.Kind kind;
@@ -304,6 +308,10 @@ public class PersistedOptionValue {
 
       if (node.has(OptionValue.JSON_FLOAT_VAL)) {
         value = node.get(OptionValue.JSON_FLOAT_VAL).asText();
+      }
+
+      if (node.has(OptionValue.JSON_INTEGER_VAL)) {
+        value = node.get(OptionValue.JSON_INTEGER_VAL).asText();
       }
 
       if (value == null) {

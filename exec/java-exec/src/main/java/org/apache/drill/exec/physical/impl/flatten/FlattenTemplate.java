@@ -29,7 +29,7 @@ import org.apache.drill.exec.record.BatchSchema.SelectionVectorMode;
 import org.apache.drill.exec.record.RecordBatch;
 import org.apache.drill.exec.record.TransferPair;
 
-import com.google.common.collect.ImmutableList;
+import org.apache.drill.shaded.guava.com.google.common.collect.ImmutableList;
 
 import org.apache.drill.exec.vector.ValueVector;
 import org.apache.drill.exec.vector.complex.RepeatedValueVector;
@@ -113,7 +113,7 @@ public abstract class FlattenTemplate implements Flattener {
               } catch (OversizedAllocationException ex) {
                 // unable to flatten due to a soft buffer overflow. split the batch here and resume execution.
                 logger.debug("Reached allocation limit. Splitting the batch at input index: {} - inner index: {} - current completed index: {}",
-                    valueIndexLocal, innerValueIndexLocal, currentInnerValueIndexLocal) ;
+                    valueIndexLocal, innerValueIndexLocal, currentInnerValueIndexLocal);
 
                 /*
                  * TODO

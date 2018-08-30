@@ -17,13 +17,13 @@
  */
 package org.apache.drill.exec.physical.impl.join;
 
-import com.google.common.base.Preconditions;
+import org.apache.drill.shaded.guava.com.google.common.base.Preconditions;
 import org.apache.drill.exec.record.RecordBatchSizer;
 import org.apache.drill.exec.vector.IntVector;
 
 import java.util.Map;
 
-import static org.apache.drill.exec.physical.impl.join.HashJoinMemoryCalculatorImpl.PostBuildCalculationsImpl.computeValueVectorSize;
+import static org.apache.drill.exec.physical.impl.join.BatchSizePredictorImpl.computeValueVectorSize;
 
 public class HashTableSizeCalculatorConservativeImpl implements HashTableSizeCalculator {
   public static final String TYPE = "CONSERVATIVE";

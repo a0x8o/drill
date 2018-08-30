@@ -17,15 +17,13 @@
  */
 package org.apache.drill.exec;
 
-import static com.google.common.base.Throwables.propagate;
-
 import java.util.List;
 
 import org.apache.drill.exec.exception.DrillbitStartupException;
 import org.apache.drill.exec.server.Drillbit;
 import org.slf4j.Logger;
 
-import com.google.common.collect.ImmutableList;
+import org.apache.drill.shaded.guava.com.google.common.collect.ImmutableList;
 
 /**
  * Base class for Drill system tests.
@@ -44,7 +42,7 @@ public class DrillSystemTestBase extends TestWithZookeeper {
       }
       this.servers = servers.build();
     } catch (DrillbitStartupException e) {
-      propagate(e);
+      throw new RuntimeException(e);
     }
   }
 

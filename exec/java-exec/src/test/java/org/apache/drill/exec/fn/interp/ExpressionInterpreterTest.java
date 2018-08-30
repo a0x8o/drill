@@ -55,7 +55,7 @@ import org.joda.time.DateTimeZone;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
-import com.google.common.collect.Lists;
+import org.apache.drill.shaded.guava.com.google.common.collect.Lists;
 
 @Category({SlowTest.class, SqlTest.class})
 public class ExpressionInterpreterTest  extends PopUnitTestBase {
@@ -227,7 +227,7 @@ public class ExpressionInterpreterTest  extends PopUnitTestBase {
   }
 
   private void showValueVectorContent(ValueVector vw) {
-    for (int row = 0; row < vw.getAccessor().getValueCount(); row ++ ) {
+    for (int row = 0; row < vw.getAccessor().getValueCount(); row++) {
       final Object o = vw.getAccessor().getObject(row);
       final String cellString;
       if (o instanceof byte[]) {

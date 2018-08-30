@@ -17,8 +17,8 @@
  */
 package org.apache.drill.exec.impersonation;
 
-import com.google.common.base.Preconditions;
-import com.google.common.base.Strings;
+import org.apache.drill.shaded.guava.com.google.common.base.Preconditions;
+import org.apache.drill.shaded.guava.com.google.common.base.Strings;
 import org.apache.commons.io.FileUtils;
 import org.apache.drill.PlanTestBase;
 import org.apache.drill.common.config.DrillConfig;
@@ -41,9 +41,10 @@ import java.util.Map;
 import java.util.Properties;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class BaseTestImpersonation extends PlanTestBase {
-  protected static final String MINIDFS_STORAGE_PLUGIN_NAME = "miniDfsPlugin";
+  protected static final String MINI_DFS_STORAGE_PLUGIN_NAME = "mini_dfs_plugin";
   protected static final String processUser = System.getProperty("user.name");
 
   protected static MiniDFSCluster dfsCluster;
@@ -73,8 +74,8 @@ public class BaseTestImpersonation extends PlanTestBase {
 
   /**
    * Start a MiniDFS cluster backed Drillbit cluster with impersonation enabled.
-   * @param testClass
-   * @throws Exception
+   * @param testClass test class
+   * @throws Exception in case of errors during start up
    */
   protected static void startMiniDfsCluster(String testClass) throws Exception {
     startMiniDfsCluster(testClass, true);
@@ -82,12 +83,11 @@ public class BaseTestImpersonation extends PlanTestBase {
 
   /**
    * Start a MiniDFS cluster backed Drillbit cluster
-   * @param testClass
+   * @param testClass test class
    * @param isImpersonationEnabled Enable impersonation in the cluster?
-   * @throws Exception
+   * @throws Exception in case of errors during start up
    */
-  protected static void startMiniDfsCluster(
-      final String testClass, final boolean isImpersonationEnabled) throws Exception {
+  protected static void startMiniDfsCluster(String testClass, boolean isImpersonationEnabled) throws Exception {
     Preconditions.checkArgument(!Strings.isNullOrEmpty(testClass), "Expected a non-null and non-empty test class name");
     dfsConf = new Configuration();
 
@@ -132,14 +132,24 @@ public class BaseTestImpersonation extends PlanTestBase {
 
     FileSystemConfig miniDfsPluginConfig = new FileSystemConfig(connection, null, workspaces, lfsPluginConfig.getFormats());
     miniDfsPluginConfig.setEnabled(true);
-    pluginRegistry.createOrUpdate(MINIDFS_STORAGE_PLUGIN_NAME, miniDfsPluginConfig, true);
+    pluginRegistry.createOrUpdate(MINI_DFS_STORAGE_PLUGIN_NAME, miniDfsPluginConfig, true);
   }
 
   protected static void createAndAddWorkspace(String name, String path, short permissions, String owner,
       String group, final Map<String, WorkspaceConfig> workspaces) throws Exception {
-    final Path dirPath = new Path(path);
-    FileSystem.mkdirs(fs, dirPath, new FsPermission(permissions));
+
+    FsPermission permission = new FsPermission(permissions);
+
+    Path dirPath = new Path(path);
+    assertTrue(FileSystem.mkdirs(fs, dirPath, permission));
     fs.setOwner(dirPath, owner, group);
+
+    // create sample file in the workspace to check show files command
+    Path sampleFile = new Path(dirPath, String.format("sample_%s.txt", name));
+    assertTrue(fs.createNewFile(sampleFile));
+    fs.setPermission(sampleFile, permission);
+    fs.setOwner(sampleFile, owner, group);
+
     final WorkspaceConfig ws = new WorkspaceConfig(path, true, "parquet", false);
     workspaces.put(name, ws);
   }
@@ -157,7 +167,7 @@ public class BaseTestImpersonation extends PlanTestBase {
 
   // Return the user workspace for given user.
   protected static String getWSSchema(String user) {
-    return MINIDFS_STORAGE_PLUGIN_NAME + "." + user;
+    return MINI_DFS_STORAGE_PLUGIN_NAME + "." + user;
   }
 
   protected static String getUserHome(String user) {
@@ -183,7 +193,7 @@ public class BaseTestImpersonation extends PlanTestBase {
                                  final String viewDef) throws Exception {
     updateClient(viewOwner);
     test(String.format("ALTER SESSION SET `%s`='%o';", ExecConstants.NEW_VIEW_DEFAULT_PERMS_KEY, (short) 0750));
-    test("CREATE VIEW %s.%s.%s AS %s", MINIDFS_STORAGE_PLUGIN_NAME, "tmp", viewName, viewDef);
+    test("CREATE VIEW %s.%s.%s AS %s", MINI_DFS_STORAGE_PLUGIN_NAME, "tmp", viewName, viewDef);
     final Path viewFilePath = new Path("/tmp/", viewName + DotDrillType.VIEW.getEnding());
     fs.setOwner(viewFilePath, viewOwner, viewGroup);
   }

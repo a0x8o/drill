@@ -17,7 +17,8 @@
  */
 package org.apache.drill.exec.physical.impl.common;
 
-import com.google.common.collect.Lists;
+import org.apache.drill.shaded.guava.com.google.common.base.Preconditions;
+import org.apache.drill.shaded.guava.com.google.common.collect.Lists;
 import org.apache.drill.common.exceptions.RetryAfterSpillException;
 import org.apache.drill.common.exceptions.UserException;
 import org.apache.drill.exec.cache.VectorSerializer;
@@ -61,7 +62,7 @@ import static org.apache.drill.exec.physical.impl.common.HashTable.BATCH_SIZE;
  *    Created to represent an active partition for the Hash-Join operator
  *  (active means: currently receiving data, or its data is being probed; as opposed to fully
  *   spilled partitions).
- *    After all the build/iner data is read for this partition - if all its data is in memory, then
+ *    After all the build/inner data is read for this partition - if all its data is in memory, then
  *  a hash table and a helper are created, and later this data would be probed.
  *    If all this partition's build/inner data was spilled, then it begins to work as an outer
  *  partition (see the flag "processingOuter") -- reusing some of the fields (e.g., currentBatch,
@@ -122,6 +123,7 @@ public class HashPartition implements HashJoinMemoryCalculator.PartitionStat {
   private List<HashJoinMemoryCalculator.BatchStat> inMemoryBatchStats = Lists.newArrayList();
   private long partitionInMemorySize;
   private long numInMemoryRecords;
+  private boolean updatedRecordsPerBatch = false;
 
   public HashPartition(FragmentContext context, BufferAllocator allocator, ChainedHashTable baseHashTable,
                        RecordBatch buildBatch, RecordBatch probeBatch,
@@ -153,6 +155,18 @@ public class HashPartition implements HashJoinMemoryCalculator.PartitionStat {
     if ( numPartitions > 1 ) {
       allocateNewCurrentBatchAndHV();
     }
+  }
+
+  /**
+   * Configure a different temporary batch size when spilling probe batches.
+   * @param newRecordsPerBatch The new temporary batch size to use.
+   */
+  public void updateProbeRecordsPerBatch(int newRecordsPerBatch) {
+    Preconditions.checkArgument(newRecordsPerBatch > 0);
+    Preconditions.checkState(!updatedRecordsPerBatch); // Only allow updating once
+    Preconditions.checkState(processingOuter); // We can only update the records per batch when probing.
+
+    recordsPerBatch = newRecordsPerBatch;
   }
 
   /**

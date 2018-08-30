@@ -17,13 +17,13 @@
  */
 package org.apache.drill.exec.physical.impl.join;
 
-import com.google.common.collect.Lists;
+import org.apache.drill.shaded.guava.com.google.common.collect.Lists;
 import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.drill.categories.OperatorTest;
 import org.apache.drill.categories.SlowTest;
 
 import org.apache.drill.exec.physical.config.HashJoinPOP;
-import org.apache.drill.exec.physical.unit.PhysicalOpUnitTestBase;
+import org.apache.drill.test.PhysicalOpUnitTestBase;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -37,7 +37,7 @@ public class TestHashJoinSpill extends PhysicalOpUnitTestBase {
   // Should spill, including recursive spill
   public void testSimpleHashJoinSpill() {
     HashJoinPOP joinConf = new HashJoinPOP(null, null,
-      Lists.newArrayList(joinCond("lft", "EQUALS", "rgt")), JoinRelType.INNER);
+      Lists.newArrayList(joinCond("lft", "EQUALS", "rgt")), JoinRelType.INNER, null);
     operatorFixture.getOptionManager().setLocalOption("exec.hashjoin.num_partitions", 4);
     operatorFixture.getOptionManager().setLocalOption("exec.hashjoin.num_rows_in_batch", 64);
     operatorFixture.getOptionManager().setLocalOption("exec.hashjoin.max_batches_in_memory", 8);
@@ -52,7 +52,7 @@ public class TestHashJoinSpill extends PhysicalOpUnitTestBase {
       rightTable.add("[{\"rgt\": " + cnt + ", \"b\" : \"a string\"}]");
     }
 
-    opTestBuilder()
+    legacyOpTestBuilder()
       .physicalOperator(joinConf)
       .inputDataStreamsJson(Lists.newArrayList(leftTable,rightTable))
       .baselineColumns("lft", "a", "b", "rgt")
@@ -64,7 +64,7 @@ public class TestHashJoinSpill extends PhysicalOpUnitTestBase {
   @Test
   public void testRightOuterHashJoinSpill() {
     HashJoinPOP joinConf = new HashJoinPOP(null, null,
-      Lists.newArrayList(joinCond("lft", "EQUALS", "rgt")), JoinRelType.RIGHT);
+      Lists.newArrayList(joinCond("lft", "EQUALS", "rgt")), JoinRelType.RIGHT, null);
     operatorFixture.getOptionManager().setLocalOption("exec.hashjoin.num_partitions", 4);
     operatorFixture.getOptionManager().setLocalOption("exec.hashjoin.num_rows_in_batch", 64);
     operatorFixture.getOptionManager().setLocalOption("exec.hashjoin.max_batches_in_memory", 8);
@@ -79,7 +79,7 @@ public class TestHashJoinSpill extends PhysicalOpUnitTestBase {
       rightTable.add("[{\"rgt\": " + cnt + ", \"b\" : \"a string\"}]");
     }
 
-    opTestBuilder()
+    legacyOpTestBuilder()
       .physicalOperator(joinConf)
       .inputDataStreamsJson(Lists.newArrayList(leftTable,rightTable))
       .baselineColumns("lft", "a", "b", "rgt")
@@ -91,7 +91,7 @@ public class TestHashJoinSpill extends PhysicalOpUnitTestBase {
   @Test
   public void testLeftOuterHashJoinSpill() {
     HashJoinPOP joinConf = new HashJoinPOP(null, null,
-      Lists.newArrayList(joinCond("lft", "EQUALS", "rgt")), JoinRelType.LEFT);
+      Lists.newArrayList(joinCond("lft", "EQUALS", "rgt")), JoinRelType.LEFT, null);
     operatorFixture.getOptionManager().setLocalOption("exec.hashjoin.num_partitions", 8);
     operatorFixture.getOptionManager().setLocalOption("exec.hashjoin.num_rows_in_batch", 64);
     operatorFixture.getOptionManager().setLocalOption("exec.hashjoin.max_batches_in_memory", 12);
@@ -101,7 +101,7 @@ public class TestHashJoinSpill extends PhysicalOpUnitTestBase {
     List<String> rightTable = Lists.newArrayList("[{\"rgt\": 0, \"b\" : \"a string\"}]",
       "[{\"rgt\": 0, \"b\" : \"a different string\"},{\"rgt\": 0, \"b\" : \"yet another\"}]");
     int numRows = 4_000; // 100_000
-    for ( int cnt = 1; cnt <= numRows / 2 ; cnt++ ) { // inner use only half, to check the left-outer join
+    for (int cnt = 1; cnt <= numRows / 2; cnt++) { // inner use only half, to check the left-outer join
       // leftTable.add("[{\"lft\": " + cnt + ", \"a\" : \"a string\"}]");
       rightTable.add("[{\"rgt\": " + cnt + ", \"b\" : \"a string\"}]");
     }
@@ -110,7 +110,7 @@ public class TestHashJoinSpill extends PhysicalOpUnitTestBase {
       // rightTable.add("[{\"rgt\": " + cnt + ", \"b\" : \"a string\"}]");
     }
 
-    opTestBuilder()
+    legacyOpTestBuilder()
       .physicalOperator(joinConf)
       .inputDataStreamsJson(Lists.newArrayList(leftTable,rightTable))
       .baselineColumns("lft", "a", "b", "rgt")

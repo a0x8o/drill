@@ -22,7 +22,7 @@ import com.fasterxml.jackson.annotation.JsonSubTypes.Type;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.google.common.annotations.VisibleForTesting;
+import org.apache.drill.shaded.guava.com.google.common.annotations.VisibleForTesting;
 import org.apache.drill.common.exceptions.DrillRuntimeException;
 import org.apache.drill.common.exceptions.UserException;
 import org.apache.drill.exec.ExecConstants;
@@ -78,9 +78,10 @@ public final class ExecutionControls {
      * Constructor for controls option validator.
      *  @param name the name of the validator
      * @param ttl  the number of queries for which this option should be valid
+     * @param description Description of the option
      */
-    public ControlsOptionValidator(final String name, final int ttl) {
-      super(name, OptionValue.Kind.STRING);
+    public ControlsOptionValidator(final String name, final int ttl, OptionDescription description) {
+      super(name, OptionValue.Kind.STRING, description);
       assert ttl > 0;
       this.ttl = ttl;
     }

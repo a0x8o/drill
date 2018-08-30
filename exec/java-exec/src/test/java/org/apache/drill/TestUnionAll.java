@@ -17,7 +17,7 @@
  */
 package org.apache.drill;
 
-import com.google.common.collect.Lists;
+import org.apache.drill.shaded.guava.com.google.common.collect.Lists;
 
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.drill.categories.OperatorTest;
@@ -475,8 +475,8 @@ public class TestUnionAll extends BaseTestQuery {
             "(select columns[0] c2 from cp.`%s` t2 \n" +
             "where t2.columns[0] is not null \n" +
             "group by columns[0])) \n" +
-            "group by col0"
-          , root, root)
+            "group by col0",
+            root, root)
         .unOrdered()
         .baselineColumns("col0")
         .baselineValues("290")

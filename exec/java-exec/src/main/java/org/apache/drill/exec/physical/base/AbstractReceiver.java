@@ -17,17 +17,17 @@
  */
 package org.apache.drill.exec.physical.base;
 
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterators;
+import org.apache.drill.shaded.guava.com.google.common.base.Preconditions;
+import org.apache.drill.shaded.guava.com.google.common.collect.ImmutableList;
 import org.apache.drill.exec.physical.MinorFragmentEndpoint;
 
-public abstract class AbstractReceiver extends AbstractBase implements Receiver{
+public abstract class AbstractReceiver extends AbstractBase implements Receiver {
 
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(AbstractReceiver.class);
 
@@ -40,7 +40,7 @@ public abstract class AbstractReceiver extends AbstractBase implements Receiver{
    * @param senders List of sender MinorFragmentEndpoints each containing sender MinorFragmentId and Drillbit endpoint
    *                where it is running.
    */
-  public AbstractReceiver(int oppositeMajorFragmentId, List<MinorFragmentEndpoint> senders, boolean spooling){
+  public AbstractReceiver(int oppositeMajorFragmentId, List<MinorFragmentEndpoint> senders, boolean spooling) {
     this.oppositeMajorFragmentId = oppositeMajorFragmentId;
     this.senders = ImmutableList.copyOf(senders);
     this.spooling = spooling;
@@ -48,7 +48,7 @@ public abstract class AbstractReceiver extends AbstractBase implements Receiver{
 
   @Override
   public Iterator<PhysicalOperator> iterator() {
-    return Iterators.emptyIterator();
+    return Collections.emptyIterator();
   }
 
   @Override

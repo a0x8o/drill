@@ -17,9 +17,11 @@
  */
 package org.apache.drill.exec.record;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
+import java.util.Collection;
 import java.util.Map;
-
 import org.apache.drill.common.map.CaseInsensitiveMap;
 import org.apache.drill.common.types.TypeProtos;
 import org.apache.drill.common.types.TypeProtos.DataMode;
@@ -40,7 +42,7 @@ import org.apache.drill.exec.vector.complex.RepeatedMapVector;
 import org.apache.drill.exec.vector.complex.RepeatedValueVector;
 import org.apache.drill.exec.vector.VariableWidthVector;
 
-import com.google.common.collect.Sets;
+import org.apache.drill.shaded.guava.com.google.common.collect.Sets;
 import org.apache.drill.exec.vector.complex.RepeatedVariableWidthVectorLike;
 import org.bouncycastle.util.Strings;
 
@@ -631,7 +633,12 @@ public class RecordBatchSizer {
 
   // This keeps information for only top level columns. Information for nested
   // columns can be obtained from children of topColumns.
-  private Map<String, ColumnSize> columnSizes = CaseInsensitiveMap.newHashMap();
+  private Map<String, ColumnSize> columnSizes = new QuoteInsensitiveMap(CaseInsensitiveMap.newHashMap());
+
+  /**
+   * This field is used by the convenience method {@link #columnsList()}.
+   */
+  private List<ColumnSize> columnSizesList = new ArrayList<>();
 
   /**
    * Number of records (rows) in the batch.
@@ -715,6 +722,8 @@ public class RecordBatchSizer {
     for (VectorWrapper<?> vw : va) {
       ColumnSize colSize = measureColumn(vw.getValueVector(), "");
       columnSizes.put(vw.getField().getName(), colSize);
+      columnSizesList.add(colSize);
+      stdRowWidth += colSize.getStdDataSizePerEntry();
       netBatchSize += colSize.getTotalNetSize();
       maxSize = Math.max(maxSize, colSize.getTotalDataSize());
       if (colSize.metadata.isNullable()) {
@@ -885,6 +894,14 @@ public class RecordBatchSizer {
   public Map<String, ColumnSize> columns() { return columnSizes; }
 
   /**
+   * This is a convenience method to get the sizes of columns in the same order that the corresponding value vectors
+   * are stored within a {@link org.apache.drill.exec.record.VectorAccessible}.
+   * @return The sizes of columns in the same order that the corresponding value vectors are stored within a
+   * {@link org.apache.drill.exec.record.VectorAccessible}.
+   */
+  public List<ColumnSize> columnsList() { return columnSizesList; }
+
+  /**
    * Compute the "real" width of the row, taking into account each varchar column size
    * (historically capped at 50, and rounded up to power of 2 to match drill buf allocation)
    * and null marking columns.
@@ -945,5 +962,97 @@ public class RecordBatchSizer {
       ColumnSize colSize = columnSizes.get(w.getField().getName());
       colSize.allocateVector(w.getValueVector(), recordCount);
     }
+  }
+
+  /**
+   * A map that can handle quoted and unquoted column names; ideally this logic temporary and
+   * should be removed as soon as all readers standardize handling of missing columns. Quoted columns
+   * have been added in DRILL-4264.
+   */
+  private static final class QuoteInsensitiveMap implements Map<String, ColumnSize> {
+    /** Original Map */
+    private final Map<String, ColumnSize> originalMap;
+
+    private QuoteInsensitiveMap(Map<String, ColumnSize> originalMap) {
+      this.originalMap = originalMap;
+    }
+
+    @Override
+    public int size() {
+      return originalMap.size();
+    }
+
+    @Override
+    public boolean isEmpty() {
+      return originalMap.isEmpty();
+    }
+
+    @Override
+    public boolean containsKey(Object key) {
+      return originalMap.containsKey(key);
+    }
+
+    @Override
+    public boolean containsValue(Object value) {
+      return originalMap.containsValue(value);
+    }
+
+    @Override
+    public ColumnSize get(Object key) {
+      ColumnSize value = originalMap.get(key);
+
+      if (value == null) {
+        value = originalMap.get(quoteString(key));
+      }
+      return value;
+    }
+
+    @Override
+    public ColumnSize put(String key, ColumnSize value) {
+      return originalMap.put(key, value);
+    }
+
+    @Override
+    public ColumnSize remove(Object key) {
+      ColumnSize value = originalMap.remove(key);
+
+      if (value == null) {
+        value = originalMap.remove(quoteString(key));
+      }
+      return value;
+    }
+
+    @Override
+    public void putAll(Map<? extends String, ? extends ColumnSize> m) {
+      originalMap.putAll(m);
+    }
+
+    @Override
+    public void clear() {
+      originalMap.clear();
+    }
+
+    @Override
+    public Set<String> keySet() {
+      return originalMap.keySet();
+    }
+
+    @Override
+    public Collection<ColumnSize> values() {
+      return originalMap.values();
+    }
+
+    @Override
+    public Set<Entry<String, ColumnSize>> entrySet() {
+      return originalMap.entrySet();
+    }
+
+    private String quoteString(Object key) {
+      if (key instanceof String) {
+        return "`" + key + '`';
+      }
+      throw new IllegalArgumentException();
+    }
+
   }
 }

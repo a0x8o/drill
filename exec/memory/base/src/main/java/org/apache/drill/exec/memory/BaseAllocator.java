@@ -36,7 +36,7 @@ import org.apache.drill.exec.memory.AllocationManager.BufferLedger;
 import org.apache.drill.exec.ops.BufferManager;
 import org.apache.drill.exec.util.AssertionUtil;
 
-import com.google.common.base.Preconditions;
+import org.apache.drill.shaded.guava.com.google.common.base.Preconditions;
 
 public abstract class BaseAllocator extends Accountant implements BufferAllocator {
   private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(BaseAllocator.class);
@@ -788,8 +788,7 @@ public abstract class BaseAllocator extends Accountant implements BufferAllocato
   public static enum Verbosity {
     BASIC(false, false), // only include basic information
     LOG(true, false), // include basic
-    LOG_WITH_STACKTRACE(true, true) //
-    ;
+    LOG_WITH_STACKTRACE(true, true);
 
     public final boolean includeHistoricalLog;
     public final boolean includeStackTraces;

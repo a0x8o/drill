@@ -51,9 +51,9 @@ import org.apache.drill.exec.store.StoragePluginRegistry;
 import org.apache.drill.exec.testing.ExecutionControls;
 import org.apache.drill.exec.util.Utilities;
 
-import com.google.common.base.Function;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
+import org.apache.drill.shaded.guava.com.google.common.base.Function;
+import org.apache.drill.shaded.guava.com.google.common.collect.Lists;
+import org.apache.drill.shaded.guava.com.google.common.collect.Maps;
 
 import io.netty.buffer.DrillBuf;
 
@@ -246,6 +246,10 @@ public class QueryContext implements AutoCloseable, OptimizerRulesContext, Schem
 
   public boolean isUserAuthenticationEnabled() {
     return getConfig().getBoolean(ExecConstants.USER_AUTHENTICATION_ENABLED);
+  }
+
+  public boolean isRuntimeFilterEnabled() {
+    return this.getOption(ExecConstants.HASHJOIN_ENABLE_RUNTIME_FILTER_KEY).bool_val;
   }
 
   public DrillOperatorTable getDrillOperatorTable() {

@@ -18,13 +18,17 @@
 package org.apache.drill.exec.store;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
+import org.apache.drill.shaded.guava.com.google.common.collect.ImmutableMap;
 import org.apache.calcite.linq4j.tree.DefaultExpression;
 import org.apache.calcite.linq4j.tree.Expression;
+import org.apache.calcite.rel.type.RelProtoDataType;
 import org.apache.calcite.schema.Function;
 import org.apache.calcite.schema.Schema;
 import org.apache.calcite.schema.SchemaPlus;
@@ -35,8 +39,8 @@ import org.apache.drill.common.exceptions.UserException;
 import org.apache.drill.exec.dotdrill.View;
 import org.apache.drill.exec.planner.logical.CreateTableEntry;
 
-import com.google.common.base.Joiner;
-import com.google.common.collect.Lists;
+import org.apache.drill.shaded.guava.com.google.common.base.Joiner;
+import org.apache.drill.shaded.guava.com.google.common.collect.Lists;
 
 public abstract class AbstractSchema implements Schema, SchemaPartitionExplorer, AutoCloseable {
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(AbstractSchema.class);
@@ -46,7 +50,8 @@ public abstract class AbstractSchema implements Schema, SchemaPartitionExplorer,
   private static final Expression EXPRESSION = new DefaultExpression(Object.class);
 
   public AbstractSchema(List<String> parentSchemaPath, String name) {
-    schemaPath = Lists.newArrayList();
+    name = name == null ? null : name.toLowerCase();
+    schemaPath = new ArrayList<>();
     schemaPath.addAll(parentSchemaPath);
     schemaPath.add(name);
     this.name = name;
@@ -96,7 +101,7 @@ public abstract class AbstractSchema implements Schema, SchemaPartitionExplorer,
    * Create a new view given definition.
    * @param view View info including name, definition etc.
    * @return Returns true if an existing view is replaced with the given view. False otherwise.
-   * @throws IOException
+   * @throws IOException in case of error creating a view
    */
   public boolean createView(View view) throws IOException {
     throw UserException.unsupportedError()
@@ -107,8 +112,8 @@ public abstract class AbstractSchema implements Schema, SchemaPartitionExplorer,
   /**
    * Drop the view with given name.
    *
-   * @param viewName
-   * @throws IOException
+   * @param viewName view name
+   * @throws IOException in case of error dropping the view
    */
   public void dropView(String viewName) throws IOException {
     throw UserException.unsupportedError()
@@ -159,6 +164,30 @@ public abstract class AbstractSchema implements Schema, SchemaPartitionExplorer,
   @Override
   public Collection<Function> getFunctions(String name) {
     return Collections.emptyList();
+  }
+
+  /**
+   * Returns a map of types in this schema by name.
+   *
+   * <p>The implementations of {@link #getTypeNames()}
+   * and {@link #getType(String)} depend on this map.
+   * The default implementation of this method returns the empty map.
+   * Override this method to change their behavior.</p>
+   *
+   * @return Map of types in this schema by name
+   */
+  protected Map<String, RelProtoDataType> getTypeMap() {
+    return ImmutableMap.of();
+  }
+
+  @Override
+  public Set<String> getTypeNames() {
+    return getTypeMap().keySet();
+  }
+
+  @Override
+  public RelProtoDataType getType(String name) {
+    return getTypeMap().get(name);
   }
 
   @Override
@@ -217,7 +246,7 @@ public abstract class AbstractSchema implements Schema, SchemaPartitionExplorer,
    * plugin supports).
    * It is not guaranteed that the retrieved tables would have RowType and Statistic being fully populated.
    *
-   * Specifically, calling {@link Table#getRowType(RelDataTypeFactory)} or {@link Table#getStatistic()} might incur
+   * Specifically, calling {@link Table#getRowType(org.apache.calcite.rel.type.RelDataTypeFactory)} or {@link Table#getStatistic()} might incur
    * {@link UnsupportedOperationException} being thrown.
    *
    * @param  tableNames the requested tables, specified by the table names
@@ -261,6 +290,17 @@ public abstract class AbstractSchema implements Schema, SchemaPartitionExplorer,
     }
 
     return tableNamesAndTypes;
+  }
+
+  /**
+   * Indicates if table names in schema are case sensitive. By default they are.
+   * If schema implementation claims its table names are case insensitive,
+   * it is responsible for making case insensitive look up by table name.
+   *
+   * @return true if table names are case sensitive
+   */
+  public boolean areTableNamesCaseSensitive() {
+    return true;
   }
 
 }

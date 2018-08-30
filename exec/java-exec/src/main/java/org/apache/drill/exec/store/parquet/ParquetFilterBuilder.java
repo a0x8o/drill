@@ -17,7 +17,7 @@
  */
 package org.apache.drill.exec.store.parquet;
 
-import com.google.common.collect.ImmutableSet;
+import org.apache.drill.shaded.guava.com.google.common.collect.ImmutableSet;
 import org.apache.drill.common.expression.BooleanOperator;
 import org.apache.drill.common.expression.FunctionHolderExpression;
 import org.apache.drill.common.expression.LogicalExpression;
@@ -214,7 +214,7 @@ public class ParquetFilterBuilder extends AbstractExprVisitor<LogicalExpression,
     }
 
     if (value.contains(funcHolderExpr)) {
-      ValueHolder result ;
+      ValueHolder result;
       try {
         result = InterpreterEvaluator.evaluateConstantExpr(udfUtilities, funcHolderExpr);
       } catch (Exception e) {

@@ -17,8 +17,8 @@
  */
 package org.apache.drill.exec.physical.impl;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
+import org.apache.drill.shaded.guava.com.google.common.annotations.VisibleForTesting;
+import org.apache.drill.shaded.guava.com.google.common.base.Preconditions;
 import io.netty.buffer.DrillBuf;
 import org.apache.drill.common.exceptions.ExecutionSetupException;
 import org.apache.drill.common.exceptions.UserException;
@@ -53,7 +53,6 @@ import org.apache.drill.exec.vector.AllocationHelper;
 import org.apache.drill.exec.vector.NullableVarCharVector;
 import org.apache.drill.exec.vector.SchemaChangeCallBack;
 import org.apache.drill.exec.vector.ValueVector;
-
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -83,7 +82,6 @@ public class ScanBatch implements CloseableRecordBatch {
   private final List<Map<String, String>> implicitColumnList;
   private String currentReaderClassName;
   private final RecordBatchStatsContext batchStatsContext;
-
   /**
    *
    * @param context
@@ -279,7 +277,7 @@ public class ScanBatch implements CloseableRecordBatch {
 
   @Override
   public SelectionVector2 getSelectionVector2() {
-    throw new UnsupportedOperationException();
+    return null;
   }
 
   @Override

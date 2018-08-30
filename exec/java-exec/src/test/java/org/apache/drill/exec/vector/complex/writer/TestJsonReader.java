@@ -52,8 +52,8 @@ import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import com.google.common.base.Charsets;
-import com.google.common.io.Files;
+import org.apache.drill.shaded.guava.com.google.common.base.Charsets;
+import org.apache.drill.shaded.guava.com.google.common.io.Files;
 
 public class TestJsonReader extends BaseTestQuery {
   private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(TestJsonReader.class);
@@ -157,7 +157,7 @@ public class TestJsonReader extends BaseTestQuery {
     logger.debug("===================");
     logger.debug("source data in json");
     logger.debug("===================");
-    logger.debug(Files.toString(DrillFileUtils.getResourceAsFile(filename), Charsets.UTF_8));
+    logger.debug(Files.asCharSource(DrillFileUtils.getResourceAsFile(filename), Charsets.UTF_8).read());
 
     int i = 0;
     for (String query : queries) {
@@ -322,7 +322,7 @@ public class TestJsonReader extends BaseTestQuery {
   // ensure that the project is filtering out the correct data in the scan alone
   @Test
   public void testProjectPushdown() throws Exception {
-    String[] queries = {Files.toString(DrillFileUtils.getResourceAsFile("/store/json/project_pushdown_json_physical_plan.json"), Charsets.UTF_8)};
+    String[] queries = {Files.asCharSource(DrillFileUtils.getResourceAsFile("/store/json/project_pushdown_json_physical_plan.json"), Charsets.UTF_8).read()};
     long[] rowCounts = {3};
     String filename = "/store/json/schema_change_int_to_string.json";
     test("alter system set `store.json.all_text_mode` = false");
@@ -591,7 +591,7 @@ public class TestJsonReader extends BaseTestQuery {
       table_dir.mkdir();
       BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(new File(table_dir, "mostlynulls.json")));
       // Create an entire batch of null values for 3 columns
-      for (int i = 0 ; i < JSONRecordReader.DEFAULT_ROWS_PER_BATCH; i++) {
+      for (int i = 0; i < JSONRecordReader.DEFAULT_ROWS_PER_BATCH; i++) {
         os.write("{\"a\": null, \"b\": null, \"c\": null}".getBytes());
       }
       // Add a row with {bigint,  float, string} values

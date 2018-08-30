@@ -26,7 +26,7 @@ import java.util.Set;
 
 import org.apache.drill.common.exceptions.UserException;
 
-import com.google.common.base.Charsets;
+import org.apache.drill.shaded.guava.com.google.common.base.Charsets;
 
 /**
  * Text output that implements a header reader/parser.
@@ -224,7 +224,7 @@ public class HeaderBuilder extends TextOutput {
         // "col", "col_2", "col_2_2", "col_2_2_2".
         // No mapping scheme is perfect...
 
-        for (int l = 2;  ; l++) {
+        for (int l = 2;; l++) {
           final String rewritten = header + "_" + l;
           key = rewritten.toLowerCase();
           if (! idents.contains(key)) {

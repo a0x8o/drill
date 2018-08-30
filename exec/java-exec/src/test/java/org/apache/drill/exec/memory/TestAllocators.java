@@ -54,9 +54,9 @@ import org.apache.drill.exec.vector.IntVector;
 import org.apache.drill.test.DrillTest;
 import org.junit.Test;
 
-import com.google.common.base.Charsets;
-import com.google.common.collect.Lists;
-import com.google.common.io.Files;
+import org.apache.drill.shaded.guava.com.google.common.base.Charsets;
+import org.apache.drill.shaded.guava.com.google.common.collect.Lists;
+import org.apache.drill.shaded.guava.com.google.common.io.Files;
 import org.junit.experimental.categories.Category;
 
 @Category(MemoryTest.class)
@@ -181,8 +181,7 @@ public class TestAllocators extends DrillTest {
     final DrillConfig config = DrillConfig.create(TEST_CONFIGURATIONS);
 
     try (final RemoteServiceSet serviceSet = RemoteServiceSet.getLocalServiceSet();
-        final Drillbit bit = new Drillbit(config, serviceSet)) {
-      ;
+         final Drillbit bit = new Drillbit(config, serviceSet)) {
       bit.run();
       final DrillbitContext bitContext = bit.getContext();
       FunctionImplementationRegistry functionRegistry = bitContext.getFunctionImplementationRegistry();
@@ -203,8 +202,8 @@ public class TestAllocators extends DrillTest {
       // Get a few physical operators. Easiest way is to read a physical plan.
       PhysicalPlanReader planReader = PhysicalPlanReaderTestFactory.defaultPhysicalPlanReader(bitContext,
           storageRegistry);
-      PhysicalPlan plan = planReader.readPhysicalPlan(Files.toString(DrillFileUtils.getResourceAsFile(planFile),
-          Charsets.UTF_8));
+      PhysicalPlan plan = planReader.readPhysicalPlan(Files.asCharSource(DrillFileUtils.getResourceAsFile(planFile),
+          Charsets.UTF_8).read());
       List<PhysicalOperator> physicalOperators = plan.getSortedOperators();
       Iterator<PhysicalOperator> physicalOperatorIterator = physicalOperators.iterator();
 

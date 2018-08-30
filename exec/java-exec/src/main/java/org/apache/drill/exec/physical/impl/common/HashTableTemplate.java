@@ -23,7 +23,7 @@ import java.util.Set;
 
 import javax.inject.Named;
 
-import com.google.common.collect.Sets;
+import org.apache.drill.shaded.guava.com.google.common.collect.Sets;
 import org.apache.drill.common.types.TypeProtos.MinorType;
 import org.apache.drill.common.types.Types;
 import org.apache.drill.exec.compile.sig.RuntimeOverridden;
@@ -476,7 +476,7 @@ public abstract class HashTableTemplate implements HashTable {
     if (tableSize > MAXIMUM_CAPACITY) {
       tableSize = MAXIMUM_CAPACITY;
     }
-    originalTableSize = tableSize ; // retain original size
+    originalTableSize = tableSize; // retain original size
 
     threshold = (int) Math.ceil(tableSize * loadf);
 
@@ -545,6 +545,15 @@ public abstract class HashTableTemplate implements HashTable {
 
   @Override
   public void clear() {
+    clear(true);
+  }
+
+  private void clear(boolean close) {
+    if (close) {
+      // If we are closing, we need to clear the htContainerOrig as well.
+      htContainerOrig.clear();
+    }
+
     if (batchHolders != null) {
       for (BatchHolder bh : batchHolders) {
         bh.clear();
@@ -842,7 +851,7 @@ public abstract class HashTableTemplate implements HashTable {
    *
    */
   public void reset() {
-    this.clear(); // Clear all current batch holders and hash table (i.e. free their memory)
+    this.clear(false); // Clear all current batch holders and hash table (i.e. free their memory)
 
     freeIndex = 0; // all batch holders are gone
     // reallocate batch holders, and the hash table to the original size
@@ -852,6 +861,7 @@ public abstract class HashTableTemplate implements HashTable {
     totalIndexSize = 0;
     startIndices = allocMetadataVector(originalTableSize, EMPTY_SLOT);
   }
+
   public void updateIncoming(VectorContainer newIncoming, RecordBatch newIncomingProbe) {
     incomingBuild = newIncoming;
     incomingProbe = newIncomingProbe;

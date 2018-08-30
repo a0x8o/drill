@@ -35,7 +35,7 @@ import org.apache.drill.test.rowSet.test.TestFixedWidthWriter.TestIndex;
 import org.bouncycastle.util.Arrays;
 import org.junit.Test;
 
-import com.google.common.base.Charsets;
+import org.apache.drill.shaded.guava.com.google.common.base.Charsets;
 
 public class TestVariableWidthWriter extends SubOperatorTest {
 
@@ -382,7 +382,7 @@ public class TestVariableWidthWriter extends SubOperatorTest {
       byte value[] = new byte[423];
       Arrays.fill(value, (byte) 'X');
       try {
-        for (int i = 0; ; i++ ) {
+        for (int i = 0;; i++ ) {
           index.index = i;
           writer.startRow();
           writer.setBytes(value, value.length);

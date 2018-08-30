@@ -19,8 +19,8 @@ package org.apache.drill.exec.server.options;
 
 import java.util.Set;
 
-import com.google.common.base.Joiner;
-import com.google.common.collect.Sets;
+import org.apache.drill.shaded.guava.com.google.common.base.Joiner;
+import org.apache.drill.shaded.guava.com.google.common.collect.Sets;
 import org.apache.drill.common.exceptions.UserException;
 import org.apache.drill.common.util.DrillStringUtils;
 import org.apache.drill.exec.ExecConstants;
@@ -32,8 +32,8 @@ public class TypeValidators {
   public static class PositiveLongValidator extends LongValidator {
     protected final long max;
 
-    public PositiveLongValidator(String name, long max) {
-      super(name);
+    public PositiveLongValidator(String name, long max, OptionDescription description) {
+      super(name, description);
       this.max = max;
     }
 
@@ -50,8 +50,8 @@ public class TypeValidators {
 
   public static class PowerOfTwoLongValidator extends PositiveLongValidator {
 
-    public PowerOfTwoLongValidator(String name, long max) {
-      super(name, max);
+    public PowerOfTwoLongValidator(String name, long max, OptionDescription description) {
+      super(name, max, description);
     }
 
     @Override
@@ -73,8 +73,8 @@ public class TypeValidators {
     protected final double min;
     protected final double max;
 
-    public RangeDoubleValidator(String name, double min, double max) {
-      super(name);
+    public RangeDoubleValidator(String name, double min, double max, OptionDescription description) {
+      super(name, description);
       this.min = min;
       this.max = max;
     }
@@ -93,8 +93,8 @@ public class TypeValidators {
   public static class MinRangeDoubleValidator extends RangeDoubleValidator {
     private final String maxValidatorName;
 
-    public MinRangeDoubleValidator(String name, double min, double max, String maxValidatorName) {
-      super(name, min, max);
+    public MinRangeDoubleValidator(String name, double min, double max, String maxValidatorName, OptionDescription description) {
+      super(name, min, max, description);
       this.maxValidatorName = maxValidatorName;
     }
 
@@ -114,8 +114,8 @@ public class TypeValidators {
   public static class MaxRangeDoubleValidator extends RangeDoubleValidator {
     private final String minValidatorName;
 
-    public MaxRangeDoubleValidator(String name, double min, double max, String minValidatorName) {
-      super(name, min, max);
+    public MaxRangeDoubleValidator(String name, double min, double max, String minValidatorName, OptionDescription description) {
+      super(name, min, max, description);
       this.minValidatorName = minValidatorName;
     }
 
@@ -133,26 +133,42 @@ public class TypeValidators {
   }
 
   public static class BooleanValidator extends TypeValidator {
-    public BooleanValidator(String name) {
-      super(name, Kind.BOOLEAN);
+    public BooleanValidator(String name, OptionDescription description) {
+      super(name, Kind.BOOLEAN, description);
     }
   }
 
   public static class StringValidator extends TypeValidator {
-    public StringValidator(String name) {
-      super(name, Kind.STRING);
+    public StringValidator(String name, OptionDescription description) {
+      super(name, Kind.STRING, description);
     }
   }
 
   public static class LongValidator extends TypeValidator {
-    public LongValidator(String name) {
-      super(name, Kind.LONG);
+    public LongValidator(String name, OptionDescription description) {
+      super(name, Kind.LONG, description);
     }
   }
 
   public static class DoubleValidator extends TypeValidator {
-    public DoubleValidator(String name) {
-      super(name, Kind.DOUBLE);
+    public DoubleValidator(String name, OptionDescription description) {
+      super(name, Kind.DOUBLE, description);
+    }
+  }
+
+  public static class IntegerValidator extends LongValidator {
+    public IntegerValidator(String name, OptionDescription description) {
+      super(name, description);
+    }
+
+    @Override
+    public void validate(final OptionValue v, final OptionMetaData metaData, final OptionSet manager) {
+      super.validate(v, metaData, manager);
+      if (v.num_val > Integer.MAX_VALUE || v.num_val < Integer.MIN_VALUE) {
+        throw UserException.validationError()
+          .message(String.format("Option %s does not have a valid integer value", getOptionName()))
+          .build(logger);
+      }
     }
   }
 
@@ -160,8 +176,8 @@ public class TypeValidators {
     private final long min;
     private final long max;
 
-    public RangeLongValidator(String name, long min, long max) {
-      super(name);
+    public RangeLongValidator(String name, long min, long max, OptionDescription description) {
+      super(name, description);
       this.min = min;
       this.max = max;
     }
@@ -183,8 +199,8 @@ public class TypeValidators {
   public static class EnumeratedStringValidator extends StringValidator {
     private final Set<String> valuesSet = Sets.newLinkedHashSet();
 
-    public EnumeratedStringValidator(String name, String... values) {
-      super(name);
+    public EnumeratedStringValidator(String name, OptionDescription description, String... values) {
+      super(name, description);
       for (String value : values) {
         valuesSet.add(value.toLowerCase());
       }
@@ -209,8 +225,8 @@ public class TypeValidators {
 
     public final String DEFAULT_ADMIN_USERS = "%drill_process_user%";
 
-    public AdminUsersValidator(String name) {
-      super(name);
+    public AdminUsersValidator(String name, OptionDescription description) {
+      super(name, description);
     }
 
     public String getAdminUsers(OptionManager optionManager) {
@@ -233,8 +249,8 @@ public class TypeValidators {
 
     public final String DEFAULT_ADMIN_USER_GROUPS = "%drill_process_user_groups%";
 
-    public AdminUserGroupsValidator(String name) {
-      super(name);
+    public AdminUserGroupsValidator(String name, OptionDescription description) {
+      super(name, description);
     }
 
     public String getAdminUserGroups(OptionManager optionManager) {
@@ -255,8 +271,8 @@ public class TypeValidators {
    * the available number of processors and cpu load average
    */
   public static class MaxWidthValidator extends LongValidator{
-    public MaxWidthValidator(String name) {
-      super(name);
+    public MaxWidthValidator(String name, OptionDescription description) {
+      super(name, description);
     }
 
     public int computeMaxWidth(double cpuLoadAverage, long maxWidth) {
@@ -276,8 +292,8 @@ public class TypeValidators {
   public static abstract class TypeValidator extends OptionValidator {
     private final Kind kind;
 
-    public TypeValidator(final String name, final Kind kind) {
-      super(name);
+    public TypeValidator(final String name, final Kind kind, final OptionDescription description) {
+      super(name, description);
       this.kind = kind;
     }
 
@@ -296,6 +312,7 @@ public class TypeValidators {
       return kind;
     }
 
+    @Override
     public String getConfigProperty() {
       return ExecConstants.bootDefaultFor(getOptionName());
     }

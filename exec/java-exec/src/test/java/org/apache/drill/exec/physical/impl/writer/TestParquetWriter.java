@@ -68,8 +68,8 @@ import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import com.google.common.base.Joiner;
-import com.google.common.collect.ImmutableList;
+import org.apache.drill.shaded.guava.com.google.common.base.Joiner;
+import org.apache.drill.shaded.guava.com.google.common.collect.ImmutableList;
 
 @RunWith(Parameterized.class)
 @Category({SlowTest.class, ParquetTest.class})
@@ -164,7 +164,7 @@ public class TestParquetWriter extends BaseTestQuery {
     final int numCols = 1000;
     String[] colNames = new String[numCols];
     Object[] values = new Object[numCols];
-    for (int i = 0 ; i < numCols - 1; i++) {
+    for (int i = 0; i < numCols - 1; i++) {
       sb.append(String.format("\"col_%d\" : 100,", i));
       colNames[i] = "col_" + i;
       values[i] = 100L;

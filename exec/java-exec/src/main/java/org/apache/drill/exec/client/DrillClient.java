@@ -17,9 +17,9 @@
  */
 package org.apache.drill.exec.client;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.base.Preconditions.checkState;
+import static org.apache.drill.shaded.guava.com.google.common.base.Preconditions.checkArgument;
+import static org.apache.drill.shaded.guava.com.google.common.base.Preconditions.checkNotNull;
+import static org.apache.drill.shaded.guava.com.google.common.base.Preconditions.checkState;
 import static org.apache.drill.exec.proto.UserProtos.QueryResultsMode.STREAM_FULL;
 import static org.apache.drill.exec.proto.UserProtos.RunQuery.newBuilder;
 
@@ -90,9 +90,9 @@ import org.apache.drill.exec.rpc.user.UserRpcUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Strings;
-import com.google.common.util.concurrent.SettableFuture;
+import org.apache.drill.shaded.guava.com.google.common.annotations.VisibleForTesting;
+import org.apache.drill.shaded.guava.com.google.common.base.Strings;
+import org.apache.drill.shaded.guava.com.google.common.util.concurrent.SettableFuture;
 
 import io.netty.channel.EventLoopGroup;
 
@@ -824,7 +824,7 @@ public class DrillClient implements Closeable, ConnectionThrottle {
   private class ListHoldingResultsListener implements UserResultsListener {
     private final Vector<QueryDataBatch> results = new Vector<>();
     private final SettableFuture<List<QueryDataBatch>> future = SettableFuture.create();
-    private final UserProtos.RunQuery query ;
+    private final UserProtos.RunQuery query;
 
     public ListHoldingResultsListener(UserProtos.RunQuery query) {
       logger.debug( "Listener created for query \"\"\"{}\"\"\"", query );

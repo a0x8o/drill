@@ -34,8 +34,8 @@ import org.apache.drill.exec.vector.NullableBigIntVector;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import com.google.common.base.Charsets;
-import com.google.common.io.Files;
+import org.apache.drill.shaded.guava.com.google.common.base.Charsets;
+import org.apache.drill.shaded.guava.com.google.common.io.Files;
 import org.junit.experimental.categories.Category;
 
 /* This class tests the existing date types. Simply using date types
@@ -112,10 +112,11 @@ public class TestExtractFunctions extends PopUnitTestBase {
       bit.run();
       client.connect();
       List<QueryDataBatch> results = client.runQuery(org.apache.drill.exec.proto.UserBitShared.QueryType.PHYSICAL,
-        Files.toString(DrillFileUtils.getResourceAsFile("/functions/extractFrom.json"), Charsets.UTF_8)
-        .replace("#{TEST_TYPE}", fromType)
-        .replace("#{TEST_FILE}", testDataFile)
-        .replace("#{COLUMN_NAME}", columnName));
+        Files.asCharSource(DrillFileUtils.getResourceAsFile("/functions/extractFrom.json"), Charsets.UTF_8)
+            .read()
+            .replace("#{TEST_TYPE}", fromType)
+            .replace("#{TEST_FILE}", testDataFile)
+            .replace("#{COLUMN_NAME}", columnName));
 
       RecordBatchLoader batchLoader = new RecordBatchLoader(bit.getContext().getAllocator());
 

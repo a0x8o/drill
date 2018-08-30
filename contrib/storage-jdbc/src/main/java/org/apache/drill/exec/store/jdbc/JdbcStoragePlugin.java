@@ -25,10 +25,10 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import javax.sql.DataSource;
 
-import com.google.common.base.Predicates;
 import org.apache.calcite.adapter.jdbc.JdbcConvention;
 import org.apache.calcite.adapter.jdbc.JdbcRules;
 import org.apache.calcite.adapter.jdbc.JdbcSchema;
@@ -46,7 +46,7 @@ import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.Table;
 import org.apache.calcite.sql.SqlDialect;
 import org.apache.calcite.sql.SqlDialectFactoryImpl;
-import org.apache.commons.dbcp.BasicDataSource;
+import org.apache.commons.dbcp2.BasicDataSource;
 import org.apache.drill.common.JSONOptions;
 import org.apache.drill.common.expression.SchemaPath;
 import org.apache.drill.exec.ops.OptimizerRulesContext;
@@ -62,10 +62,10 @@ import org.apache.drill.exec.store.SchemaConfig;
 import org.apache.drill.exec.store.jdbc.DrillJdbcRuleBase.DrillJdbcFilterRule;
 import org.apache.drill.exec.store.jdbc.DrillJdbcRuleBase.DrillJdbcProjectRule;
 
-import com.google.common.base.Joiner;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Maps;
+import org.apache.drill.shaded.guava.com.google.common.base.Joiner;
+import org.apache.drill.shaded.guava.com.google.common.collect.ImmutableList;
+import org.apache.drill.shaded.guava.com.google.common.collect.ImmutableSet;
+import org.apache.drill.shaded.guava.com.google.common.collect.Maps;
 
 public class JdbcStoragePlugin extends AbstractStoragePlugin {
   private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(JdbcStoragePlugin.class);
@@ -202,7 +202,7 @@ public class JdbcStoragePlugin extends AbstractStoragePlugin {
   private static class JdbcPrule extends ConverterRule {
 
     private JdbcPrule() {
-      super(JdbcDrel.class, Predicates.<RelNode>alwaysTrue(), DrillRel.DRILL_LOGICAL,
+      super(JdbcDrel.class, (Predicate<RelNode>) input -> true, DrillRel.DRILL_LOGICAL,
           Prel.DRILL_PHYSICAL, DrillRelFactories.LOGICAL_BUILDER, "JDBC_PREL_Converter");
     }
 
@@ -220,7 +220,7 @@ public class JdbcStoragePlugin extends AbstractStoragePlugin {
   private class JdbcDrelConverterRule extends ConverterRule {
 
     public JdbcDrelConverterRule(DrillJdbcConvention in) {
-      super(RelNode.class, Predicates.<RelNode>alwaysTrue(), in, DrillRel.DRILL_LOGICAL,
+      super(RelNode.class, (Predicate<RelNode>) input -> true, in, DrillRel.DRILL_LOGICAL,
           DrillRelFactories.LOGICAL_BUILDER, "JDBC_DREL_Converter" + in.getName());
     }
 
@@ -305,7 +305,8 @@ public class JdbcStoragePlugin extends AbstractStoragePlugin {
     public JdbcCatalogSchema(String name) {
       super(ImmutableList.<String> of(), name);
 
-      try (Connection con = source.getConnection(); ResultSet set = con.getMetaData().getCatalogs()) {
+      try (Connection con = source.getConnection();
+           ResultSet set = con.getMetaData().getCatalogs()) {
         while (set.next()) {
           final String catalogName = set.getString(1);
           CapitalizingJdbcSchema schema = new CapitalizingJdbcSchema(
@@ -347,7 +348,8 @@ public class JdbcStoragePlugin extends AbstractStoragePlugin {
 
     private boolean addSchemas() {
       boolean added = false;
-      try (Connection con = source.getConnection(); ResultSet set = con.getMetaData().getSchemas()) {
+      try (Connection con = source.getConnection();
+           ResultSet set = con.getMetaData().getSchemas()) {
         while (set.next()) {
           final String schemaName = set.getString(1);
           final String catalogName = set.getString(2);

@@ -35,8 +35,8 @@ import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.util.trace.CalciteTrace;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
+import org.apache.drill.shaded.guava.com.google.common.collect.ImmutableList;
+import org.apache.drill.shaded.guava.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 
 public class StreamAggPrule extends AggPruleBase {
@@ -70,7 +70,7 @@ public class StreamAggPrule extends AggPruleBase {
         final RelTraitSet singleDistTrait = call.getPlanner().emptyTraitSet().plus(Prel.DRILL_PHYSICAL).plus(singleDist);
 
         if (create2PhasePlan(call, aggregate)) {
-          traits = call.getPlanner().emptyTraitSet().plus(Prel.DRILL_PHYSICAL) ;
+          traits = call.getPlanner().emptyTraitSet().plus(Prel.DRILL_PHYSICAL);
 
           RelNode convertedInput = convert(input, traits);
           new SubsetTransformer<DrillAggregateRel, InvalidRelException>(call){
@@ -138,7 +138,7 @@ public class StreamAggPrule extends AggPruleBase {
         // createTransformRequest(call, aggregate, input, traits);
 
         if (create2PhasePlan(call, aggregate)) {
-          traits = call.getPlanner().emptyTraitSet().plus(Prel.DRILL_PHYSICAL) ;
+          traits = call.getPlanner().emptyTraitSet().plus(Prel.DRILL_PHYSICAL);
           RelNode convertedInput = convert(input, traits);
 
           new SubsetTransformer<DrillAggregateRel, InvalidRelException>(call){

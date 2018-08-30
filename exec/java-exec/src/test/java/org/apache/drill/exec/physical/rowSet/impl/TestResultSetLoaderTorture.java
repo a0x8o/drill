@@ -41,7 +41,7 @@ import org.apache.drill.test.rowSet.RowSetReader;
 import org.apache.drill.test.rowSet.schema.SchemaBuilder;
 import org.junit.Test;
 
-import com.google.common.base.Charsets;
+import org.apache.drill.shaded.guava.com.google.common.base.Charsets;
 
 /**
  * Runs a worst-case scenario test that combines aspects of all
@@ -250,7 +250,7 @@ public class TestResultSetLoaderTorture extends SubOperatorTest {
     public BatchReader(TestSetup setup, RowSetReader reader, ReadState readState) {
       this.setup = setup;
       this.rootReader = reader;
-      this.readState = readState;;
+      this.readState = readState;
 
       TupleReader m1Reader = rootReader.tuple("m1");
       n1Reader = m1Reader.scalar("n1");
@@ -351,12 +351,11 @@ public class TestResultSetLoaderTorture extends SubOperatorTest {
 
   @Test
   public void tortureTest() {
-    LogFixtureBuilder logBuilder = new LogFixtureBuilder()
+    LogFixtureBuilder logBuilder = new LogFixtureBuilder();
 
         // Enable to get detailed tracing when things go wrong.
 
 //        .logger("org.apache.drill.exec.physical.rowSet", Level.TRACE)
-        ;
     try (LogFixture logFixture = logBuilder.build()) {
       doTortureTest();
     }

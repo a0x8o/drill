@@ -58,40 +58,40 @@ public class TestE2EUnnestAndLateral extends ClusterTest {
 
   @Test
   public void testLateral_WithLimitInSubQuery() throws Exception {
-    String Sql = "SELECT customer.c_name, customer.c_address, orders.o_id, orders.o_amount " +
+    String sql = "SELECT customer.c_name, customer.c_address, orders.o_id, orders.o_amount " +
       "FROM cp.`lateraljoin/nested-customer.parquet` customer, LATERAL " +
       "(SELECT t.ord.o_id as o_id, t.ord.o_amount as o_amount FROM UNNEST(customer.orders) t(ord) LIMIT 1) orders";
-    runAndLog(Sql);
+    runAndLog(sql);
   }
 
   @Test
   public void testLateral_WithFilterInSubQuery() throws Exception {
-    String Sql = "SELECT customer.c_name, customer.c_address, orders.o_id, orders.o_amount " +
+    String sql = "SELECT customer.c_name, customer.c_address, orders.o_id, orders.o_amount " +
       "FROM cp.`lateraljoin/nested-customer.parquet` customer, LATERAL " +
       "(SELECT t.ord.o_id as o_id, t.ord.o_amount as o_amount FROM UNNEST(customer.orders) t(ord) WHERE t.ord.o_amount > 10) orders";
-    runAndLog(Sql);
+    runAndLog(sql);
   }
 
   @Test
   public void testLateral_WithFilterAndLimitInSubQuery() throws Exception {
-    String Sql = "SELECT customer.c_name, customer.c_address, orders.o_id, orders.o_amount " +
+    String sql = "SELECT customer.c_name, customer.c_address, orders.o_id, orders.o_amount " +
       "FROM cp.`lateraljoin/nested-customer.parquet` customer, LATERAL " +
       "(SELECT t.ord.o_id as o_id, t.ord.o_amount as o_amount FROM UNNEST(customer.orders) t(ord) WHERE t.ord.o_amount > 10 LIMIT 1) orders";
-    runAndLog(Sql);
+    runAndLog(sql);
   }
 
   @Test
   public void testLateral_WithTopNInSubQuery() throws Exception {
     runAndLog("alter session set `planner.enable_topn`=false");
 
-    String Sql = "SELECT customer.c_name, orders.o_id, orders.o_amount " +
+    String sql = "SELECT customer.c_name, orders.o_id, orders.o_amount " +
       "FROM cp.`lateraljoin/nested-customer.parquet` customer, LATERAL " +
       "(SELECT t.ord.o_id as o_id, t.ord.o_amount as o_amount FROM UNNEST(customer.orders) t(ord) ORDER BY " +
       "o_amount DESC LIMIT 1) orders";
 
     try {
       testBuilder()
-         .sqlQuery(Sql)
+         .sqlQuery(sql)
          .unOrdered()
          .baselineColumns("c_name", "o_id", "o_amount")
          .baselineValues("customer1", 3.0,  294.5)
@@ -113,14 +113,14 @@ public class TestE2EUnnestAndLateral extends ClusterTest {
 
     runAndLog("alter session set `planner.enable_topn`=false");
 
-    String Sql = "SELECT customer.c_name, orders.o_id, orders.o_amount " +
+    String sql = "SELECT customer.c_name, orders.o_id, orders.o_amount " +
       "FROM cp.`lateraljoin/nested-customer.parquet` customer, LATERAL " +
       "(SELECT t.ord.o_id as o_id, t.ord.o_amount as o_amount FROM UNNEST(customer.orders) t(ord) ORDER BY " +
       "o_amount DESC LIMIT 1) orders";
 
     try {
       testBuilder()
-        .sqlQuery(Sql)
+        .sqlQuery(sql)
         .unOrdered()
         .baselineColumns("c_name", "o_id", "o_amount")
         .baselineValues("customer1", 3.0,  294.5)
@@ -135,13 +135,13 @@ public class TestE2EUnnestAndLateral extends ClusterTest {
 
   @Test
   public void testLateral_WithSortInSubQuery() throws Exception {
-    String Sql = "SELECT customer.c_name, orders.o_id, orders.o_amount " +
+    String sql = "SELECT customer.c_name, orders.o_id, orders.o_amount " +
       "FROM cp.`lateraljoin/nested-customer.parquet` customer, LATERAL " +
       "(SELECT t.ord.o_id as o_id, t.ord.o_amount as o_amount FROM UNNEST(customer.orders) t(ord) ORDER BY " +
       "o_amount DESC) orders WHERE customer.c_id = 1.0";
 
     testBuilder()
-      .sqlQuery(Sql)
+      .sqlQuery(sql)
       .ordered()
       .baselineColumns("c_name", "o_id", "o_amount")
       .baselineValues("customer1", 3.0,  294.5)
@@ -152,28 +152,61 @@ public class TestE2EUnnestAndLateral extends ClusterTest {
 
   @Test
   public void testOuterApply_WithFilterAndLimitInSubQuery() throws Exception {
-    String Sql = "SELECT customer.c_name, customer.c_address, orders.o_id, orders.o_amount " +
+    String sql = "SELECT customer.c_name, customer.c_address, orders.o_id, orders.o_amount " +
       "FROM cp.`lateraljoin/nested-customer.parquet` customer OUTER APPLY " +
       "(SELECT t.ord.o_id as o_id , t.ord.o_amount as o_amount FROM UNNEST(customer.orders) t(ord) WHERE t.ord.o_amount > 10 LIMIT 1) orders";
-    runAndLog(Sql);
+    runAndLog(sql);
   }
 
   @Test
   public void testLeftLateral_WithFilterAndLimitInSubQuery() throws Exception {
-    String Sql = "SELECT customer.c_name, customer.c_address, orders.o_id, orders.o_amount " +
+    String sql = "SELECT customer.c_name, customer.c_address, orders.o_id, orders.o_amount " +
       "FROM cp.`lateraljoin/nested-customer.parquet` customer LEFT JOIN LATERAL " +
       "(SELECT t.ord.o_id as o_id, t.ord.o_amount as o_amount FROM UNNEST(customer.orders) t(ord) WHERE t.ord.o_amount > 10 LIMIT 1) orders ON TRUE";
-    runAndLog(Sql);
+    runAndLog(sql);
   }
 
   @Test
   public void testMultiUnnestAtSameLevel() throws Exception {
-    String Sql = "EXPLAIN PLAN FOR SELECT customer.c_name, customer.c_address, U1.order_id, U1.order_amt," +
-      " U1.itemName, U1.itemNum" + " FROM cp.`lateraljoin/nested-customer.parquet` customer, LATERAL" +
-      " (SELECT t.ord.o_id AS order_id, t.ord.o_amount AS order_amt, U2.item_name AS itemName, U2.item_num AS " +
-        "itemNum FROM UNNEST(customer.orders) t(ord) , LATERAL" +
-      " (SELECT t1.ord.i_name AS item_name, t1.ord.i_number AS item_num FROM UNNEST(t.ord) AS t1(ord)) AS U2) AS U1";
-    runAndLog(Sql);
+    String sql = "EXPLAIN PLAN FOR SELECT customer.c_name, customer.c_address, U1.order_id, U1.order_amt," +
+            " U1.itemName, U1.itemNum" + " FROM cp.`lateraljoin/nested-customer.parquet` customer, LATERAL" +
+            " (SELECT t.ord.o_id AS order_id, t.ord.o_amount AS order_amt, U2.item_name AS itemName, U2.item_num AS " +
+            "itemNum FROM UNNEST(customer.orders) t(ord) , LATERAL" +
+            " (SELECT t1.ord.i_name AS item_name, t1.ord.i_number AS item_num FROM UNNEST(t.ord) AS t1(ord)) AS U2) AS U1";
+    runAndLog(sql);
+  }
+
+  @Test
+  public void testMultiUnnestAtSameLevelExec() throws Exception {
+    String sql = "SELECT customer.c_name, customer.c_address, U1.order_id, U1.order_amt," +
+      " U1.itemName, U1.itemNum FROM cp.`lateraljoin/nested-customer.parquet` customer, LATERAL" +
+      " (SELECT dt.order_id, dt.order_amt, U2.item_name AS itemName, U2.item_num AS itemNum from" +
+            "(select t.ord.items as items, t.ord.o_id AS order_id, t.ord.o_amount AS order_amt FROM UNNEST(customer.orders) t(ord)) dt , LATERAL" +
+      " (SELECT t1.items.i_name AS item_name, t1.items.i_number AS item_num FROM UNNEST(dt.items) AS t1(items)) AS U2) AS U1";
+    String baseline = "SELECT customer.c_name, customer.c_address, U1.order_id, U1.order_amount as order_amt, U2.item_name as itemName, U2.item_num as itemNum" +
+            " FROM cp.`lateraljoin/nested-customer.parquet` customer, LATERAL " +
+            "(SELECT t.ord.items as items, t.ord.o_id as order_id, t.ord.o_amount as order_amount from UNNEST(customer.orders) t(ord)) U1, LATERAL" +
+            "(SELECT t1.items.i_name as item_name, t1.items.i_number as item_num from UNNEST(U1.items) t1(items)) U2";
+    testBuilder()
+            .unOrdered()
+            .sqlQuery(sql)
+            .sqlBaselineQuery(baseline)
+            .go();
+  }
+
+  @Test
+  public void testMultiUnnestAtSameLevelExecExplicitResult() throws Exception {
+    String sql = "SELECT customer.c_name, customer.c_address, U1.order_id, U1.order_amt," +
+            " U1.itemName, U1.itemNum FROM cp.`lateraljoin/nested-customer.parquet` customer, LATERAL" +
+            " (SELECT dt.order_id, dt.order_amt, U2.item_name AS itemName, U2.item_num AS itemNum from" +
+            "(select t.ord.items as items, t.ord.o_id AS order_id, t.ord.o_amount AS order_amt FROM UNNEST(customer.orders) t(ord)) dt , LATERAL" +
+            " (SELECT t1.items.i_name AS item_name, t1.items.i_number AS item_num FROM UNNEST(dt.items) AS t1(items)) AS U2) AS U1 order by 1,2,3,4,5,6 limit 1";
+    testBuilder()
+            .unOrdered()
+            .sqlQuery(sql)
+            .baselineColumns("c_name", "c_address", "order_id", "order_amt", "itemName", "itemNum")
+            .baselineValues("customer1","bay area, CA",1.0,4.5,"cheese",9.0)
+            .go();
   }
 
   @Test
@@ -265,9 +298,9 @@ public class TestE2EUnnestAndLateral extends ClusterTest {
 
   @Test
   public void testNestedUnnest() throws Exception {
-    String Sql = "select * from (select customer.orders as orders from cp.`lateraljoin/nested-customer.parquet` customer ) t1," +
+    String sql = "select * from (select customer.orders as orders from cp.`lateraljoin/nested-customer.parquet` customer ) t1," +
         " lateral ( select t.ord.items as items from unnest(t1.orders) t(ord) ) t2, unnest(t2.items) t3(item) ";
-    runAndLog(Sql);
+    runAndLog(sql);
   }
 
   /***********************************************************************************************
@@ -607,4 +640,59 @@ public class TestE2EUnnestAndLateral extends ClusterTest {
         .build().run();
   }
 
+  @Test
+  public void testUnnestNestedStarSubquery() throws Exception {
+    String sql = "select t2.o.o_id o_id\n" +
+        "from (select * from cp.`lateraljoin/nested-customer.json` limit 1) t,\n" +
+        "unnest(t.orders) t2(o)";
+
+    testBuilder()
+        .sqlQuery(sql)
+        .unOrdered()
+        .baselineColumns("o_id")
+        .baselineValues(1L)
+        .baselineValues(2L)
+        .baselineValues(3L)
+        .go();
+  }
+
+  @Test
+  public void testLateralWithComplexProject() throws Exception {
+    String sql = "select l.name from cp.`lateraljoin/nested-customer.parquet` c,\n" +
+        "lateral (select u.item.i_name as name from unnest(c.orders[0].items) as u(item)) l limit 1";
+
+    testBuilder()
+        .sqlQuery(sql)
+        .unOrdered()
+        .baselineColumns("name")
+        .baselineValues("paper towel")
+        .go();
+  }
+
+  @Test
+  public void testLateralWithAgg() throws Exception {
+    String sql = "select l.name from cp.`lateraljoin/nested-customer.parquet` c,\n" +
+        "lateral (select max(u.item.i_name) as name from unnest(c.orders[0].items) as u(item)) l limit 1";
+
+    testBuilder()
+        .sqlQuery(sql)
+        .unOrdered()
+        .baselineColumns("name")
+        .baselineValues("paper towel")
+        .go();
+  }
+
+  @Test
+  public void testMultiLateralWithComplexProject() throws Exception {
+    String sql = "select l1.name, l2.name as name2 from cp.`lateraljoin/nested-customer.parquet` c,\n" +
+      "lateral (select u.item.i_name as name from unnest(c.orders[0].items) as u(item)) l1," +
+      "lateral (select u.item.i_name as name from unnest(c.orders[0].items) as u(item)) l2 limit 1";
+
+    testBuilder()
+      .sqlQuery(sql)
+      .unOrdered()
+      .baselineColumns("name", "name2")
+      .baselineValues("paper towel", "paper towel")
+      .go();
+  }
 }

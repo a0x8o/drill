@@ -36,7 +36,11 @@ import org.apache.drill.exec.record.DeadBuf;
 public class SelectionVector2 implements AutoCloseable {
 
   private final BufferAllocator allocator;
+  // Indicates number of indexes stored in the SV2 buffer which may be less than actual number of rows stored in
+  // RecordBatch container owning this SV2 instance
   private int recordCount;
+  // Indicates actual number of rows in the RecordBatch container which owns this SV2 instance
+  private int batchActualRecordCount = -1;
   private DrillBuf buffer = DeadBuf.DEAD_BUFFER;
 
   public static final int RECORD_SIZE = 2;
@@ -59,6 +63,11 @@ public class SelectionVector2 implements AutoCloseable {
     buffer = buf;
     buffer.retain(1);
     recordCount = count;
+  }
+
+  public SelectionVector2(BufferAllocator allocator, DrillBuf buf, int count, int actualRecordCount) {
+    this(allocator, buf, count);
+    this.batchActualRecordCount = actualRecordCount;
   }
 
   public int getCount() {
@@ -127,6 +136,7 @@ public class SelectionVector2 implements AutoCloseable {
   public SelectionVector2 clone() {
     SelectionVector2 newSV = new SelectionVector2(allocator);
     newSV.recordCount = recordCount;
+    newSV.batchActualRecordCount = batchActualRecordCount;
     newSV.buffer = buffer;
 
     /* Since buffer and newSV.buffer essentially point to the
@@ -143,12 +153,25 @@ public class SelectionVector2 implements AutoCloseable {
       buffer.release();
       buffer = DeadBuf.DEAD_BUFFER;
       recordCount = 0;
+      batchActualRecordCount = -1;
     }
   }
 
   public void setRecordCount(int recordCount){
 //    logger.debug("Seting record count to {}", recordCount);
     this.recordCount = recordCount;
+  }
+
+  public boolean canDoFullTransfer() {
+    return (recordCount == batchActualRecordCount);
+  }
+
+  public void setBatchActualRecordCount(int actualRecordCount) {
+    this.batchActualRecordCount = actualRecordCount;
+  }
+
+  public int getBatchActualRecordCount() {
+    return batchActualRecordCount;
   }
 
   @Override

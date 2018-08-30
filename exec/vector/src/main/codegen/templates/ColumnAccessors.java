@@ -80,7 +80,7 @@ import org.apache.drill.exec.vector.accessor.reader.VectorAccessor;
 import org.apache.drill.exec.vector.accessor.writer.AbstractFixedWidthWriter.BaseFixedWidthWriter;
 import org.apache.drill.exec.vector.accessor.writer.BaseVarWidthWriter;
 
-import com.google.common.base.Charsets;
+import org.apache.drill.shaded.guava.com.google.common.base.Charsets;
 
 import io.netty.buffer.DrillBuf;
 
@@ -331,14 +331,14 @@ public class ColumnAccessors {
       vectorIndex.nextElement();
     }
     <#if drillType == "VarChar">
-    
+
     @Override
     public final void setString(String value) {
       final byte bytes[] = value.getBytes(Charsets.UTF_8);
       setBytes(bytes, bytes.length);
     }
     <#elseif drillType == "Var16Char">
-    
+
     @Override
     public final void setString(String value) {
       final byte bytes[] = value.getBytes(Charsets.UTF_16);

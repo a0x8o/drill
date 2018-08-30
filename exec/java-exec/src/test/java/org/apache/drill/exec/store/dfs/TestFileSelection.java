@@ -22,7 +22,7 @@ import static org.junit.Assert.assertNull;
 
 import java.util.List;
 
-import com.google.common.collect.ImmutableList;
+import org.apache.drill.shaded.guava.com.google.common.collect.ImmutableList;
 import org.apache.drill.test.BaseTestQuery;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
@@ -54,7 +54,7 @@ public class TestFileSelection extends BaseTestQuery {
             {"/tmp", "../etc/bad"},  //  goes outside parent; resolves to /etc/bad
             {"", "/bad"},            //  empty parent
             {"/", ""},               //  empty path
-        } ;
+        };
 
 
     for (int i = 0; i < badPaths.length; i++) {
@@ -82,7 +82,7 @@ public class TestFileSelection extends BaseTestQuery {
             {"/", "etc/tmp/../../good"},   //  no leading slash in path
             {"/", "../good"},              //  resolves to /../good which is OK
             {"/", "/good"}
-        } ;
+        };
 
     for (int i = 0; i < goodPaths.length; i++) {
       try {

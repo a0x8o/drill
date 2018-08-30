@@ -84,10 +84,10 @@ public class ParquetSimpleTestFileGenerator {
           "  required int32 _TIME_MILLIS_int32  ( TIME_MILLIS ) ; \n" +
           //  "      required int64 _TIME_MICROS_int64  ( TIME_MICROS ) ; \n" +
           "  required int64 _TIMESTAMP_MILLIS_int64  ( TIMESTAMP_MILLIS ) ; \n" +
-          //  "      required int64 _TIMESTAMP_MICROS_int64  ( TIMESTAMP_MICROS ) ; \n" +
+          "  required int64 _TIMESTAMP_MICROS_int64  ( TIMESTAMP_MICROS ) ; \n" +
           "  required fixed_len_byte_array(12) _INTERVAL_fixed_len_byte_array_12  ( INTERVAL ) ; \n" +
           "  required int96  _INT96_RAW  ; \n" +
-          "} \n" ;
+          "} \n";
   public static String simpleNullableSchemaMsg =
       "message ParquetLogicalDataTypes { \n" +
           "  required int32 rowKey; \n" +
@@ -112,10 +112,10 @@ public class ParquetSimpleTestFileGenerator {
           "  optional int32 _TIME_MILLIS_int32  ( TIME_MILLIS ) ; \n" +
           //  "      optional int64 _TIME_MICROS_int64  ( TIME_MICROS ) ; \n" +
           "  optional int64 _TIMESTAMP_MILLIS_int64  ( TIMESTAMP_MILLIS ) ; \n" +
-          //  "      optional int64 _TIMESTAMP_MICROS_int64  ( TIMESTAMP_MICROS ) ; \n" +
+          "  optional int64 _TIMESTAMP_MICROS_int64  ( TIMESTAMP_MICROS ) ; \n" +
           "  optional fixed_len_byte_array(12) _INTERVAL_fixed_len_byte_array_12  ( INTERVAL ) ; \n" +
           "  optional int96  _INT96_RAW  ; \n" +
-          "} \n" ;
+          "} \n";
 
   public static String complexSchemaMsg =
       "message ParquetLogicalDataTypes { \n" +
@@ -153,14 +153,14 @@ public class ParquetSimpleTestFileGenerator {
           "      required int32 _TIME_MILLIS_int32  ( TIME_MILLIS ) ; \n" +
           //      "      required int64 _TIME_MICROS_int64  ( TIME_MICROS ) ; \n" +
           "      required int64 _TIMESTAMP_MILLIS_int64  ( TIMESTAMP_MILLIS ) ; \n" +
-          //      "      required int64 _TIMESTAMP_MICROS_int64  ( TIMESTAMP_MICROS ) ; \n" +
+          "      required int64 _TIMESTAMP_MICROS_int64  ( TIMESTAMP_MICROS ) ; \n" +
           "      required fixed_len_byte_array(12) _INTERVAL_fixed_len_byte_array_12  ( INTERVAL ) ; \n" +
           "    } \n" +
           "    required group Int96 { \n" +
           "      required int96  _INT96_RAW  ; \n" +
           "    } \n" +
           "  } \n" +
-          "} \n" ;
+          "} \n";
   public static String complexNullableSchemaMsg =
       "message ParquetLogicalDataTypes { \n" +
           "  required int32 rowKey; \n" +
@@ -197,14 +197,14 @@ public class ParquetSimpleTestFileGenerator {
           "      optional int32 _TIME_MILLIS_int32  ( TIME_MILLIS ) ; \n" +
           //      "      optional int64 _TIME_MICROS_int64  ( TIME_MICROS ) ; \n" +
           "      optional int64 _TIMESTAMP_MILLIS_int64  ( TIMESTAMP_MILLIS ) ; \n" +
-          //      "      optional int64 _TIMESTAMP_MICROS_int64  ( TIMESTAMP_MICROS ) ; \n" +
+          "      optional int64 _TIMESTAMP_MICROS_int64  ( TIMESTAMP_MICROS ) ; \n" +
           "      optional fixed_len_byte_array(12) _INTERVAL_fixed_len_byte_array_12  ( INTERVAL ) ; \n" +
           "    } \n" +
           "    optional group Int96 { \n" +
           "      optional int96  _INT96_RAW  ; \n" +
           "    } \n" +
           "  } \n" +
-          "} \n" ;
+          "} \n";
 
   public static MessageType simpleSchema = MessageTypeParser.parseMessageType(simpleSchemaMsg);
   public static MessageType complexSchema = MessageTypeParser.parseMessageType(complexSchemaMsg);
@@ -216,7 +216,7 @@ public class ParquetSimpleTestFileGenerator {
     return new Path(root, fileName);
   }
 
-  public static ParquetWriter<Group> initWriter(MessageType schema, String fileName) throws IOException {
+  public static ParquetWriter<Group> initWriter(MessageType schema, String fileName, boolean dictEncoding) throws IOException {
 
     GroupWriteSupport.setSchema(schema, conf);
 
@@ -228,7 +228,7 @@ public class ParquetSimpleTestFileGenerator {
             1024,
             1024,
             512,
-            true, // enable dictionary encoding,
+            dictEncoding, // enable dictionary encoding,
             false,
             ParquetProperties.WriterVersion.PARQUET_1_0, conf
         );
@@ -267,6 +267,7 @@ public class ParquetSimpleTestFileGenerator {
           .append("_DATE_int32", 1234567)
           .append("_TIME_MILLIS_int32", 1234567)
           .append("_TIMESTAMP_MILLIS_int64", 123456789012L)
+          .append("_TIMESTAMP_MICROS_int64", 123456789012L)
           .append("_INTERVAL_fixed_len_byte_array_12", Binary.fromConstantByteArray(bytes12, 0, 12));
       numeric.addGroup("Int96").append("_INT96_RAW", Binary.fromConstantByteArray(bytes12, 0, 12));
       complexWriter.write(complexGroup);
@@ -292,13 +293,15 @@ public class ParquetSimpleTestFileGenerator {
           .append("_INT_64", 0x7FFFFFFFFFFFFFFFL)
           .append("_UINT_64", 0xFFFFFFFFFFFFFFFFL)
           .append("_DECIMAL_decimal18", 0xFFFFFFFFFFFFFFFFL);
-      byte[] bytes = new byte[30]; Arrays.fill(bytes, (byte)1);
+      byte[] bytes = new byte[30];
+      Arrays.fill(bytes, (byte) 1);
       numeric.addGroup("FixedLen").append("_DECIMAL_fixed_n", Binary.fromConstantByteArray(bytes, 0, 20));
       numeric.addGroup("Binary").append("_DECIMAL_unlimited", Binary.fromConstantByteArray(bytes, 0, 30));
       numeric.addGroup("DateTimeTypes")
           .append("_DATE_int32", 0xFFFFFFFF)
           .append("_TIME_MILLIS_int32", 0xFFFFFFFF)
           .append("_TIMESTAMP_MILLIS_int64", 0x1F3FFFFFFFFL)
+          .append("_TIMESTAMP_MICROS_int64", 0x7FFFFFFFFFFFFFFFL)
           .append("_INTERVAL_fixed_len_byte_array_12", Binary.fromConstantByteArray(bytes, 0, 12));
       numeric.addGroup("Int96").append("_INT96_RAW", Binary.fromConstantByteArray(bytes, 0, 12));
       complexWriter.write(complexGroup);
@@ -330,6 +333,7 @@ public class ParquetSimpleTestFileGenerator {
           .append("_DATE_int32", 0x0)
           .append("_TIME_MILLIS_int32", 0x0)
           .append("_TIMESTAMP_MILLIS_int64", 0x0L)
+          .append("_TIMESTAMP_MICROS_int64", 0x0L)
           .append("_INTERVAL_fixed_len_byte_array_12", Binary.fromConstantByteArray( new byte[12], 0, 12));
       numeric.addGroup("Int96").append("_INT96_RAW", Binary.fromConstantByteArray( new byte[12], 0, 12));
       complexWriter.write(complexGroup);
@@ -369,13 +373,15 @@ public class ParquetSimpleTestFileGenerator {
           .append("_DATE_int32", 1234567)
           .append("_TIME_MILLIS_int32", 1234567)
           .append("_TIMESTAMP_MILLIS_int64", 123456789012L)
+          .append("_TIMESTAMP_MICROS_int64", 123456789012L)
           .append("_INTERVAL_fixed_len_byte_array_12", Binary.fromConstantByteArray(bytes12, 0, 12))
           .append("_INT96_RAW", Binary.fromConstantByteArray(bytes12, 0, 12));
       simpleWriter.write(simpleGroup);
     }
     {
       Group simpleGroup = sgf.newGroup();
-      byte[] bytes = new byte[30]; Arrays.fill(bytes, (byte)1);
+      byte[] bytes = new byte[30];
+      Arrays.fill(bytes, (byte) 1);
       simpleGroup.append("rowKey", ++rowKey);
       simpleGroup.append("_UTF8", "UTF8 string" + rowKey)
           .append("_Enum", MAX_VALUE.toString())
@@ -397,6 +403,7 @@ public class ParquetSimpleTestFileGenerator {
           .append("_DATE_int32", 0xFFFFFFFF)
           .append("_TIME_MILLIS_int32", 0xFFFFFFFF)
           .append("_TIMESTAMP_MILLIS_int64", 0x1F3FFFFFFFFL)
+          .append("_TIMESTAMP_MICROS_int64", 0x7FFFFFFFFFFFFFFFL)
           .append("_INTERVAL_fixed_len_byte_array_12", Binary.fromConstantByteArray(bytes, 0, 12))
           .append("_INT96_RAW", Binary.fromConstantByteArray(bytes, 0, 12));
       simpleWriter.write(simpleGroup);
@@ -423,6 +430,7 @@ public class ParquetSimpleTestFileGenerator {
           .append("_DATE_int32", 0x0)
           .append("_TIME_MILLIS_int32", 0x0)
           .append("_TIMESTAMP_MILLIS_int64", 0x0L)
+          .append("_TIMESTAMP_MICROS_int64", 0x0L)
           .append("_INTERVAL_fixed_len_byte_array_12", Binary.fromConstantByteArray( new byte[12], 0, 12))
           .append("_INT96_RAW", Binary.fromConstantByteArray( new byte[12], 0, 12));
       simpleWriter.write(simpleGroup);
@@ -441,20 +449,33 @@ public class ParquetSimpleTestFileGenerator {
     SimpleGroupFactory sngf = new SimpleGroupFactory(simpleNullableSchema);
     GroupFactory ngf = new SimpleGroupFactory(complexNullableSchema);
 
-    ParquetWriter<Group> simpleWriter = initWriter(simpleSchema, "drill/parquet_test_file_simple");
-    ParquetWriter<Group> complexWriter = initWriter(complexSchema, "drill/parquet_test_file_complex");
-    ParquetWriter<Group> simpleNullableWriter = initWriter(simpleNullableSchema, "drill/parquet_test_file_simple_nullable");
-    ParquetWriter<Group> complexNullableWriter = initWriter(complexNullableSchema, "drill/parquet_test_file_complex_nullable");
+    // Generate files with dictionary encoding enabled and disabled
+    ParquetWriter<Group> simpleWriter = initWriter(simpleSchema, "drill/parquet_test_file_simple", true);
+    ParquetWriter<Group> complexWriter = initWriter(complexSchema, "drill/parquet_test_file_complex", true);
+    ParquetWriter<Group> simpleNullableWriter = initWriter(simpleNullableSchema, "drill/parquet_test_file_simple_nullable", true);
+    ParquetWriter<Group> complexNullableWriter = initWriter(complexNullableSchema, "drill/parquet_test_file_complex_nullable", true);
+    ParquetWriter<Group> simpleNoDictWriter = initWriter(simpleSchema, "drill/parquet_test_file_simple_nodict", false);
+    ParquetWriter<Group> complexNoDictWriter = initWriter(complexSchema, "drill/parquet_test_file_complex_nodict", false);
+    ParquetWriter<Group> simpleNullableNoDictWriter = initWriter(simpleNullableSchema, "drill/parquet_test_file_simple_nullable_nodict", false);
+    ParquetWriter<Group> complexNullableNoDictWriter = initWriter(complexNullableSchema, "drill/parquet_test_file_complex_nullable_nodict", false);
 
     ParquetSimpleTestFileGenerator.writeSimpleValues(sgf, simpleWriter, false);
     ParquetSimpleTestFileGenerator.writeSimpleValues(sngf, simpleNullableWriter, true);
     ParquetSimpleTestFileGenerator.writeComplexValues(gf, complexWriter, false);
     ParquetSimpleTestFileGenerator.writeComplexValues(ngf, complexNullableWriter, true);
+    ParquetSimpleTestFileGenerator.writeSimpleValues(sgf, simpleNoDictWriter, false);
+    ParquetSimpleTestFileGenerator.writeSimpleValues(sngf, simpleNullableNoDictWriter, true);
+    ParquetSimpleTestFileGenerator.writeComplexValues(gf, complexNoDictWriter, false);
+    ParquetSimpleTestFileGenerator.writeComplexValues(ngf, complexNullableNoDictWriter, true);
 
     simpleWriter.close();
     complexWriter.close();
     simpleNullableWriter.close();
     complexNullableWriter.close();
+    simpleNoDictWriter.close();
+    complexNoDictWriter.close();
+    simpleNullableNoDictWriter.close();
+    complexNullableNoDictWriter.close();
 
   }
 

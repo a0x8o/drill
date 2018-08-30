@@ -17,7 +17,7 @@
  */
 package org.apache.drill.exec.store.parquet.columnreaders;
 
-import com.google.common.base.Preconditions;
+import org.apache.drill.shaded.guava.com.google.common.base.Preconditions;
 import java.nio.ByteBuffer;
 import org.apache.drill.exec.store.parquet.columnreaders.VarLenColumnBulkInput.ColumnPrecisionInfo;
 import org.apache.drill.exec.store.parquet.columnreaders.VarLenColumnBulkInput.PageDataInfo;
@@ -45,7 +45,7 @@ final class VarLenNullableFixedEntryReader extends VarLenAbstractPageEntryReader
 
     final int expectedDataLen = columnPrecInfo.precision;
     final int entrySz = 4 + columnPrecInfo.precision;
-    final int readBatch = Math.min(entry.getMaxEntries(), valuesToRead);
+    final int readBatch = getFixedLengthMaxRecordsToRead(valuesToRead, entrySz);
     Preconditions.checkState(readBatch > 0, "Read batch count [%s] should be greater than zero", readBatch);
 
     final int[] valueLengths = entry.getValuesLength();

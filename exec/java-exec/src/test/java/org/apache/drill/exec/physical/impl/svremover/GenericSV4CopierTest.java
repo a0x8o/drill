@@ -19,7 +19,7 @@ package org.apache.drill.exec.physical.impl.svremover;
 
 import io.netty.buffer.DrillBuf;
 import org.apache.drill.exec.exception.SchemaChangeException;
-import org.apache.drill.exec.memory.RootAllocator;
+import org.apache.drill.exec.memory.BufferAllocator;
 import org.apache.drill.exec.record.BatchSchema;
 import org.apache.drill.exec.record.ExpandableHyperContainer;
 import org.apache.drill.exec.record.VectorContainer;
@@ -29,8 +29,9 @@ import org.apache.drill.test.rowSet.RowSet;
 import org.apache.drill.test.rowSet.RowSetBuilder;
 
 public class GenericSV4CopierTest extends AbstractGenericCopierTest {
+
   @Override
-  public RowSet createSrcRowSet(RootAllocator allocator) throws SchemaChangeException {
+  public RowSet createSrcRowSet(BufferAllocator allocator) throws SchemaChangeException {
     final BatchSchema batchSchema = createTestSchema(BatchSchema.SelectionVectorMode.NONE);
     final DrillBuf drillBuf = allocator.buffer(4 * 3);
     final SelectionVector4 sv4 = new SelectionVector4(drillBuf, 3, Character.MAX_VALUE);
@@ -50,16 +51,13 @@ public class GenericSV4CopierTest extends AbstractGenericCopierTest {
 
     final ExpandableHyperContainer hyperContainer = new ExpandableHyperContainer(batch1);
     hyperContainer.addBatch(batch2);
+    hyperContainer.setRecordCount(5);
 
     sv4.set(0, 0, 0);
     sv4.set(1, 1, 0);
     sv4.set(2, 1, 2);
+    sv4.setCount(3);
 
     return new HyperRowSetImpl(hyperContainer, sv4);
-  }
-
-  @Override
-  public Copier createCopier() {
-    return new GenericSV4Copier();
   }
 }

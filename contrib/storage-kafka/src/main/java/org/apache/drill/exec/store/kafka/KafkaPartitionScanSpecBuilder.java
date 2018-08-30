@@ -17,12 +17,12 @@
  */
 package org.apache.drill.exec.store.kafka;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
+import org.apache.drill.shaded.guava.com.google.common.collect.ImmutableList;
+import org.apache.drill.shaded.guava.com.google.common.collect.ImmutableMap;
+import org.apache.drill.shaded.guava.com.google.common.collect.ImmutableSet;
+import org.apache.drill.shaded.guava.com.google.common.collect.Lists;
+import org.apache.drill.shaded.guava.com.google.common.collect.Maps;
+import org.apache.drill.shaded.guava.com.google.common.collect.Sets;
 import org.apache.drill.common.expression.BooleanOperator;
 import org.apache.drill.common.expression.FunctionCall;
 import org.apache.drill.common.expression.LogicalExpression;
@@ -41,7 +41,7 @@ public class KafkaPartitionScanSpecBuilder extends
   static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(KafkaPartitionScanSpecBuilder.class);
   private final LogicalExpression le;
   private final KafkaGroupScan groupScan;
-  private final KafkaConsumer<? ,?> kafkaConsumer;
+  private final KafkaConsumer<?, ?> kafkaConsumer;
   private ImmutableMap<TopicPartition, KafkaPartitionScanSpec> fullScanSpec;
   private static final long CLOSE_TIMEOUT_MS = 200;
 

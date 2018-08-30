@@ -17,7 +17,7 @@
  */
 package org.apache.drill.common.util;
 
-import com.google.common.base.Joiner;
+import org.apache.drill.shaded.guava.com.google.common.base.Joiner;
 import io.netty.buffer.ByteBuf;
 
 import org.apache.commons.lang3.StringEscapeUtils;
@@ -117,7 +117,7 @@ public class DrillStringUtils {
    */
   public static String toBinaryString(ByteBuf buf, int strStart, int strEnd) {
     StringBuilder result = new StringBuilder();
-    for (int i = strStart; i < strEnd ; ++i) {
+    for (int i = strStart; i < strEnd; ++i) {
       appendByte(result, buf.getByte(i));
     }
     return result.toString();

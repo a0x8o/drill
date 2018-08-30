@@ -69,8 +69,8 @@ import org.apache.drill.exec.physical.impl.filter.ReturnValueExpression;
 import org.apache.drill.exec.vector.ValueHolderHelper;
 import org.apache.drill.exec.vector.complex.reader.FieldReader;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
+import org.apache.drill.shaded.guava.com.google.common.collect.Lists;
+import org.apache.drill.shaded.guava.com.google.common.collect.Maps;
 import com.sun.codemodel.JBlock;
 import com.sun.codemodel.JClass;
 import com.sun.codemodel.JConditional;
@@ -778,7 +778,7 @@ public class EvaluationVisitor {
         setBlock.assign(out.getValue(), JExpr.lit(1));
       } else {
         assert (e == null);
-        eval.assign(out.getValue(), JExpr.lit(1)) ;
+        eval.assign(out.getValue(), JExpr.lit(1));
       }
 
       generator.unNestEvalBlock();     // exit from nested block
@@ -841,7 +841,7 @@ public class EvaluationVisitor {
         setBlock.assign(out.getValue(), JExpr.lit(0));
       } else {
         assert (e == null);
-        eval.assign(out.getValue(), JExpr.lit(0)) ;
+        eval.assign(out.getValue(), JExpr.lit(0));
       }
 
       generator.unNestEvalBlock();   // exit from nested block.

@@ -53,14 +53,14 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.util.Pair;
 
-import com.google.common.collect.Lists;
+import org.apache.drill.shaded.guava.com.google.common.collect.Lists;
 
 /**
  *
  * Base class for logical and physical Project implemented in Drill
  */
 public abstract class DrillProjectRelBase extends Project implements DrillRelNode {
-  private final int nonSimpleFieldCount ;
+  private final int nonSimpleFieldCount;
 
   protected DrillProjectRelBase(Convention convention, RelOptCluster cluster, RelTraitSet traits, RelNode child, List<? extends RexNode> exps,
       RelDataType rowType) {
@@ -128,10 +128,10 @@ public abstract class DrillProjectRelBase extends Project implements DrillRelNod
     for (RexNode expr : this.getProjects()) {
       if (expr instanceof RexInputRef) {
         // Simple Field reference.
-        cnt ++;
+        cnt++;
       } else if (expr instanceof RexCall && expr.accept(complexFieldIdentifer)) {
         // Complex field with named segments only.
-        cnt ++;
+        cnt++;
       }
     }
     return cnt;

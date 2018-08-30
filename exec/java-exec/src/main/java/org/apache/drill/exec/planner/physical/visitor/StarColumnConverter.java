@@ -39,7 +39,7 @@ import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.rex.RexUtil;
 import org.apache.calcite.util.Pair;
 
-import com.google.common.collect.Lists;
+import org.apache.drill.shaded.guava.com.google.common.collect.Lists;
 
 public class StarColumnConverter extends BasePrelVisitor<Prel, Void, RuntimeException> {
 
@@ -248,7 +248,7 @@ public class StarColumnConverter extends BasePrelVisitor<Prel, Void, RuntimeExce
 
     for (String s : names) {
       if (uniqueNames.contains(s)) {
-        for (int i = 0; ; i++ ) {
+        for (int i = 0;; i++) {
           s = s + i;
           if (! origNames.contains(s) && ! uniqueNames.contains(s)) {
             break;

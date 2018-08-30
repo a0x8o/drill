@@ -17,11 +17,12 @@
  */
 package org.apache.drill.exec.physical.impl.svremover;
 
-import org.apache.drill.exec.exception.SchemaChangeException;
-import org.apache.drill.exec.record.RecordBatch;
+import org.apache.drill.exec.record.VectorAccessible;
 import org.apache.drill.exec.record.VectorContainer;
 import org.apache.drill.exec.record.VectorWrapper;
 import org.apache.drill.exec.vector.ValueVector;
+
+import static org.apache.drill.exec.physical.impl.svremover.AbstractCopier.allocateOutgoing;
 
 public class GenericCopier implements Copier {
   private ValueVector[] vvOut;
@@ -30,7 +31,7 @@ public class GenericCopier implements Copier {
   private VectorContainer outgoing;
 
   @Override
-  public void setup(RecordBatch incoming, VectorContainer outgoing) throws SchemaChangeException {
+  public void setup(VectorAccessible incoming, VectorContainer outgoing) {
     this.outgoing = outgoing;
 
     final int count = outgoing.getNumberOfColumns();
@@ -53,12 +54,13 @@ public class GenericCopier implements Copier {
   }
 
   @Override
-  public int copyRecords(int index, int recordCount) throws SchemaChangeException {
+  public int copyRecords(int index, int recordCount) {
+    allocateOutgoing(outgoing, recordCount);
     return insertRecords(0, index, recordCount);
   }
 
   @Override
-  public int appendRecord(int index) throws SchemaChangeException {
+  public int appendRecord(int index) {
     int outgoingPosition = outgoing.getRecordCount();
     for (int vectorIndex = 0; vectorIndex < vvIn.length; vectorIndex++) {
       vvOut[vectorIndex].copyEntry(outgoingPosition, vvIn[vectorIndex], index);
@@ -69,11 +71,11 @@ public class GenericCopier implements Copier {
   }
 
   @Override
-  public int appendRecords(int index, int recordCount) throws SchemaChangeException {
+  public int appendRecords(int index, int recordCount) {
     return insertRecords(outgoing.getRecordCount(), index, recordCount);
   }
 
-  private int insertRecords(int outgoingPosition, int startIndex, int recordCount) throws SchemaChangeException {
+  private int insertRecords(int outgoingPosition, int startIndex, int recordCount) {
     final int endIndex = startIndex + recordCount;
 
     for (int index = startIndex; index < endIndex; index++, outgoingPosition++) {

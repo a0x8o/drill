@@ -33,7 +33,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
-import com.google.common.base.Preconditions;
+import org.apache.drill.shaded.guava.com.google.common.base.Preconditions;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.drill.common.expression.SchemaPath;
 import org.apache.drill.common.types.TypeProtos;
@@ -627,7 +627,7 @@ public class DrillTestWrapper {
 
       compareMergedVectors(expectedSuperVectors, actualSuperVectors);
     } catch (Exception e) {
-      throw new Exception(e.getMessage() + "\nFor query: " + query , e);
+      throw new Exception(e.getMessage() + "\nFor query: " + query, e);
     } finally {
       cleanupBatches(expected, actual);
     }

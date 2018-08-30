@@ -17,7 +17,7 @@
  */
 package org.apache.drill.test.rowSet;
 
-import com.google.common.collect.Sets;
+import org.apache.drill.shaded.guava.com.google.common.collect.Sets;
 import org.apache.drill.exec.exception.OutOfMemoryException;
 import org.apache.drill.exec.memory.BufferAllocator;
 import org.apache.drill.exec.physical.rowSet.model.ReaderIndex;
@@ -96,6 +96,7 @@ public class IndirectRowSet extends AbstractSingleRowSet {
       destIndex++;
     }
     sv2.setRecordCount(rowCount);
+    sv2.setBatchActualRecordCount(container.getRecordCount());
     container.buildSchema(SelectionVectorMode.TWO_BYTE);
     return sv2;
   }

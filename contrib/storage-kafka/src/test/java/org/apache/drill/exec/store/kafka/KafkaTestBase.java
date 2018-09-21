@@ -57,7 +57,7 @@ public class KafkaTestBase extends PlanTestBase {
     pluginRegistry.createOrUpdate(KafkaStoragePluginConfig.NAME, storagePluginConfig, true);
     testNoResult(String.format("alter session set `%s` = '%s'", ExecConstants.KAFKA_RECORD_READER,
         "org.apache.drill.exec.store.kafka.decoders.JsonMessageReader"));
-    testNoResult(String.format("alter session set `%s` = %d", ExecConstants.KAFKA_POLL_TIMEOUT, 200));
+    testNoResult(String.format("alter session set `%s` = %d", ExecConstants.KAFKA_POLL_TIMEOUT, 5000));
   }
 
   public List<QueryDataBatch> runKafkaSQLWithResults(String sql) throws Exception {
@@ -86,7 +86,9 @@ public class KafkaTestBase extends PlanTestBase {
 
   @AfterClass
   public static void tearDownKafkaTestBase() throws Exception {
-    TestKafkaSuit.tearDownCluster();
+    if (TestKafkaSuit.isRunningSuite()) {
+      TestKafkaSuit.tearDownCluster();
+    }
   }
 
 }

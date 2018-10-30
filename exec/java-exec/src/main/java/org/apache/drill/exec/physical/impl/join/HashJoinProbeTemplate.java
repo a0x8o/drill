@@ -21,13 +21,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.drill.exec.exception.SchemaChangeException;
+import org.apache.drill.exec.physical.config.HashJoinPOP;
 import org.apache.drill.exec.physical.impl.common.HashPartition;
+import org.apache.drill.exec.planner.common.JoinControl;
 import org.apache.drill.exec.record.BatchSchema;
 import org.apache.drill.exec.record.RecordBatch;
 import org.apache.drill.exec.record.RecordBatch.IterOutcome;
 import org.apache.drill.exec.record.VectorContainer;
 import org.apache.drill.exec.record.VectorWrapper;
 import org.apache.calcite.rel.core.JoinRelType;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.drill.exec.vector.IntVector;
 import org.apache.drill.exec.vector.ValueVector;
 
@@ -44,6 +47,9 @@ public abstract class HashJoinProbeTemplate implements HashJoinProbe {
 
   // Join type, INNER, LEFT, RIGHT or OUTER
   private JoinRelType joinType;
+
+  // joinControl determines how to handle INTERSECT_DISTINCT vs. INTERSECT_ALL
+  private JoinControl joinControl;
 
   private HashJoinBatch outgoingJoinBatch = null;
 
@@ -77,7 +83,7 @@ public abstract class HashJoinProbeTemplate implements HashJoinProbe {
   private int currRightPartition = 0; // for returning RIGHT/FULL
   IntVector read_left_HV_vector; // HV vector that was read from the spilled batch
   private int cycleNum = 0; // 1-primary, 2-secondary, 3-tertiary, etc.
-  private HashJoinBatch.HJSpilledPartition spilledInners[]; // for the outer to find the partition
+  private HashJoinBatch.HashJoinSpilledPartition spilledInners[]; // for the outer to find the partition
   private boolean buildSideIsEmpty = true;
   private int numPartitions = 1; // must be 2 to the power of bitsInMask
   private int partitionMask = 0; // numPartitions - 1
@@ -110,7 +116,7 @@ public abstract class HashJoinProbeTemplate implements HashJoinProbe {
    * @param rightHVColPosition
    */
   @Override
-  public void setupHashJoinProbe(RecordBatch probeBatch, HashJoinBatch outgoing, JoinRelType joinRelType, IterOutcome leftStartState, HashPartition[] partitions, int cycleNum, VectorContainer container, HashJoinBatch.HJSpilledPartition[] spilledInners, boolean buildSideIsEmpty, int numPartitions, int rightHVColPosition) {
+  public void setupHashJoinProbe(RecordBatch probeBatch, HashJoinBatch outgoing, JoinRelType joinRelType, IterOutcome leftStartState, HashPartition[] partitions, int cycleNum, VectorContainer container, HashJoinBatch.HashJoinSpilledPartition[] spilledInners, boolean buildSideIsEmpty, int numPartitions, int rightHVColPosition) {
     this.container = container;
     this.spilledInners = spilledInners;
     this.probeBatch = probeBatch;
@@ -125,6 +131,7 @@ public abstract class HashJoinProbeTemplate implements HashJoinProbe {
 
     partitionMask = numPartitions - 1; // e.g. 32 --> 0x1F
     bitsInMask = Integer.bitCount(partitionMask); // e.g. 0x1F -> 5
+    joinControl = new JoinControl(((HashJoinPOP)outgoingJoinBatch.getPopConfig()).getJoinControl());
 
     probeState = ProbeState.PROBE_PROJECT;
     this.recordsToProcess = 0;
@@ -253,9 +260,8 @@ public abstract class HashJoinProbeTemplate implements HashJoinProbe {
               if ( ! partn.isSpilled() ) { continue; } // skip non-spilled
               partn.completeAnOuterBatch(false);
               // update the partition's spill record with the outer side
-              HashJoinBatch.HJSpilledPartition sp = spilledInners[partn.getPartitionNum()];
-              sp.outerSpillFile = partn.getSpillFile();
-              sp.outerSpilledBatches = partn.getPartitionBatchesCount();
+              HashJoinBatch.HashJoinSpilledPartition sp = spilledInners[partn.getPartitionNum()];
+              sp.updateOuter(partn.getPartitionBatchesCount(), partn.getSpillFile());
 
               partn.closeWriter();
             }
@@ -319,16 +325,30 @@ public abstract class HashJoinProbeTemplate implements HashJoinProbe {
            * of the first row in the build side that matches the current key
            * (and record this match in the bitmap, in case of a FULL/RIGHT join)
            */
-          currentCompositeIdx = currPartition.getStartIndex(probeIndex);
+          Pair<Integer, Boolean> matchStatus = currPartition.getStartIndex(probeIndex);
+
+          boolean matchExists = matchStatus.getRight();
+
+          if (joinControl.isIntersectDistinct() && matchExists) {
+            // since it is intersect distinct and we already have one record matched, move to next probe row
+            recordsProcessed++;
+            continue;
+          }
+
+          currentCompositeIdx = matchStatus.getLeft();
 
           outputRecords =
             outputRow(currPartition.getContainers(), currentCompositeIdx,
               probeBatch.getContainer(), recordsProcessed);
 
           /* Projected single row from the build side with matching key but there
-           * may be more rows with the same key. Check if that's the case
+           * may be more rows with the same key. Check if that's the case as long as
+           * we are not doing intersect distinct since it only cares about
+           * distinct values.
            */
-          currentCompositeIdx = currPartition.getNextIndex(currentCompositeIdx);
+          currentCompositeIdx = joinControl.isIntersectDistinct() ? -1 :
+            currPartition.getNextIndex(currentCompositeIdx);
+
           if (currentCompositeIdx == -1) {
             /* We only had one row in the build side that matched the current key
              * from the probe side. Drain the next row in the probe side.
@@ -431,5 +451,18 @@ public abstract class HashJoinProbeTemplate implements HashJoinProbe {
     probeState =
       (joinType == JoinRelType.RIGHT || joinType == JoinRelType.FULL) ? ProbeState.PROJECT_RIGHT :
         ProbeState.DONE; // else we're done
+  }
+
+  @Override
+  public String toString() {
+    return "HashJoinProbeTemplate[container=" + container
+        + ", probeSchema=" + probeSchema
+        + ", joinType=" + joinType
+        + ", recordsToProcess=" + recordsToProcess
+        + ", recordsProcessed=" + recordsProcessed
+        + ", outputRecords=" + outputRecords
+        + ", probeState=" + probeState
+        + ", unmatchedBuildIndexes=" + unmatchedBuildIndexes
+        + "]";
   }
 }

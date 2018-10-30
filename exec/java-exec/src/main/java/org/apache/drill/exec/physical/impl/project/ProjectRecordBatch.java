@@ -876,7 +876,7 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
    */
   @Override
   protected IterOutcome handleNullInput() {
-    if (! popConfig.isOutputProj()) {
+    if (!popConfig.isOutputProj()) {
       return super.handleNullInput();
     }
 
@@ -897,5 +897,11 @@ public class ProjectRecordBatch extends AbstractSingleRecordBatch<Project> {
     container.buildSchema(SelectionVectorMode.NONE);
     wasNone = true;
     return IterOutcome.OK_NEW_SCHEMA;
+  }
+
+  @Override
+  public void dump() {
+    logger.error("ProjectRecordBatch[projector={}, hasRemainder={}, remainderIndex={}, recordCount={}, container={}]",
+        projector, hasRemainder, remainderIndex, recordCount, container);
   }
 }

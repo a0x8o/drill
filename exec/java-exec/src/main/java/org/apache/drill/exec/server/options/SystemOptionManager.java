@@ -33,7 +33,6 @@ import org.apache.drill.common.exceptions.UserException;
 import org.apache.drill.common.map.CaseInsensitiveMap;
 import org.apache.drill.exec.ExecConstants;
 import org.apache.drill.exec.compile.ClassCompilerSelector;
-import org.apache.drill.exec.compile.ClassTransformer;
 import org.apache.drill.exec.planner.physical.PlannerSettings;
 import org.apache.drill.exec.store.sys.PersistentStore;
 import org.apache.drill.exec.store.sys.PersistentStoreConfig;
@@ -126,6 +125,22 @@ public class SystemOptionManager extends BaseOptionManager implements AutoClosea
       new OptionDefinition(ExecConstants.HASHJOIN_ENABLE_RUNTIME_FILTER),
       new OptionDefinition(ExecConstants.HASHJOIN_BLOOM_FILTER_MAX_SIZE),
       new OptionDefinition(ExecConstants.HASHJOIN_BLOOM_FILTER_FPP_VALIDATOR),
+      // ------------------------------------------- Index planning related options BEGIN --------------------------------------------------------------
+      new OptionDefinition(PlannerSettings.USE_SIMPLE_OPTIMIZER),
+      new OptionDefinition(PlannerSettings.INDEX_PLANNING),
+      new OptionDefinition(PlannerSettings.ENABLE_STATS),
+      new OptionDefinition(PlannerSettings.DISABLE_FULL_TABLE_SCAN),
+      new OptionDefinition(PlannerSettings.INDEX_MAX_CHOSEN_INDEXES_PER_TABLE),
+      new OptionDefinition(PlannerSettings.INDEX_FORCE_SORT_NONCOVERING),
+      new OptionDefinition(PlannerSettings.INDEX_USE_HASHJOIN_NONCOVERING),
+      new OptionDefinition(PlannerSettings.INDEX_COVERING_SELECTIVITY_THRESHOLD),
+      new OptionDefinition(PlannerSettings.INDEX_NONCOVERING_SELECTIVITY_THRESHOLD),
+      new OptionDefinition(PlannerSettings.INDEX_ROWKEYJOIN_COST_FACTOR),
+      new OptionDefinition(PlannerSettings.INDEX_STATS_ROWCOUNT_SCALING_FACTOR),
+      // TODO: Deprecate the following 2 (also in PlannerSettings.java)
+      new OptionDefinition(PlannerSettings.INDEX_PREFER_INTERSECT_PLANS),
+      new OptionDefinition(PlannerSettings.INDEX_MAX_INDEXES_TO_INTERSECT),
+      // ------------------------------------------- Index planning related options END   --------------------------------------------------------------
       new OptionDefinition(ExecConstants.HASHAGG_NUM_PARTITIONS_VALIDATOR),
       new OptionDefinition(ExecConstants.HASHAGG_MAX_MEMORY_VALIDATOR),
       new OptionDefinition(ExecConstants.HASHAGG_MIN_BATCHES_PER_PARTITION_VALIDATOR), // for tuning
@@ -215,7 +230,7 @@ public class SystemOptionManager extends BaseOptionManager implements AutoClosea
       new OptionDefinition(ClassCompilerSelector.JAVA_COMPILER_DEBUG),
       new OptionDefinition(ExecConstants.ENABLE_VERBOSE_ERRORS),
       new OptionDefinition(ExecConstants.ENABLE_WINDOW_FUNCTIONS_VALIDATOR),
-      new OptionDefinition(ClassTransformer.SCALAR_REPLACEMENT_VALIDATOR),
+      new OptionDefinition(ExecConstants.SCALAR_REPLACEMENT_VALIDATOR),
       new OptionDefinition(ExecConstants.ENABLE_NEW_TEXT_READER),
       new OptionDefinition(ExecConstants.ENABLE_BULK_LOAD_TABLE_LIST),
       new OptionDefinition(ExecConstants.BULK_LOAD_TABLE_LIST_BULK_SIZE),
@@ -245,7 +260,8 @@ public class SystemOptionManager extends BaseOptionManager implements AutoClosea
       new OptionDefinition(ExecConstants.STATS_LOGGING_BATCH_OPERATOR_VALIDATOR,new OptionMetaData(OptionValue.AccessibleScopes.SYSTEM_AND_SESSION, true, true)),
       new OptionDefinition(ExecConstants.OUTPUT_BATCH_SIZE_AVAIL_MEM_FACTOR_VALIDATOR, new OptionMetaData(OptionValue.AccessibleScopes.SYSTEM, true, false)),
       new OptionDefinition(ExecConstants.FRAG_RUNNER_RPC_TIMEOUT_VALIDATOR, new OptionMetaData(OptionValue.AccessibleScopes.SYSTEM, true, true)),
-      new OptionDefinition(ExecConstants.LIST_FILES_RECURSIVELY_VALIDATOR)
+      new OptionDefinition(ExecConstants.LIST_FILES_RECURSIVELY_VALIDATOR),
+      new OptionDefinition(ExecConstants.QUERY_ROWKEYJOIN_BATCHSIZE)
     };
 
     CaseInsensitiveMap<OptionDefinition> map = Arrays.stream(definitions)

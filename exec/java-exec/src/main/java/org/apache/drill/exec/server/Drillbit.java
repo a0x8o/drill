@@ -17,6 +17,14 @@
  */
 package org.apache.drill.exec.server;
 
+import java.io.IOException;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardWatchEventKinds;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchKey;
+import java.nio.file.WatchService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -90,6 +98,8 @@ public class Drillbit implements AutoCloseable {
   private DrillbitStateManager stateManager;
   private boolean quiescentMode;
   private boolean forcefulShutdown = false;
+  private GracefulShutdownThread gracefulShutdownThread;
+  private boolean interruptPollShutdown = true;
 
   public void setQuiescentMode(boolean quiescentMode) {
     this.quiescentMode = quiescentMode;
@@ -186,6 +196,7 @@ public class Drillbit implements AutoCloseable {
   public void run() throws Exception {
     final Stopwatch w = Stopwatch.createStarted();
     logger.debug("Startup begun.");
+    gracefulShutdownThread = new GracefulShutdownThread(this, new StackTrace());
     coord.start(10000);
     stateManager.setState(DrillbitState.ONLINE);
     storeProvider.start();
@@ -212,6 +223,7 @@ public class Drillbit implements AutoCloseable {
     drillbitContext.startRM();
 
     Runtime.getRuntime().addShutdownHook(new ShutdownThread(this, new StackTrace()));
+    gracefulShutdownThread.start();
     logger.info("Startup completed ({} ms).", w.elapsed(TimeUnit.MILLISECONDS));
   }
 
@@ -291,6 +303,11 @@ public class Drillbit implements AutoCloseable {
 
     logger.info("Shutdown completed ({} ms).", w.elapsed(TimeUnit.MILLISECONDS) );
     stateManager.setState(DrillbitState.SHUTDOWN);
+    // Interrupt GracefulShutdownThread since Drillbit close is not called from it.
+    if (interruptPollShutdown) {
+      gracefulShutdownThread.interrupt();
+    }
+
   }
 
   private void javaPropertiesToSystemOptions() {
@@ -332,6 +349,70 @@ public class Drillbit implements AutoCloseable {
       }
 
       optionManager.setLocalOption(defaultValue.kind, optionName, optionString);
+    }
+  }
+
+
+  // Polls for graceful file to check if graceful shutdown is triggered from the script.
+  private static class GracefulShutdownThread extends Thread {
+
+    private final Drillbit drillbit;
+    private final StackTrace stackTrace;
+    public GracefulShutdownThread(final Drillbit drillbit, final StackTrace stackTrace) {
+      this.drillbit = drillbit;
+      this.stackTrace = stackTrace;
+    }
+
+    @Override
+    public void run () {
+      try {
+        pollShutdown(drillbit);
+      } catch (InterruptedException  e) {
+        logger.debug("Interrupted GracefulShutdownThread");
+      } catch (IOException e) {
+        throw new RuntimeException("Caught exception while polling for gracefulshutdown\n" + stackTrace, e);
+      }
+    }
+
+    /*
+     * Poll for the graceful file, if the file is found cloase the drillbit. In case if the DRILL_HOME path is not
+     * set, graceful shutdown will not be supported from the command line.
+     */
+    private void pollShutdown(Drillbit drillbit) throws IOException, InterruptedException {
+      final String drillHome = System.getenv("DRILL_HOME");
+      final String gracefulFile = System.getenv("GRACEFUL_SIGFILE");
+      final Path drillHomePath;
+      if (drillHome == null || gracefulFile == null) {
+        logger.warn("Cannot access graceful file. Graceful shutdown from command line will not be supported.");
+        return;
+      }
+      try {
+        drillHomePath = Paths.get(drillHome);
+      } catch (InvalidPathException e) {
+        logger.warn("Cannot access graceful file. Graceful shutdown from command line will not be supported.");
+        return;
+      }
+      boolean triggered_shutdown = false;
+      WatchKey wk = null;
+      try (final WatchService watchService = drillHomePath.getFileSystem().newWatchService()) {
+        drillHomePath.register(watchService, StandardWatchEventKinds.ENTRY_MODIFY, StandardWatchEventKinds.ENTRY_CREATE);
+        while (!triggered_shutdown) {
+          wk = watchService.take();
+          for (WatchEvent<?> event : wk.pollEvents()) {
+            final Path changed = (Path) event.context();
+            if (changed != null && changed.endsWith(gracefulFile)) {
+              drillbit.interruptPollShutdown = false;
+              triggered_shutdown = true;
+              drillbit.close();
+              break;
+            }
+          }
+        }
+      } finally {
+        if (wk != null) {
+          wk.cancel();
+        }
+      }
     }
   }
 
@@ -387,6 +468,11 @@ public class Drillbit implements AutoCloseable {
 
   public DrillbitContext getContext() {
     return manager.getContext();
+  }
+
+  @VisibleForTesting
+  public GracefulShutdownThread getGracefulShutdownThread() {
+    return gracefulShutdownThread;
   }
 
   public static void main(final String[] cli) throws DrillbitStartupException {

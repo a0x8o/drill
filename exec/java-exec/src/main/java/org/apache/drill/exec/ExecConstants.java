@@ -153,6 +153,10 @@ public final class ExecConstants {
   public static final IntegerValidator HASHJOIN_BLOOM_FILTER_MAX_SIZE = new IntegerValidator(HASHJOIN_BLOOM_FILTER_MAX_SIZE_KEY, null);
   public static final String HASHJOIN_BLOOM_FILTER_FPP_KEY = "exec.hashjoin.bloom_filter.fpp";
   public static final DoubleValidator HASHJOIN_BLOOM_FILTER_FPP_VALIDATOR = new RangeDoubleValidator(HASHJOIN_BLOOM_FILTER_FPP_KEY, Double.MIN_VALUE, 1.0, null);
+  public static final String HASHJOIN_RUNTIME_FILTER_WAITING_ENABLE_KEY = "exec.hashjoin.runtime_filter.waiting.enable";
+  public static final BooleanValidator HASHJOIN_ENABLE_RUNTIME_FILTER_WAITING = new BooleanValidator(HASHJOIN_RUNTIME_FILTER_WAITING_ENABLE_KEY, null);
+  public static final String HASHJOIN_RUNTIME_FILTER_MAX_WAITING_TIME_KEY = "exec.hashjoin.runtime_filter.max.waiting.time";
+  public static final PositiveLongValidator HASHJOIN_RUNTIME_FILTER_MAX_WAITING_TIME = new PositiveLongValidator(HASHJOIN_RUNTIME_FILTER_MAX_WAITING_TIME_KEY, Character.MAX_VALUE, null);
 
 
 
@@ -220,6 +224,12 @@ public final class ExecConstants {
   public static final String HTTP_AUTHENTICATION_MECHANISMS = "drill.exec.http.auth.mechanisms";
   public static final String HTTP_SPNEGO_PRINCIPAL = "drill.exec.http.auth.spnego.principal";
   public static final String HTTP_SPNEGO_KEYTAB = "drill.exec.http.auth.spnego.keytab";
+  //Control Web UI Resultset
+  public static final String HTTP_WEB_CLIENT_RESULTSET_AUTOLIMIT_CHECKED = "drill.exec.http.web.client.resultset.autolimit.checked";
+  public static final String HTTP_WEB_CLIENT_RESULTSET_AUTOLIMIT_ROWS = "drill.exec.http.web.client.resultset.autolimit.rows";
+  public static final String HTTP_WEB_CLIENT_RESULTSET_ROWS_PER_PAGE_VALUES = "drill.exec.http.web.client.resultset.rowsPerPageValues";
+  //Customize filters in options
+  public static final String HTTP_WEB_OPTIONS_FILTERS = "drill.exec.http.web.options.filters";
   public static final String SYS_STORE_PROVIDER_CLASS = "drill.exec.sys.store.provider.class";
   public static final String SYS_STORE_PROVIDER_LOCAL_PATH = "drill.exec.sys.store.provider.local.path";
   public static final String SYS_STORE_PROVIDER_LOCAL_ENABLE_WRITE = "drill.exec.sys.store.provider.local.write";
@@ -557,7 +567,7 @@ public final class ExecConstants {
 
   public static final String EARLY_LIMIT0_OPT_KEY = "planner.enable_limit0_optimization";
   public static final BooleanValidator EARLY_LIMIT0_OPT = new BooleanValidator(EARLY_LIMIT0_OPT_KEY,
-      new OptionDescription("Sets the type of identifier quotes for the SQL parser. Default is backticks ('`'). The SQL parser accepts double quotes ('\"') and square brackets ('['). (Drill 1.11+)"));
+      new OptionDescription("Enables the query planner to determine data types returned by a query during the planning phase before scanning data. Default is true. (Drill 1.9+)"));
 
   public static final String LATE_LIMIT0_OPT_KEY = "planner.enable_limit0_on_scan";
   public static final BooleanValidator LATE_LIMIT0_OPT = new BooleanValidator(LATE_LIMIT0_OPT_KEY,
@@ -779,6 +789,17 @@ public final class ExecConstants {
   public static final BooleanValidator DYNAMIC_UDF_SUPPORT_ENABLED_VALIDATOR = new BooleanValidator(DYNAMIC_UDF_SUPPORT_ENABLED,
       new OptionDescription("Enables users to dynamically upload UDFs. Users must upload their UDF (source and binary) JAR files to a staging directory in the distributed file system before issuing the CREATE FUNCTION USING JAR command to register a UDF. Default is true. (Drill 1.9+)"));
 
+  //Trigger warning in UX if fragments appear to be doing no work (units are in seconds).
+  public static final String PROFILE_WARNING_PROGRESS_THRESHOLD = "drill.exec.http.profile.warning.progress.threshold";
+  //Trigger warning in UX if slowest fragment operator crosses min threshold and exceeds ratio with average (units are in seconds).
+  public static final String PROFILE_WARNING_TIME_SKEW_MIN = "drill.exec.http.profile.warning.time.skew.min";
+  //Threshold Ratio for Processing (i.e. "maxProcessing : avgProcessing" ratio must exceed this defined threshold to show a skew warning)
+  public static final String PROFILE_WARNING_TIME_SKEW_RATIO_PROCESS = "drill.exec.http.profile.warning.time.skew.ratio.process";
+  //Trigger warning in UX if slowest fragment SCAN crosses min threshold and exceeds ratio with average (units are in seconds).
+  public static final String PROFILE_WARNING_SCAN_WAIT_MIN = "drill.exec.http.profile.warning.scan.wait.min";
+  //Threshold Ratio for Waiting (i.e. "maxWait : avgWait" ratio must exceed this defined threshold to show a skew warning)
+  public static final String PROFILE_WARNING_TIME_SKEW_RATIO_WAIT = "drill.exec.http.profile.warning.time.skew.ratio.wait";
+
   /**
    * Option to save query profiles. If false, no query profile will be saved
    * for any query.
@@ -823,7 +844,8 @@ public final class ExecConstants {
   public static final String ENABLE_ITERATOR_VALIDATION = "drill.exec.debug.validate_iterators";
 
   public static final String QUERY_ROWKEYJOIN_BATCHSIZE_KEY = "exec.query.rowkeyjoin_batchsize";
-  public static final PositiveLongValidator QUERY_ROWKEYJOIN_BATCHSIZE = new PositiveLongValidator(QUERY_ROWKEYJOIN_BATCHSIZE_KEY, Long.MAX_VALUE, null);
+  public static final PositiveLongValidator QUERY_ROWKEYJOIN_BATCHSIZE = new PositiveLongValidator(QUERY_ROWKEYJOIN_BATCHSIZE_KEY, Long.MAX_VALUE,
+      new OptionDescription("Batch size (in terms of number of rows) for a 'bulk get' operation from the underlying data source during a RowKeyJoin."));
   /**
    * When iterator validation is enabled, additionally validates the vectors in
    * each batch passed to each iterator.
@@ -849,7 +871,7 @@ public final class ExecConstants {
    * the shutdown request is triggered. The primary use of grace period is to
    * avoid the race conditions caused by zookeeper delay in updating the state
    * information of the drillbit that is shutting down. So, it is advisable
-   * to have a grace period that is atleast twice the amount of zookeeper
+   * to have a grace period that is at least twice the amount of zookeeper
    * refresh time.
    */
   public static final String GRACE_PERIOD = "drill.exec.grace_period_ms";
@@ -875,5 +897,11 @@ public final class ExecConstants {
 
   public static final String LIST_FILES_RECURSIVELY = "storage.list_files_recursively";
   public static final BooleanValidator LIST_FILES_RECURSIVELY_VALIDATOR = new BooleanValidator(LIST_FILES_RECURSIVELY,
-      new OptionDescription("Enables recursive files listing when querying the `INFORMATION_SCHEMA.FILES` table or executing the SHOW FILES command. Default is false. (Drill 1.15+"));
+      new OptionDescription("Enables recursive files listing when querying the `INFORMATION_SCHEMA.FILES` table or executing the SHOW FILES command. " +
+        "Default is false. (Drill 1.15+)"));
+
+  public static final String RETURN_RESULT_SET_FOR_DDL = "exec.query.return_result_set_for_ddl";
+  public static final BooleanValidator RETURN_RESULT_SET_FOR_DDL_VALIDATOR = new BooleanValidator(RETURN_RESULT_SET_FOR_DDL,
+      new OptionDescription("Controls whether to return result set for CREATE TABLE / VIEW, DROP TABLE / VIEW, SET, USE etc. queries. " +
+          "If set to false affected rows count will be returned instead and result set will be null. Default is true. (Drill 1.15+)"));
 }

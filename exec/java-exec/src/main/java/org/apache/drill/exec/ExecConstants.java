@@ -203,6 +203,7 @@ public final class ExecConstants {
   public static final String HAZELCAST_SUBNETS = "drill.exec.cache.hazel.subnets";
   public static final String HTTP_ENABLE = "drill.exec.http.enabled";
   public static final String HTTP_MAX_PROFILES = "drill.exec.http.max_profiles";
+  public static final String HTTP_PROFILES_PER_PAGE = "drill.exec.http.profiles_per_page";
   public static final String HTTP_PORT = "drill.exec.http.port";
   public static final String HTTP_PORT_HUNT = "drill.exec.http.porthunt";
   public static final String HTTP_JETTY_SERVER_ACCEPTORS = "drill.exec.http.jetty.server.acceptors";
@@ -514,6 +515,11 @@ public final class ExecConstants {
   public static final OptionValidator HIVE_OPTIMIZE_MAPRDB_JSON_SCAN_WITH_NATIVE_READER_VALIDATOR =
       new BooleanValidator(HIVE_OPTIMIZE_MAPRDB_JSON_SCAN_WITH_NATIVE_READER,
           new OptionDescription("Enables Drill to use the Drill native reader (instead of the Hive Serde interface) to optimize reads of MapR Database JSON tables from Hive. Default is false. (Drill 1.14+)"));
+
+  public static final String HIVE_READ_MAPRDB_JSON_TIMESTAMP_WITH_TIMEZONE_OFFSET = "store.hive.maprdb_json.read_timestamp_with_timezone_offset";
+  public static final OptionValidator HIVE_READ_MAPRDB_JSON_TIMESTAMP_WITH_TIMEZONE_OFFSET_VALIDATOR =
+      new BooleanValidator(HIVE_READ_MAPRDB_JSON_TIMESTAMP_WITH_TIMEZONE_OFFSET,
+          new OptionDescription("Enables Drill to read timestamp values with timezone offset when hive plugin is used and Drill native MaprDB JSON reader usage is enabled. (Drill 1.16+)"));
 
   public static final String HIVE_CONF_PROPERTIES = "store.hive.conf.properties";
   public static final OptionValidator HIVE_CONF_PROPERTIES_VALIDATOR = new StringValidator(HIVE_CONF_PROPERTIES,
@@ -902,6 +908,7 @@ public final class ExecConstants {
 
   public static final String RETURN_RESULT_SET_FOR_DDL = "exec.query.return_result_set_for_ddl";
   public static final BooleanValidator RETURN_RESULT_SET_FOR_DDL_VALIDATOR = new BooleanValidator(RETURN_RESULT_SET_FOR_DDL,
-      new OptionDescription("Controls whether to return result set for CREATE TABLE / VIEW, DROP TABLE / VIEW, SET, USE etc. queries. " +
-          "If set to false affected rows count will be returned instead and result set will be null. Default is true. (Drill 1.15+)"));
+      new OptionDescription("Controls whether to return result set for CREATE TABLE / VIEW / FUNCTION, DROP TABLE / VIEW / FUNCTION, " +
+          "SET, USE, REFRESH METADATA TABLE queries. If set to false affected rows count will be returned instead and result set will be null. " +
+          "Affects JDBC connections only. Default is true. (Drill 1.15+)"));
 }

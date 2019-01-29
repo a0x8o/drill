@@ -22,6 +22,7 @@ import io.netty.buffer.DrillBuf;
 import org.apache.drill.common.AutoCloseables;
 import org.apache.drill.exec.memory.BufferAllocator;
 import org.apache.drill.exec.proto.BitData;
+import org.apache.drill.shaded.guava.com.google.common.base.Preconditions;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,13 +40,15 @@ public class RuntimeFilterWritable implements AutoCloseables.Closeable{
   private String identifier;
 
   public RuntimeFilterWritable(BitData.RuntimeFilterBDef runtimeFilterBDef, DrillBuf... data) {
+    List<Integer> bfSizeInBytes = runtimeFilterBDef.getBloomFilterSizeInBytesList();
+    int bufArrLen = data.length;
+    Preconditions.checkArgument(bfSizeInBytes.size() == bufArrLen, "the input DrillBuf number does not match the metadata definition!");
     this.runtimeFilterBDef = runtimeFilterBDef;
     this.data = data;
     this.identifier = "majorFragmentId:" + runtimeFilterBDef.getMajorFragmentId()
       + ",minorFragmentId:" + runtimeFilterBDef.getMinorFragmentId()
       + ", srcOperatorId:" + runtimeFilterBDef.getHjOpId();
   }
-
 
   public BitData.RuntimeFilterBDef getRuntimeFilterBDef() {
     return runtimeFilterBDef;

@@ -22,22 +22,23 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import org.apache.drill.categories.RowSetTests;
 import org.apache.drill.common.exceptions.UserException;
 import org.apache.drill.common.expression.SchemaPath;
 import org.apache.drill.exec.physical.impl.scan.ScanTestUtils;
-import org.apache.drill.exec.physical.impl.scan.project.ScanLevelProjection;
-import org.apache.drill.exec.physical.impl.scan.project.UnresolvedColumn;
 import org.apache.drill.exec.physical.rowSet.impl.RowSetTestUtils;
 import org.apache.drill.exec.physical.rowSet.project.RequestedTuple.RequestedColumn;
 import org.apache.drill.exec.record.metadata.ProjectionType;
 import org.apache.drill.test.SubOperatorTest;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 /**
  * Test the level of projection done at the level of the scan as a whole;
  * before knowledge of table "implicit" columns or the specific table schema.
  */
 
+@Category(RowSetTests.class)
 public class TestScanLevelProjection extends SubOperatorTest {
 
   /**

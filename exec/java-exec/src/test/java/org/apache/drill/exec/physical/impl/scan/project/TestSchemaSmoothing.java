@@ -24,19 +24,13 @@ import static org.junit.Assert.fail;
 
 import java.util.List;
 
+import org.apache.drill.categories.RowSetTests;
 import org.apache.drill.common.types.TypeProtos.MinorType;
 import org.apache.drill.exec.physical.impl.protocol.SchemaTracker;
 import org.apache.drill.exec.physical.impl.scan.ScanTestUtils;
-import org.apache.drill.exec.physical.impl.scan.project.NullColumnBuilder;
-import org.apache.drill.exec.physical.impl.scan.project.ResolvedColumn;
 import org.apache.drill.exec.physical.impl.scan.project.ResolvedTuple.ResolvedRow;
-import org.apache.drill.exec.physical.impl.scan.project.ScanLevelProjection;
-import org.apache.drill.exec.physical.impl.scan.project.ScanSchemaOrchestrator;
 import org.apache.drill.exec.physical.impl.scan.project.ScanSchemaOrchestrator.ReaderSchemaOrchestrator;
-import org.apache.drill.exec.physical.impl.scan.project.SchemaSmoother;
 import org.apache.drill.exec.physical.impl.scan.project.SchemaSmoother.IncompatibleSchemaException;
-import org.apache.drill.exec.physical.impl.scan.project.SmoothingProjection;
-import org.apache.drill.exec.physical.impl.scan.project.WildcardSchemaProjection;
 import org.apache.drill.exec.physical.rowSet.ResultSetLoader;
 import org.apache.drill.exec.physical.rowSet.impl.RowSetTestUtils;
 import org.apache.drill.exec.record.metadata.SchemaBuilder;
@@ -45,6 +39,7 @@ import org.apache.drill.test.SubOperatorTest;
 import org.apache.drill.test.rowSet.RowSet.SingleRowSet;
 import org.apache.drill.test.rowSet.RowSetComparison;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 
 /**
  * Tests schema smoothing at the schema projection level.
@@ -86,6 +81,7 @@ import org.junit.Test;
  * the future to know what data will be scanned.)
  */
 
+@Category(RowSetTests.class)
 public class TestSchemaSmoothing extends SubOperatorTest {
 
   /**

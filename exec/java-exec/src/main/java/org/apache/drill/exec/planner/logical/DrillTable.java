@@ -30,6 +30,7 @@ import org.apache.calcite.sql.SqlCall;
 import org.apache.calcite.sql.SqlNode;
 import org.apache.drill.common.JSONOptions;
 import org.apache.drill.common.logical.StoragePluginConfig;
+import org.apache.drill.exec.planner.common.DrillStatsTable;
 import org.apache.drill.exec.physical.base.SchemalessScan;
 import org.apache.drill.exec.physical.base.GroupScan;
 import org.apache.drill.exec.server.options.SessionOptionManager;
@@ -47,6 +48,8 @@ public abstract class DrillTable implements Table {
   private final String userName;
   private GroupScan scan;
   private SessionOptionManager options;
+  // Stores the statistics(rowcount, NDV etc.) associated with the table
+  private DrillStatsTable statsTable;
 
   /**
    * Creates a DrillTable instance for a @{code TableType#Table} table.
@@ -129,6 +132,14 @@ public abstract class DrillTable implements Table {
   @Override
   public Statistic getStatistic() {
     return Statistics.UNKNOWN;
+  }
+
+  public DrillStatsTable getStatsTable() {
+    return statsTable;
+  }
+
+  public void setStatsTable(DrillStatsTable statsTable) {
+    this.statsTable = statsTable;
   }
 
   public RelNode toRel(RelOptTable.ToRelContext context, RelOptTable table) {

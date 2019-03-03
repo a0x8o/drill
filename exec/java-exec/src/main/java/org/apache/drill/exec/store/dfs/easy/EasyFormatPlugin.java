@@ -38,6 +38,7 @@ import org.apache.drill.exec.physical.base.ScanStats;
 import org.apache.drill.exec.physical.base.ScanStats.GroupScanProperty;
 import org.apache.drill.exec.physical.impl.ScanBatch;
 import org.apache.drill.exec.physical.impl.WriterRecordBatch;
+import org.apache.drill.exec.physical.impl.StatisticsWriterRecordBatch;
 import org.apache.drill.exec.planner.physical.PlannerSettings;
 import org.apache.drill.exec.record.CloseableRecordBatch;
 import org.apache.drill.exec.record.RecordBatch;
@@ -45,6 +46,7 @@ import org.apache.drill.exec.server.DrillbitContext;
 import org.apache.drill.exec.store.ColumnExplorer;
 import org.apache.drill.exec.store.RecordReader;
 import org.apache.drill.exec.store.RecordWriter;
+import org.apache.drill.exec.store.StatisticsRecordWriter;
 import org.apache.drill.exec.store.StoragePluginOptimizerRule;
 import org.apache.drill.exec.store.dfs.BasicFormatMatcher;
 import org.apache.drill.exec.store.dfs.DrillFileSystem;
@@ -115,8 +117,12 @@ public abstract class EasyFormatPlugin<T extends FormatPluginConfig> implements 
     return blockSplittable;
   }
 
-  /** Method indicates whether or not this format could also be in a compression container (for example: csv.gz versus csv).
-   * If this format uses its own internal compression scheme, such as Parquet does, then this should return false.
+  /**
+   * Indicates whether or not this format could also be in a compression
+   * container (for example: csv.gz versus csv). If this format uses its own
+   * internal compression scheme, such as Parquet does, then this should return
+   * false.
+   *
    * @return <code>true</code> if it is compressible
    */
   public boolean isCompressible() {
@@ -126,7 +132,6 @@ public abstract class EasyFormatPlugin<T extends FormatPluginConfig> implements 
   public abstract RecordReader getRecordReader(FragmentContext context, DrillFileSystem dfs, FileWork fileWork,
       List<SchemaPath> columns, String userName) throws ExecutionSetupException;
 
-  @SuppressWarnings("resource")
   CloseableRecordBatch getReaderBatch(FragmentContext context, EasySubScan scan) throws ExecutionSetupException {
     final ColumnExplorer columnExplorer = new ColumnExplorer(context.getOptions(), scan.getColumns());
 
@@ -134,7 +139,7 @@ public abstract class EasyFormatPlugin<T extends FormatPluginConfig> implements 
       scan = new EasySubScan(scan.getUserName(), scan.getWorkUnits(), scan.getFormatPlugin(),
           columnExplorer.getTableColumns(), scan.getSelectionRoot());
       scan.setOperatorId(scan.getOperatorId());
-        }
+    }
 
     OperatorContext oContext = context.newOperatorContext(scan);
     final DrillFileSystem dfs;
@@ -156,24 +161,37 @@ public abstract class EasyFormatPlugin<T extends FormatPluginConfig> implements 
       implicitColumns.add(implicitValues);
       if (implicitValues.size() > mapWithMaxColumns.size()) {
         mapWithMaxColumns = implicitValues;
-        }
       }
+    }
 
     // all readers should have the same number of implicit columns, add missing ones with value null
     Map<String, String> diff = Maps.transformValues(mapWithMaxColumns, Functions.constant((String) null));
     for (Map<String, String> map : implicitColumns) {
       map.putAll(Maps.difference(map, diff).entriesOnlyOnRight());
-      }
+    }
 
     return new ScanBatch(context, oContext, readers, implicitColumns);
   }
 
+  public boolean isStatisticsRecordWriter(FragmentContext context, EasyWriter writer) {
+    return false;
+  }
+
   public abstract RecordWriter getRecordWriter(FragmentContext context, EasyWriter writer) throws IOException;
+
+  public StatisticsRecordWriter getStatisticsRecordWriter(FragmentContext context, EasyWriter writer) throws IOException
+  {
+    return null;
+  }
 
   public CloseableRecordBatch getWriterBatch(FragmentContext context, RecordBatch incoming, EasyWriter writer)
       throws ExecutionSetupException {
     try {
-      return new WriterRecordBatch(writer, incoming, context, getRecordWriter(context, writer));
+      if (isStatisticsRecordWriter(context, writer)) {
+        return new StatisticsWriterRecordBatch(writer, incoming, context, getStatisticsRecordWriter(context, writer));
+      } else {
+        return new WriterRecordBatch(writer, incoming, context, getRecordWriter(context, writer));
+      }
     } catch(IOException e) {
       throw new ExecutionSetupException(String.format("Failed to create the WriterRecordBatch. %s", e.getMessage()), e);
     }

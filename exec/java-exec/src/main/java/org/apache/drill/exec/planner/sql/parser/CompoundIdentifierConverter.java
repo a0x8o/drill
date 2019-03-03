@@ -64,6 +64,7 @@ public class CompoundIdentifierConverter extends SqlShuttle {
     // Every element of the array corresponds to the item in the list
     // returned by getOperandList() method for concrete SqlCall implementation.
     REWRITE_RULES = ImmutableMap.<Class<? extends SqlCall>, RewriteType[]>builder()
+        .put(SqlAnalyzeTable.class, arrayOf(D, D, E, D))
         .put(SqlSelect.class, arrayOf(D, E, D, E, E, E, E, E, D, D))
         .put(SqlCreateTable.class, arrayOf(D, D, D, E, D, D))
         .put(SqlCreateView.class, arrayOf(D, E, E, D))
@@ -85,13 +86,18 @@ public class CompoundIdentifierConverter extends SqlShuttle {
   }
 
   private boolean enableComplex = true;
+  private boolean allowNoTableRefCompoundIdentifier = false;
+
+  public CompoundIdentifierConverter(boolean allowNoTableRefCompoundIdentifier) {
+    this.allowNoTableRefCompoundIdentifier = allowNoTableRefCompoundIdentifier;
+  }
 
   @Override
   public SqlNode visit(SqlIdentifier id) {
     if (id instanceof DrillCompoundIdentifier) {
       DrillCompoundIdentifier compoundIdentifier = (DrillCompoundIdentifier) id;
       if (enableComplex) {
-        return compoundIdentifier.getAsSqlNode();
+        return compoundIdentifier.getAsSqlNode(allowNoTableRefCompoundIdentifier);
       } else {
         return compoundIdentifier.getAsCompoundIdentifier();
       }

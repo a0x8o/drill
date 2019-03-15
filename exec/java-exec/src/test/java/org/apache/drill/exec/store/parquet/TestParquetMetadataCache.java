@@ -924,23 +924,36 @@ public class TestParquetMetadataCache extends PlanTestBase {
     // TODO: Check that metadata cache file is actually regenerated, once Drill will use JDK version with resolved JDK-8177809.
   }
 
-  /**
-   * Helper method for checking the metadata file existence
-   *
-   * @param table table name or table path
-   */
-  private void checkForMetadataFile(String table) {
-    final String tmpDir;
+  @Test
+  public void testRefreshDefault() throws Exception {
+    test("refresh table metadata dfs.`%s`", TABLE_NAME_1);
+    checkForMetadataFile(TABLE_NAME_1);
+    String query = String.format("select dir0, dir1, o_custkey, o_orderdate from dfs.`%s` " +
+            " where dir0=1994 and dir1 in ('Q1', 'Q2')", TABLE_NAME_1);
+    int expectedRowCount = 20;
+    int actualRowCount = testSql(query);
+    assertEquals(expectedRowCount, actualRowCount);
+  }
 
-    try {
-      tmpDir = dirTestWatcher.getRootDir().getCanonicalPath();
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
+  @Test
+  public void testRefreshWithColumns() throws Exception {
+    test("refresh table metadata columns (o_custkey, o_orderdate) dfs.`%s`", TABLE_NAME_1);
+    checkForMetadataFile(TABLE_NAME_1);
+    String query = String.format("select dir0, dir1, o_custkey, o_orderdate from dfs.`%s` " +
+            " where dir0=1994 and dir1 in ('Q1', 'Q2')", TABLE_NAME_1);
+    int expectedRowCount = 20;
+    int actualRowCount = testSql(query);
+    assertEquals(expectedRowCount, actualRowCount);
+  }
 
-    File metaFile = table.startsWith(tmpDir) ? FileUtils.getFile(table, Metadata.METADATA_FILENAME)
-        : FileUtils.getFile(tmpDir, table, Metadata.METADATA_FILENAME);
-    assertTrue(String.format("There is no metadata cache file for the %s table", table),
-        Files.exists(metaFile.toPath()));
+  @Test
+  public void testRefreshNone() throws Exception {
+    test("refresh table metadata columns none dfs.`%s`", TABLE_NAME_1);
+    checkForMetadataFile(TABLE_NAME_1);
+    String query = String.format("select dir0, dir1, o_custkey, o_orderdate from dfs.`%s` " +
+            " where dir0=1994 and dir1 in ('Q1', 'Q2')", TABLE_NAME_1);
+    int expectedRowCount = 20;
+    int actualRowCount = testSql(query);
+    assertEquals(expectedRowCount, actualRowCount);
   }
 }

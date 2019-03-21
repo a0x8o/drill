@@ -15,19 +15,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.drill.exec.physical.base;
+package org.apache.drill.exec.expr;
 
-import java.io.IOException;
+import org.apache.drill.exec.expr.stat.RowsMatch;
 
-import org.apache.drill.exec.store.dfs.FileSelection;
-
-/**
- * FileGroupScan operator represents all data which will be scanned from FileSystem by a given physical plan.
- */
-public interface FileGroupScan extends GroupScan {
-
-  void modifyFileSelection(FileSelection selection);
-
-  FileGroupScan clone(FileSelection selection) throws IOException;
-
+public interface FilterPredicate<T extends Comparable<T>> {
+  RowsMatch matches(StatisticsProvider<T> evaluator);
 }

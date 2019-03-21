@@ -15,19 +15,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.drill.exec.physical.base;
+package org.apache.drill.metastore;
 
-import java.io.IOException;
+import org.apache.drill.common.expression.SchemaPath;
+import org.apache.hadoop.fs.Path;
 
-import org.apache.drill.exec.store.dfs.FileSelection;
+import java.util.Map;
 
 /**
- * FileGroupScan operator represents all data which will be scanned from FileSystem by a given physical plan.
+ * Metadata which corresponds to the table level.
  */
-public interface FileGroupScan extends GroupScan {
+public interface TableMetadata extends BaseMetadata {
 
-  void modifyFileSelection(FileSelection selection);
-
-  FileGroupScan clone(FileSelection selection) throws IOException;
-
+  String getTableName();
+  Path getLocation();
+  String getOwner();
+  long getLastModifiedTime();
+  TableMetadata cloneWithStats(Map<SchemaPath, ColumnStatistics> columnStatistics, Map<String, Object> tableStatistics);
 }

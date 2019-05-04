@@ -19,8 +19,8 @@ package org.apache.drill.exec.store.parquet;
 
 import org.apache.drill.common.expression.SchemaPath;
 import org.apache.drill.common.types.TypeProtos;
-import org.apache.drill.exec.physical.base.GroupScan;
-import org.apache.drill.exec.record.metadata.SchemaPathUtils;
+import org.apache.drill.exec.physical.impl.statistics.Statistic;
+import org.apache.drill.exec.record.metadata.MetadataUtils;
 import org.apache.drill.exec.record.metadata.TupleMetadata;
 import org.apache.drill.exec.record.metadata.TupleSchema;
 import org.apache.drill.exec.resolver.TypeCastRules;
@@ -35,6 +35,7 @@ import org.apache.drill.metastore.ColumnStatistics;
 import org.apache.drill.metastore.ColumnStatisticsImpl;
 import org.apache.drill.metastore.ColumnStatisticsKind;
 import org.apache.drill.metastore.FileMetadata;
+import org.apache.drill.metastore.NonInterestingColumnsMetadata;
 import org.apache.drill.metastore.PartitionMetadata;
 import org.apache.drill.metastore.RowGroupMetadata;
 import org.apache.drill.metastore.StatisticsKind;
@@ -67,6 +68,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Utility class for converting parquet metadata classes to metastore metadata classes.
@@ -154,7 +156,7 @@ public class ParquetTableMetadataUtils {
     Map<SchemaPath, TypeProtos.MajorType> columns = getRowGroupFields(tableMetadata, rowGroupMetadata);
 
     TupleSchema schema = new TupleSchema();
-    columns.forEach((schemaPath, majorType) -> SchemaPathUtils.addColumnMetadata(schema, schemaPath, majorType));
+    columns.forEach((schemaPath, majorType) -> MetadataUtils.addColumnMetadata(schema, schemaPath, majorType));
 
     return new RowGroupMetadata(
         schema, columnsStatistics, rowGroupStatistics, rowGroupMetadata.getHostAffinity(), rgIndexInFile, location);
@@ -194,7 +196,6 @@ public class ParquetTableMetadataUtils {
       }
       columnsStatistics.put(column, new ColumnStatisticsImpl(statisticsMap, statisticsList.iterator().next().getValueComparator()));
     }
-    columnsStatistics.putAll(populateNonInterestingColumnsStats(columnsStatistics.keySet(), parquetTableMetadata));
     return columnsStatistics;
   }
 
@@ -264,7 +265,7 @@ public class ParquetTableMetadataUtils {
    * @return map with converted row group metadata
    */
   @SuppressWarnings("unchecked")
-  private static Map<SchemaPath, ColumnStatistics> getRowGroupColumnStatistics(
+  public static Map<SchemaPath, ColumnStatistics> getRowGroupColumnStatistics(
       MetadataBase.ParquetTableMetadataBase tableMetadata, MetadataBase.RowGroupMetadata rowGroupMetadata) {
 
     Map<SchemaPath, ColumnStatistics> columnsStatistics = new HashMap<>();
@@ -274,7 +275,7 @@ public class ParquetTableMetadataUtils {
 
       Long nulls = column.getNulls();
       if (!column.isNumNullsSet() || nulls == null) {
-        nulls = GroupScan.NO_COLUMN_STATS;
+        nulls = Statistic.NO_COLUMN_STATS;
       }
       PrimitiveType.PrimitiveTypeName primitiveType = getPrimitiveTypeName(tableMetadata, column);
       OriginalType originalType = getOriginalType(tableMetadata, column);
@@ -286,35 +287,38 @@ public class ParquetTableMetadataUtils {
       statistics.put(ColumnStatisticsKind.NULLS_COUNT, nulls);
       columnsStatistics.put(colPath, new ColumnStatisticsImpl(statistics, comparator));
     }
-    columnsStatistics.putAll(populateNonInterestingColumnsStats(columnsStatistics.keySet(), tableMetadata));
     return columnsStatistics;
   }
 
   /**
-   * Populates the non-interesting column's statistics
-   * @param schemaPaths columns paths which should be ignored
+   * Returns the non-interesting column's metadata
    * @param parquetTableMetadata the source of column metadata for non-interesting column's statistics
-   * @return returns non-interesting column statistics map
+   * @return returns non-interesting columns metadata
    */
-  @SuppressWarnings("unchecked")
-  public static Map<SchemaPath, ColumnStatistics> populateNonInterestingColumnsStats(
-          Set<SchemaPath> schemaPaths, MetadataBase.ParquetTableMetadataBase parquetTableMetadata) {
+  public static NonInterestingColumnsMetadata getNonInterestingColumnsMeta(MetadataBase.ParquetTableMetadataBase parquetTableMetadata) {
     Map<SchemaPath, ColumnStatistics> columnsStatistics = new HashMap<>();
     if (parquetTableMetadata instanceof Metadata_V4.ParquetTableMetadata_v4) {
-      for (Metadata_V4.ColumnTypeMetadata_v4 columnTypeMetadata :
-          ((Metadata_V4.ParquetTableMetadata_v4) parquetTableMetadata).getColumnTypeInfoMap().values()) {
-        SchemaPath schemaPath = SchemaPath.getCompoundPath(columnTypeMetadata.name);
-        if (!schemaPaths.contains(schemaPath)) {
+      ConcurrentHashMap<Metadata_V4.ColumnTypeMetadata_v4.Key, Metadata_V4.ColumnTypeMetadata_v4> columnTypeInfoMap =
+              ((Metadata_V4.ParquetTableMetadata_v4) parquetTableMetadata).getColumnTypeInfoMap();
+
+      if (columnTypeInfoMap == null) {
+        return new NonInterestingColumnsMetadata(columnsStatistics);
+      } // in some cases for runtime pruning
+
+      for (Metadata_V4.ColumnTypeMetadata_v4 columnTypeMetadata : columnTypeInfoMap.values()) {
+        if (!columnTypeMetadata.isInteresting) {
+          SchemaPath schemaPath = SchemaPath.getCompoundPath(columnTypeMetadata.name);
           Map<StatisticsKind, Object> statistics = new HashMap<>();
-          statistics.put(ColumnStatisticsKind.NULLS_COUNT, GroupScan.NO_COLUMN_STATS);
+          statistics.put(ColumnStatisticsKind.NULLS_COUNT, Statistic.NO_COLUMN_STATS);
           PrimitiveType.PrimitiveTypeName primitiveType = columnTypeMetadata.primitiveType;
           OriginalType originalType = columnTypeMetadata.originalType;
           Comparator comparator = getComparator(primitiveType, originalType);
           columnsStatistics.put(schemaPath, new ColumnStatisticsImpl<>(statistics, comparator));
         }
       }
+      return new NonInterestingColumnsMetadata(columnsStatistics);
     }
-    return columnsStatistics;
+    return new NonInterestingColumnsMetadata(columnsStatistics);
   }
 
   /**

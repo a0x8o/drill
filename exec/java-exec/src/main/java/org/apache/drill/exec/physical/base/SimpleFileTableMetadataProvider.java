@@ -26,6 +26,7 @@ import org.apache.drill.metastore.ColumnStatistics;
 import org.apache.drill.metastore.ColumnStatisticsImpl;
 import org.apache.drill.metastore.FileMetadata;
 import org.apache.drill.metastore.FileTableMetadata;
+import org.apache.drill.metastore.NonInterestingColumnsMetadata;
 import org.apache.drill.metastore.PartitionMetadata;
 import org.apache.drill.metastore.TableMetadata;
 import org.apache.hadoop.fs.Path;
@@ -86,6 +87,11 @@ public class SimpleFileTableMetadataProvider implements TableMetadataProvider {
     return null;
   }
 
+  @Override
+  public NonInterestingColumnsMetadata getNonInterestingColumnsMeta() {
+    return null;
+  }
+
   public static class Builder implements SimpleFileTableMetadataProviderBuilder {
     private String tableName;
     private Path location;
@@ -124,7 +130,7 @@ public class SimpleFileTableMetadataProvider implements TableMetadataProvider {
 
     @Override
     @SuppressWarnings("unchecked")
-    public TableMetadataProvider build() throws IOException {
+    public TableMetadataProvider build() {
       SchemaProvider schemaProvider = metadataProviderManager.getSchemaProvider();
       TableMetadataProvider source = metadataProviderManager.getTableMetadataProvider();
       if (source == null) {
@@ -152,8 +158,9 @@ public class SimpleFileTableMetadataProvider implements TableMetadataProvider {
           } else {
             schema = schemaProvider != null ? schemaProvider.read().getSchema() : null;
           }
-        } catch (IOException e) {
-          logger.debug("Unable to deserialize schema from schema file for table: " + (tableName != null ? tableName : location), e);
+        } catch (IOException | IllegalArgumentException e) {
+          logger.debug("Unable to read schema from schema provider [{}]: {}", (tableName != null ? tableName : location), e.getMessage());
+          logger.trace("Error when reading the schema", e);
         }
         TableMetadata tableMetadata = new FileTableMetadata(tableName,
             location, schema,

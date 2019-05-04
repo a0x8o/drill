@@ -106,7 +106,7 @@ SqlNode SqlShowSchemas() :
 
 /**
  * Parses statement
- *   { DESCRIBE | DESC } tblname [col_name | wildcard ]
+ *   { DESCRIBE | DESC } [TABLE] tblname [col_name | wildcard ]
  */
 SqlNode SqlDescribeTable() :
 {
@@ -117,6 +117,7 @@ SqlNode SqlDescribeTable() :
 }
 {
     (<DESCRIBE> | <DESC>) { pos = getPos(); }
+    (<TABLE>)?
     table = CompoundIdentifier()
     (
         column = CompoundIdentifier()
@@ -376,9 +377,9 @@ void addProperty(SqlNodeList properties) :
   | < NUM: <DIGIT> (" " | "\t" | "\n" | "\r")* >
     // once schema is found, switch back to initial lexical state
     // must be enclosed in the parentheses
-    // inside may have left parenthesis only if number precededs (covers cases with varchar(10)),
+    // inside may have left parenthesis only if number precedes (covers cases with varchar(10)),
     // if left parenthesis is present in column name, it must be escaped with backslash
-  | < PAREN_STRING: <LPAREN> ((~[")"]) | (<NUM> ")") | ("\\)"))+ <RPAREN> > { popState(); }
+  | < PAREN_STRING: <LPAREN> ((~[")"]) | (<NUM> ")") | ("\\)"))* <RPAREN> > { popState(); }
 }
 
 /**
@@ -633,3 +634,66 @@ SqlNode SqlAnalyzeTable() :
         return new SqlAnalyzeTable(pos, tblName, estimate, fieldList, percent);
     }
 }
+
+
+/**
+ * Parses a SET statement without a leading "ALTER <SCOPE>":
+ *
+ * SET &lt;NAME&gt; [ = VALUE ]
+ * <p>
+ * Statement handles in: {@link SetAndResetOptionHandler}
+ */
+DrillSqlSetOption DrillSqlSetOption(Span s, String scope) :
+{
+    SqlParserPos pos;
+    SqlIdentifier name;
+    SqlNode val = null;
+}
+{
+    <SET> {
+        s.add(this);
+    }
+    name = CompoundIdentifier()
+    (
+        <EQ>
+        (
+            val = Literal()
+        |
+            val = SimpleIdentifier()
+        )
+    )?
+    {
+      pos = (val == null) ? s.end(name) : s.end(val);
+
+      return new DrillSqlSetOption(pos, scope, name, val);
+    }
+}
+
+/**
+ * Parses a RESET statement without a leading "ALTER <SCOPE>":
+ *
+ *  RESET { <NAME> | ALL }
+ * <p>
+ * Statement handles in: {@link SetAndResetOptionHandler}
+ */
+DrillSqlResetOption DrillSqlResetOption(Span s, String scope) :
+{
+    SqlIdentifier name;
+}
+{
+    <RESET> {
+        s.add(this);
+    }
+    (
+        name = CompoundIdentifier()
+    |
+        <ALL> {
+            name = new SqlIdentifier(token.image.toUpperCase(Locale.ROOT), getPos());
+        }
+    )
+    {
+        return new DrillSqlResetOption(s.end(name), scope, name);
+    }
+}
+
+

@@ -24,6 +24,7 @@ import org.apache.commons.collections.CollectionUtils;
 import org.apache.drill.common.expression.ExpressionStringBuilder;
 import org.apache.drill.exec.physical.base.AbstractGroupScanWithMetadata;
 import org.apache.drill.exec.physical.base.ParquetMetadataProvider;
+import org.apache.drill.exec.physical.impl.statistics.Statistic;
 import org.apache.drill.metastore.BaseMetadata;
 import org.apache.drill.metastore.LocationProvider;
 import org.apache.drill.metastore.PartitionMetadata;
@@ -267,6 +268,17 @@ public abstract class AbstractParquetGroupScan extends AbstractGroupScanWithMeta
         // no need to create new group scan with the same row group.
         return null;
       }
+
+      // Stop files pruning for the case:
+      //    -  # of row groups is beyond PARQUET_ROWGROUP_FILTER_PUSHDOWN_PLANNING_THRESHOLD.
+      if (getRowGroupsMetadata().size() >= optionManager.getOption(PlannerSettings.PARQUET_ROWGROUP_FILTER_PUSHDOWN_PLANNING_THRESHOLD)) {
+        this.rowGroups = getRowGroupsMetadata();
+        matchAllMetadata = false;
+        logger.trace("Stopping plan time pruning. Metadata has {} rowgroups, but the threshold option is set to {} rowgroups", this.rowGroups.size(),
+          optionManager.getOption(PlannerSettings.PARQUET_ROWGROUP_FILTER_PUSHDOWN_PLANNING_THRESHOLD));
+        return null;
+      }
+
       logger.debug("All row groups have been filtered out. Add back one to get schema from scanner");
 
       Map<Path, FileMetadata> filesMap = getNextOrEmpty(getFilesMetadata().values()).stream()
@@ -278,6 +290,7 @@ public abstract class AbstractParquetGroupScan extends AbstractGroupScanWithMeta
       builder.withRowGroups(rowGroupsMap)
           .withTable(getTableMetadata())
           .withPartitions(getNextOrEmpty(getPartitionsMetadata()))
+          .withNonInterestingColumns(getNonInterestingColumnsMetadata())
           .withFiles(filesMap)
           .withMatching(false);
     }
@@ -319,7 +332,7 @@ public abstract class AbstractParquetGroupScan extends AbstractGroupScanWithMeta
     maxRecords = Math.max(maxRecords, 1); // Make sure it request at least 1 row -> 1 rowGroup.
     if (getTableMetadata() != null) {
       long tableRowCount = (long) TableStatisticsKind.ROW_COUNT.getValue(getTableMetadata());
-      if (tableRowCount == NO_COLUMN_STATS || tableRowCount <= maxRecords) {
+      if (tableRowCount == Statistic.NO_COLUMN_STATS || tableRowCount <= maxRecords) {
         logger.debug("limit push down does not apply, since total number of rows [{}] is less or equal to the required [{}].",
             tableRowCount, maxRecords);
         return null;
@@ -351,6 +364,7 @@ public abstract class AbstractParquetGroupScan extends AbstractGroupScanWithMeta
         .withTable(getTableMetadata())
         .withPartitions(getPartitionsMetadata())
         .withFiles(qualifiedFiles)
+        .withNonInterestingColumns(getNonInterestingColumnsMetadata())
         .withMatching(matchAllMetadata)
         .build();
   }
@@ -488,6 +502,7 @@ public abstract class AbstractParquetGroupScan extends AbstractGroupScanWithMeta
       newScan.files = files;
       newScan.rowGroups = rowGroups;
       newScan.matchAllMetadata = matchAllMetadata;
+      newScan.nonInterestingColumnsMetadata = nonInterestingColumnsMetadata;
       // since builder is used when pruning happens, entries and fileSet should be expanded
       if (!newScan.getFilesMetadata().isEmpty()) {
         newScan.entries = newScan.getFilesMetadata().keySet().stream()

@@ -15,26 +15,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.drill.exec.physical.impl.svremover;
+package org.apache.drill.common.exceptions;
 
-import org.apache.drill.exec.record.RecordBatch;
-import org.apache.drill.exec.record.VectorContainer;
-import org.apache.drill.exec.record.VectorWrapper;
-import org.apache.drill.exec.vector.SchemaChangeCallBack;
+import org.apache.drill.common.exceptions.UserException.Builder;
 
-public class GenericSV2Copier extends AbstractSV2Copier {
-
-  public GenericSV2Copier(RecordBatch incomingBatch, VectorContainer outputContainer,
-                          SchemaChangeCallBack callBack) {
-    for(VectorWrapper<?> vv : incomingBatch){
-      transferPairs.add(vv.getValueVector().makeTransferPair(outputContainer.addOrGet(vv.getField(), callBack)));
-    }
-  }
+public class EmptyErrorContext implements CustomErrorContext {
 
   @Override
-  public void copyEntry(int inIndex, int outIndex) {
-    for (int i = 0; i < vvIn.length; i++) {
-      vvOut[i].copyEntry(outIndex, vvIn[i], inIndex);
-    }
-  }
+  public void addContext(Builder builder) { }
 }

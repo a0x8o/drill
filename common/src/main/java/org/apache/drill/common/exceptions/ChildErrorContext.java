@@ -15,26 +15,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.drill.exec.physical.impl.svremover;
+package org.apache.drill.common.exceptions;
 
-import org.apache.drill.exec.record.RecordBatch;
-import org.apache.drill.exec.record.VectorContainer;
-import org.apache.drill.exec.record.VectorWrapper;
-import org.apache.drill.exec.vector.SchemaChangeCallBack;
+/**
+ * Represents an additional level of error context detail that
+ * adds to that provided by some outer context. Done via composition
+ * rather than subclassing to allow many child contexts to work with
+ * many parent contexts.
+ */
 
-public class GenericSV2Copier extends AbstractSV2Copier {
+public class ChildErrorContext implements CustomErrorContext {
 
-  public GenericSV2Copier(RecordBatch incomingBatch, VectorContainer outputContainer,
-                          SchemaChangeCallBack callBack) {
-    for(VectorWrapper<?> vv : incomingBatch){
-      transferPairs.add(vv.getValueVector().makeTransferPair(outputContainer.addOrGet(vv.getField(), callBack)));
-    }
+  private final CustomErrorContext parent;
+
+  public ChildErrorContext(CustomErrorContext parent) {
+    this.parent = parent;
   }
 
   @Override
-  public void copyEntry(int inIndex, int outIndex) {
-    for (int i = 0; i < vvIn.length; i++) {
-      vvOut[i].copyEntry(outIndex, vvIn[i], inIndex);
+  public void addContext(UserException.Builder builder) {
+    if (parent != null) {
+      parent.addContext(builder);
     }
   }
 }

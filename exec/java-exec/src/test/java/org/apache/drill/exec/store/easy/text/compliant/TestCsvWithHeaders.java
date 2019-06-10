@@ -926,7 +926,7 @@ public class TestCsvWithHeaders extends BaseCsvTest {
       assertTrue(e.getMessage().contains("Format plugin: text"));
       assertTrue(e.getMessage().contains("Plugin config name: csv"));
       assertTrue(e.getMessage().contains("Extract headers: true"));
-      assertTrue(e.getMessage().contains("Skip headers: false"));
+      assertTrue(e.getMessage().contains("Skip first line: false"));
     } catch (Exception e) {
       fail();
     } finally {
@@ -974,9 +974,34 @@ public class TestCsvWithHeaders extends BaseCsvTest {
       assertTrue(e.getMessage().contains("Format plugin: text"));
       assertTrue(e.getMessage().contains("Plugin config name: csv"));
       assertTrue(e.getMessage().contains("Extract headers: true"));
-      assertTrue(e.getMessage().contains("Skip headers: false"));
+      assertTrue(e.getMessage().contains("Skip first line: false"));
     } catch (Exception e) {
       fail();
+    } finally {
+      resetV3();
+    }
+  }
+
+  @Test
+  public void testHugeColumn() throws IOException {
+    String fileName = buildBigColFile(true);
+    try {
+      enableV3(true);
+      String sql = "SELECT * FROM `dfs.data`.`%s`";
+      RowSet actual = client.queryBuilder().sql(sql, fileName).rowSet();
+      assertEquals(10, actual.rowCount());
+      RowSetReader reader = actual.reader();
+      while (reader.next()) {
+        int i = reader.logicalIndex();
+        assertEquals(Integer.toString(i + 1), reader.scalar(0).getString());
+        String big = reader.scalar(1).getString();
+        assertEquals(BIG_COL_SIZE, big.length());
+        for (int j = 0; j < BIG_COL_SIZE; j++) {
+          assertEquals((char) ((j + i) % 26 + 'A'), big.charAt(j));
+        }
+        assertEquals(Integer.toString((i + 1) * 10), reader.scalar(2).getString());
+      }
+      actual.clear();
     } finally {
       resetV3();
     }

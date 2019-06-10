@@ -53,7 +53,7 @@ public class RepeatedVarCharOutput extends BaseFieldOutput {
     // If the one and only field (`columns`) is not selected, then this
     // is a COUNT(*) or similar query. Select nothing.
 
-    if (! loader.tupleSchema().metadata(0).isProjected()) {
+    if (! loader.column(0).isProjected()) {
       return -1;
     }
 
@@ -120,7 +120,7 @@ public class RepeatedVarCharOutput extends BaseFieldOutput {
 
       // Save the field.
 
-      columnWriter.setBytes(fieldBytes, currentDataPointer);
+      writeToVector();
     } else {
 
       // The field is not projected.
@@ -133,5 +133,10 @@ public class RepeatedVarCharOutput extends BaseFieldOutput {
     // Return whether the rest of the fields should be read.
 
     return super.endField();
+  }
+
+  @Override
+  protected ScalarWriter columnWriter() {
+    return columnWriter;
   }
 }

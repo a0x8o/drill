@@ -259,19 +259,19 @@ public class TestCsvWithoutHeaders extends BaseCsvTest {
 
   @Test
   public void testRaggedRows() throws IOException {
+    String fileName = "ragged.csv";
+    buildFile(fileName, raggedRows);
     try {
       enableV3(false);
-      doTestRaggedRows();
+      doTestRaggedRows(fileName);
       enableV3(true);
-      doTestRaggedRows();
+      doTestRaggedRows(fileName);
     } finally {
       resetV3();
     }
   }
 
-  private void doTestRaggedRows() throws IOException {
-    String fileName = "ragged.csv";
-    buildFile(fileName, raggedRows);
+  private void doTestRaggedRows(String fileName) throws IOException {
     String sql = "SELECT columns FROM `dfs.data`.`%s`";
     RowSet actual = client.queryBuilder().sql(sql, fileName).rowSet();
 
@@ -438,6 +438,35 @@ public class TestCsvWithoutHeaders extends BaseCsvTest {
       assertTrue(e.getMessage().contains("Plugin config name: csv"));
     } catch (Exception e) {
       fail();
+    } finally {
+      resetV3();
+    }
+  }
+
+  @Test
+  public void testHugeColumn() throws IOException {
+    String fileName = buildBigColFile(false);
+    try {
+      enableV3(true);
+      String sql = "SELECT * FROM `dfs.data`.`%s`";
+      RowSet actual = client.queryBuilder().sql(sql, fileName).rowSet();
+      assertEquals(10, actual.rowCount());
+      RowSetReader reader = actual.reader();
+      ArrayReader arrayReader = reader.array(0);
+      while (reader.next()) {
+        int i = reader.logicalIndex();
+        arrayReader.next();
+        assertEquals(Integer.toString(i + 1), arrayReader.scalar().getString());
+        arrayReader.next();
+        String big = arrayReader.scalar().getString();
+        assertEquals(BIG_COL_SIZE, big.length());
+        for (int j = 0; j < BIG_COL_SIZE; j++) {
+          assertEquals((char) ((j + i) % 26 + 'A'), big.charAt(j));
+        }
+        arrayReader.next();
+        assertEquals(Integer.toString((i + 1) * 10), arrayReader.scalar().getString());
+      }
+      actual.clear();
     } finally {
       resetV3();
     }

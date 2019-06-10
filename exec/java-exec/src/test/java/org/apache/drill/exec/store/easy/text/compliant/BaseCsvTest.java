@@ -29,6 +29,8 @@ import org.apache.drill.test.ClusterTest;
 
 public class BaseCsvTest extends ClusterTest {
 
+  protected final int BIG_COL_SIZE = 70_000;
+
   protected static final String PART_DIR = "root";
   protected static final String NESTED_DIR = "nested";
   protected static final String ROOT_FILE = "first.csv";
@@ -117,5 +119,46 @@ public class BaseCsvTest extends ClusterTest {
         out.println(line);
       }
     }
+  }
+
+  protected String buildBigColFile(boolean withHeader) throws IOException {
+    String fileName = "hugeCol.csv";
+    try(PrintWriter out = new PrintWriter(new FileWriter(new File(testDir, fileName)))) {
+      if (withHeader) {
+        out.println("id,big,n");
+      }
+      for (int i = 0; i < 10; i++) {
+        out.print(i + 1);
+        out.print(",");
+        for (int j = 0; j < BIG_COL_SIZE; j++) {
+          out.print((char) ((j + i) % 26 + 'A'));
+        }
+        out.print(",");
+        out.println((i + 1) * 10);
+      }
+    }
+    return fileName;
+  }
+
+  protected static final String FILE_N_NAME = "file%d.csv";
+
+  protected static String buildTable(String tableName, String[]...fileContents) throws IOException {
+    File rootDir = new File(testDir, tableName);
+    rootDir.mkdir();
+    for (int i = 0; i < fileContents.length; i++) {
+      String fileName = String.format(FILE_N_NAME, i);
+      buildFile(new File(rootDir, fileName), fileContents[i]);
+    }
+    return "`dfs.data`.`" + tableName + "`";
+  }
+
+  protected void enableSchemaSupport() {
+    enableV3(true);
+    enableSchema(true);
+  }
+
+  protected void resetSchemaSupport() {
+    resetV3();
+    resetSchema();
   }
 }

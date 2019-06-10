@@ -59,6 +59,11 @@ public abstract class AbstractWriteConverter extends AbstractScalarWriter {
   }
 
   @Override
+  public boolean isProjected() {
+    return baseWriter.isProjected();
+  }
+
+  @Override
   public boolean nullable() {
     return baseWriter.nullable();
   }
@@ -107,6 +112,11 @@ public abstract class AbstractWriteConverter extends AbstractScalarWriter {
   @Override
   public void setBytes(byte[] value, int len) {
     baseWriter.setBytes(value, len);
+  }
+
+  @Override
+  public void appendBytes(byte[] value, int len) {
+    throw conversionError("bytes");
   }
 
   @Override

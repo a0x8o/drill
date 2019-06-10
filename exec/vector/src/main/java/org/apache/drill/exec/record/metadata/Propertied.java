@@ -44,5 +44,8 @@ public interface Propertied {
   String property(String key);
   String property(String key, String defValue);
   void setProperty(String key, String value);
-  boolean getBooleanProperty(String key);
+  boolean booleanProperty(String key);
+  boolean booleanProperty(String key, boolean defaultValue);
+  void setBooleanProperty(String key, boolean value);
 }
+

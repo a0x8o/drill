@@ -34,7 +34,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.drill.exec.planner.sql.parser.DrillParserUtil;
 import org.apache.drill.exec.planner.sql.parser.impl.DrillSqlParseException;
 import org.apache.drill.common.expression.SchemaPath;
-import org.apache.drill.metastore.MetadataProviderManager;
+import org.apache.drill.exec.metastore.MetadataProviderManager;
 import org.apache.drill.metastore.metadata.TableMetadataProvider;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.logical.LogicalProject;
@@ -633,7 +633,7 @@ public class SqlConverter {
         if (type.getScale() > type.getPrecision()) {
           throw UserException.validationError()
               .message("Expected scale less than or equal to precision, " +
-                  "but was scale %s and precision %s.", type.getScale(), type.getPrecision())
+                  "but was precision %s and scale %s.", type.getPrecision(), type.getScale())
               .build(logger);
         }
         RexLiteral literal = (RexLiteral) exp;

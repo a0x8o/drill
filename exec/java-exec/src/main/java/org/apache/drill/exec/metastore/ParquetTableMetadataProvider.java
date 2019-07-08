@@ -15,20 +15,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.drill.exec.store.dfs.easy;
+package org.apache.drill.exec.metastore;
 
-import org.apache.drill.exec.metastore.SimpleFileTableMetadataProvider;
-import org.apache.drill.metastore.metadata.TableMetadataProviderBuilder;
 import org.apache.hadoop.fs.Path;
 
 /**
- * Builder for {@link SimpleFileTableMetadataProvider}.
+ * Interface for providing table, partition, file etc. metadata for specific parquet table.
  */
-public interface SimpleFileTableMetadataProviderBuilder extends TableMetadataProviderBuilder {
+public interface ParquetTableMetadataProvider extends ParquetMetadataProvider {
 
-  SimpleFileTableMetadataProviderBuilder withTableName(String tableName);
+  /**
+   * Whether metadata cache files are used for table which belongs to current metadata provider.
+   *
+   * @return true if metadata cache files are used
+   */
+  boolean isUsedMetadataCache();
 
-  SimpleFileTableMetadataProviderBuilder withLocation(Path location);
-
-  SimpleFileTableMetadataProviderBuilder withLastModifiedTime(long lastModifiedTime);
+  /**
+   * Returns root table path.
+   *
+   * @return root path of the table
+   */
+  Path getSelectionRoot();
 }

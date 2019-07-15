@@ -25,7 +25,10 @@ import java.util.List;
 import org.apache.drill.categories.RowSetTests;
 import org.apache.drill.common.expression.SchemaPath;
 import org.apache.drill.common.types.TypeProtos.MinorType;
+import org.apache.drill.exec.physical.impl.scan.ScanTestUtils.MockScanBuilder;
 import org.apache.drill.exec.physical.impl.scan.columns.ColumnsArrayManager;
+import org.apache.drill.exec.physical.impl.scan.columns.ColumnsScanFramework.ColumnsScanBuilder;
+import org.apache.drill.exec.physical.impl.scan.columns.ColumnsScanFramework;
 import org.apache.drill.exec.physical.impl.scan.file.FileMetadataManager;
 import org.apache.drill.exec.physical.impl.scan.file.FileMetadataManager.FileMetadataOptions;
 import org.apache.drill.exec.physical.impl.scan.project.ReaderSchemaOrchestrator;
@@ -82,7 +85,7 @@ public class TestColumnsArray extends SubOperatorTest {
 
     // Configure the schema orchestrator
 
-    ScanOrchestratorBuilder builder = new ScanOrchestratorBuilder();
+    ScanOrchestratorBuilder builder = new MockScanBuilder();
     builder.withMetadata(metadataManager);
     builder.addParser(colsManager.projectionParser());
     builder.addResolver(colsManager.resolver());
@@ -100,7 +103,7 @@ public class TestColumnsArray extends SubOperatorTest {
     // Table schema (columns: VARCHAR[])
 
     TupleMetadata tableSchema = new SchemaBuilder()
-        .addArray(ColumnsArrayManager.COLUMNS_COL, MinorType.VARCHAR)
+        .addArray(ColumnsScanFramework.COLUMNS_COL, MinorType.VARCHAR)
         .buildSchema();
 
     mock.loader = mock.reader.makeTableLoader(tableSchema);
@@ -120,7 +123,7 @@ public class TestColumnsArray extends SubOperatorTest {
   public void testColumnsArray() {
 
     MockScanner mock = buildScanner(RowSetTestUtils.projectList(ScanTestUtils.FILE_NAME_COL,
-        ColumnsArrayManager.COLUMNS_COL,
+        ColumnsScanFramework.COLUMNS_COL,
         ScanTestUtils.partitionColName(0)));
 
     // Verify empty batch.
@@ -259,7 +262,7 @@ public class TestColumnsArray extends SubOperatorTest {
 
     // Configure the schema orchestrator
 
-    ScanOrchestratorBuilder builder = new ScanOrchestratorBuilder();
+    ScanOrchestratorBuilder builder = new ColumnsScanBuilder();
     builder.addParser(colsManager.projectionParser());
     builder.addResolver(colsManager.resolver());
     builder.setProjection(cols);
@@ -274,7 +277,7 @@ public class TestColumnsArray extends SubOperatorTest {
   @Test
   public void testMissingColumnsColumn() {
     ScanSchemaOrchestrator scanner = buildScan(true,
-        RowSetTestUtils.projectList(ColumnsArrayManager.COLUMNS_COL));
+        RowSetTestUtils.projectList(ColumnsScanFramework.COLUMNS_COL));
 
     TupleMetadata tableSchema = new SchemaBuilder()
         .add("a", MinorType.VARCHAR)
@@ -295,10 +298,10 @@ public class TestColumnsArray extends SubOperatorTest {
   @Test
   public void testNotRepeated() {
     ScanSchemaOrchestrator scanner = buildScan(true,
-        RowSetTestUtils.projectList(ColumnsArrayManager.COLUMNS_COL));
+        RowSetTestUtils.projectList(ColumnsScanFramework.COLUMNS_COL));
 
     TupleMetadata tableSchema = new SchemaBuilder()
-        .add(ColumnsArrayManager.COLUMNS_COL, MinorType.VARCHAR)
+        .add(ColumnsScanFramework.COLUMNS_COL, MinorType.VARCHAR)
         .buildSchema();
 
     try {
@@ -320,10 +323,10 @@ public class TestColumnsArray extends SubOperatorTest {
   @Test
   public void testReqularCol() {
     ScanSchemaOrchestrator scanner = buildScan(false,
-        RowSetTestUtils.projectList(ColumnsArrayManager.COLUMNS_COL));
+        RowSetTestUtils.projectList(ColumnsScanFramework.COLUMNS_COL));
 
     TupleMetadata tableSchema = new SchemaBuilder()
-        .add(ColumnsArrayManager.COLUMNS_COL, MinorType.VARCHAR)
+        .add(ColumnsScanFramework.COLUMNS_COL, MinorType.VARCHAR)
         .buildSchema();
 
     ReaderSchemaOrchestrator reader = scanner.startReader();

@@ -21,12 +21,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.drill.common.types.TypeProtos.MinorType;
-import org.apache.drill.exec.physical.impl.scan.framework.ManagedScanFramework;
-import org.apache.drill.exec.physical.impl.scan.framework.ManagedScanFramework.ScanFrameworkBuilder;
 import org.apache.drill.exec.physical.impl.scan.ScanTestUtils.ScanFixture;
 import org.apache.drill.exec.physical.impl.scan.ScanTestUtils.ScanFixtureBuilder;
 import org.apache.drill.exec.physical.impl.scan.framework.BasicScanFactory;
 import org.apache.drill.exec.physical.impl.scan.framework.ManagedReader;
+import org.apache.drill.exec.physical.impl.scan.framework.ManagedScanFramework.ScanFrameworkBuilder;
 import org.apache.drill.exec.physical.impl.scan.framework.SchemaNegotiator;
 import org.apache.drill.exec.physical.rowSet.ResultSetLoader;
 import org.apache.drill.exec.physical.rowSet.RowSetLoader;
@@ -122,16 +121,19 @@ public class BaseScanOperatorExecTest extends SubOperatorTest {
     }
   }
 
+  protected TupleMetadata expectedSchema() {
+    return new SchemaBuilder()
+        .add("a", MinorType.INT)
+        .addNullable("b", MinorType.VARCHAR, 10)
+        .buildSchema();
+  }
+
   protected SingleRowSet makeExpected() {
     return makeExpected(0);
   }
 
   protected SingleRowSet makeExpected(int offset) {
-    TupleMetadata expectedSchema = new SchemaBuilder()
-        .add("a", MinorType.INT)
-        .addNullable("b", MinorType.VARCHAR, 10)
-        .buildSchema();
-    SingleRowSet expected = fixture.rowSetBuilder(expectedSchema)
+    SingleRowSet expected = fixture.rowSetBuilder(expectedSchema())
         .addRow(offset + 10, "fred")
         .addRow(offset + 20, "wilma")
         .build();
@@ -146,7 +148,7 @@ public class BaseScanOperatorExecTest extends SubOperatorTest {
   public static class BaseScanFixtureBuilder extends ScanFixtureBuilder {
 
     public ScanFrameworkBuilder builder = new ScanFrameworkBuilder();
-    public final List<ManagedReader<? extends SchemaNegotiator>> readers = new ArrayList<>();
+    public final List<ManagedReader<SchemaNegotiator>> readers = new ArrayList<>();
 
     public BaseScanFixtureBuilder() {
       super(fixture);
@@ -155,25 +157,38 @@ public class BaseScanOperatorExecTest extends SubOperatorTest {
     @Override
     public ScanFrameworkBuilder builder() { return builder; }
 
-    public void addReader(ManagedReader<? extends SchemaNegotiator> reader) {
+    public void addReader(ManagedReader<SchemaNegotiator> reader) {
       readers.add(reader);
     }
 
+    public void addReaders(List<ManagedReader<SchemaNegotiator>> readers) {
+      this.readers.addAll(readers);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void addReaders(ManagedReader<SchemaNegotiator>...readers) {
+      for (ManagedReader<SchemaNegotiator> reader : readers) {
+        addReader(reader);
+      }
+    }
+
     @Override
-    protected ManagedScanFramework newFramework() {
+    public ScanFixture build() {
       builder.setReaderFactory(new BasicScanFactory(readers.iterator()));
-      return new ManagedScanFramework(builder);
+      return super.build();
     }
   }
 
   @SafeVarargs
-  public static ScanFixture simpleFixture(ManagedReader<? extends SchemaNegotiator>...readers) {
+  public static BaseScanFixtureBuilder simpleBuilder(ManagedReader<SchemaNegotiator>...readers) {
     BaseScanFixtureBuilder builder = new BaseScanFixtureBuilder();
     builder.projectAll();
-    for (ManagedReader<? extends SchemaNegotiator> reader : readers) {
-      builder.addReader(reader);
-    }
-    return builder.build();
+    builder.addReaders(readers);
+    return builder;
   }
 
+  @SafeVarargs
+  public static ScanFixture simpleFixture(ManagedReader<SchemaNegotiator>...readers) {
+    return simpleBuilder(readers).build();
+  }
 }

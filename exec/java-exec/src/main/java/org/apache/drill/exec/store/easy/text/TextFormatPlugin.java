@@ -22,7 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.drill.common.exceptions.CustomErrorContext;
+import org.apache.drill.common.exceptions.ChildErrorContext;
 import org.apache.drill.common.exceptions.ExecutionSetupException;
 import org.apache.drill.common.exceptions.UserException;
 import org.apache.drill.common.expression.SchemaPath;
@@ -44,7 +44,7 @@ import org.apache.drill.exec.physical.impl.scan.framework.ManagedReader;
 import org.apache.drill.exec.planner.physical.PlannerSettings;
 import org.apache.drill.exec.proto.ExecProtos.FragmentHandle;
 import org.apache.drill.exec.proto.UserBitShared.CoreOperatorType;
-import org.apache.drill.exec.record.metadata.TupleMetadata;
+import org.apache.drill.exec.record.metadata.Propertied;
 import org.apache.drill.exec.server.DrillbitContext;
 import org.apache.drill.exec.server.options.OptionManager;
 import org.apache.drill.exec.store.RecordWriter;
@@ -90,7 +90,7 @@ public class TextFormatPlugin extends EasyFormatPlugin<TextFormatPlugin.TextForm
   // uses of these names and denotes that the names work only for the text
   // format plugin.
 
-  public static final String TEXT_PREFIX = TupleMetadata.DRILL_PROP_PREFIX + PLUGIN_NAME + ".";
+  public static final String TEXT_PREFIX = Propertied.pluginPrefix(PLUGIN_NAME);
   public static final String HAS_HEADERS_PROP = TEXT_PREFIX + "extractHeader";
   public static final String SKIP_FIRST_LINE_PROP = TEXT_PREFIX + "skipFirstLine";
   public static final String DELIMITER_PROP = TEXT_PREFIX + "fieldDelimiter";
@@ -264,6 +264,7 @@ public class TextFormatPlugin extends EasyFormatPlugin<TextFormatPlugin.TextForm
   protected FileScanBuilder frameworkBuilder(
       OptionManager options, EasySubScan scan) throws ExecutionSetupException {
     ColumnsScanBuilder builder = new ColumnsScanBuilder();
+    initScanBuilder(builder, scan);
     TextParsingSettings settings =
         new TextParsingSettings(getConfig(), scan, options);
     builder.setReaderFactory(new ColumnsReaderFactory(settings));
@@ -293,12 +294,12 @@ public class TextFormatPlugin extends EasyFormatPlugin<TextFormatPlugin.TextForm
     builder.allowRequiredNullColumns(true);
 
     // Provide custom error context
+
     builder.setContext(
-        new CustomErrorContext() {
+        new ChildErrorContext(builder.errorContext()) {
           @Override
           public void addContext(UserException.Builder builder) {
-            builder.addContext("Format plugin:", PLUGIN_NAME);
-            builder.addContext("Plugin config name:", getName());
+            super.addContext(builder);
             builder.addContext("Extract headers:",
                 Boolean.toString(getConfig().isHeaderExtractionEnabled()));
             builder.addContext("Skip first line:",

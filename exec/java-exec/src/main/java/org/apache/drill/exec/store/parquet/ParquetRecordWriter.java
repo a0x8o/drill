@@ -25,6 +25,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.stream.Collectors;
 
 import org.apache.drill.common.exceptions.DrillRuntimeException;
 import org.apache.drill.common.expression.SchemaPath;
@@ -49,6 +51,7 @@ import org.apache.drill.exec.store.EventBasedRecordWriter.FieldConverter;
 import org.apache.drill.exec.store.ParquetOutputRecordWriter;
 import org.apache.drill.exec.util.DecimalUtility;
 import org.apache.drill.exec.vector.BitVector;
+import org.apache.drill.exec.vector.complex.BaseRepeatedValueVector;
 import org.apache.drill.exec.vector.complex.reader.FieldReader;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
@@ -76,6 +79,7 @@ import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Type.Repetition;
 
 import org.apache.drill.shaded.guava.com.google.common.collect.Lists;
+import org.apache.parquet.schema.Types.ListBuilder;
 
 public class ParquetRecordWriter extends ParquetOutputRecordWriter {
   private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(ParquetRecordWriter.class);
@@ -121,6 +125,9 @@ public class ParquetRecordWriter extends ParquetOutputRecordWriter {
   private boolean hasPartitions;
   private PrimitiveTypeName logicalTypeForDecimals;
   private boolean usePrimitiveTypesForDecimals;
+
+  /** Is used to ensure that empty Parquet file will be written if no rows were provided. */
+  private boolean empty = true;
 
   public ParquetRecordWriter(FragmentContext context, ParquetWriter writer) throws OutOfMemoryException {
     this.oContext = context.newOperatorContext(writer);
@@ -205,7 +212,7 @@ public class ParquetRecordWriter extends ParquetOutputRecordWriter {
   public void updateSchema(VectorAccessible batch) throws IOException {
     if (this.batchSchema == null || !this.batchSchema.equals(batch.getSchema()) || containsComplexVectors(this.batchSchema)) {
       if (this.batchSchema != null) {
-        flush();
+        flush(false);
       }
       this.batchSchema = batch.getSchema();
       newSchema();
@@ -286,19 +293,89 @@ public class ParquetRecordWriter extends ParquetOutputRecordWriter {
     DataMode dataMode = field.getType().getMode();
     switch (minorType) {
       case MAP:
-        List<Type> types = Lists.newArrayList();
-        for (MaterializedField childField : field.getChildren()) {
-          types.add(getType(childField));
-        }
+        List<Type> types = getChildrenTypes(field);
         return new GroupType(dataMode == DataMode.REPEATED ? Repetition.REPEATED : Repetition.OPTIONAL, field.getName(), types);
       case LIST:
-        throw new UnsupportedOperationException("Unsupported type " + minorType);
+        MaterializedField elementField = getDataField(field);
+        ListBuilder<GroupType> listBuilder = org.apache.parquet.schema.Types
+            .list(dataMode == DataMode.OPTIONAL ? Repetition.OPTIONAL : Repetition.REQUIRED);
+        addElementType(listBuilder, elementField);
+        GroupType listType = listBuilder.named(field.getName());
+        return listType;
       case NULL:
         MaterializedField newField = field.withType(
-          TypeProtos.MajorType.newBuilder().setMinorType(MinorType.INT).setMode(DataMode.OPTIONAL).build());
+            TypeProtos.MajorType.newBuilder().setMinorType(MinorType.INT).setMode(DataMode.OPTIONAL).build());
         return getPrimitiveType(newField);
       default:
         return getPrimitiveType(field);
+    }
+  }
+
+  /**
+   * Helper method for conversion of map child
+   * fields.
+   *
+   * @param field map
+   * @return converted child fields
+   */
+  private List<Type> getChildrenTypes(MaterializedField field) {
+    return field.getChildren().stream()
+        .map(this::getType)
+        .collect(Collectors.toList());
+  }
+
+  /**
+   * For list or repeated type possible child fields are {@link BaseRepeatedValueVector#DATA_VECTOR_NAME}
+   * and {@link BaseRepeatedValueVector#OFFSETS_VECTOR_NAME}. This method used to find the data field.
+   *
+   * @param field parent repeated field
+   * @return child data field
+   */
+  private MaterializedField getDataField(MaterializedField field) {
+    return field.getChildren().stream()
+        .filter(child -> BaseRepeatedValueVector.DATA_VECTOR_NAME.equals(child.getName()))
+        .findAny()
+        .orElseThrow(() -> new NoSuchElementException(String.format(
+            "Failed to get elementField '%s' from list: %s",
+            BaseRepeatedValueVector.DATA_VECTOR_NAME, field.getChildren())));
+  }
+
+  /**
+   * Adds element type to {@code listBuilder} based on Drill's
+   * {@code elementField}.
+   *
+   * @param listBuilder  list schema builder
+   * @param elementField Drill's type of list elements
+   */
+  private void addElementType(ListBuilder<GroupType> listBuilder, MaterializedField elementField) {
+    if (elementField.getDataMode() == DataMode.REPEATED) {
+      ListBuilder<GroupType> inner = org.apache.parquet.schema.Types.requiredList();
+      if (elementField.getType().getMinorType() == MinorType.MAP) {
+        GroupType mapGroupType = new GroupType(Repetition.REQUIRED, ELEMENT, getChildrenTypes(elementField));
+        inner.element(mapGroupType);
+      } else {
+        MaterializedField child2 = getDataField(elementField);
+        addElementType(inner, child2);
+      }
+      listBuilder.setElementType(inner.named(ELEMENT));
+    } else {
+      Type element = getType(elementField);
+      // element may have internal name '$data$',
+      // rename it to 'element' according to Parquet list schema
+      if (element.isPrimitive()) {
+        PrimitiveType primitiveElement = element.asPrimitiveType();
+        element = new PrimitiveType(
+            primitiveElement.getRepetition(),
+            primitiveElement.getPrimitiveTypeName(),
+            ELEMENT,
+            primitiveElement.getOriginalType()
+        );
+      } else {
+        GroupType groupElement = element.asGroupType();
+        element = new GroupType(groupElement.getRepetition(),
+            ELEMENT, groupElement.getFields());
+      }
+      listBuilder.element(element);
     }
   }
 
@@ -310,7 +387,7 @@ public class ParquetRecordWriter extends ParquetOutputRecordWriter {
     try {
       boolean newPartition = newPartition(index);
       if (newPartition) {
-        flush();
+        flush(false);
         newSchema();
       }
     } catch (Exception e) {
@@ -318,19 +395,18 @@ public class ParquetRecordWriter extends ParquetOutputRecordWriter {
     }
   }
 
-  private void flush() throws IOException {
+  private void flush(boolean cleanUp) throws IOException {
     try {
       if (recordCount > 0) {
-        parquetFileWriter.startBlock(recordCount);
-        consumer.flush();
-        store.flush();
-        pageStore.flushToFileWriter(parquetFileWriter);
-        recordCount = 0;
-        parquetFileWriter.endBlock();
-
-        // we are writing one single block per file
-        parquetFileWriter.end(extraMetaData);
-        parquetFileWriter = null;
+        flushParquetFileWriter();
+      } else if (cleanUp && empty && schema != null && schema.getFieldCount() > 0) {
+        // Write empty parquet if:
+        // 1) This is a cleanup - no any additional records can be written
+        // 2) No file was written until this moment
+        // 3) Schema is set
+        // 4) Schema is not empty
+        createParquetFileWriter();
+        flushParquetFileWriter();
       }
     } finally {
       store.close();
@@ -347,7 +423,7 @@ public class ParquetRecordWriter extends ParquetOutputRecordWriter {
       long memSize = store.getBufferedSize();
       if (memSize > blockSize) {
         logger.debug("Reached block size " + blockSize);
-        flush();
+        flush(false);
         newSchema();
         recordCountForNextMemCheck = min(max(MINIMUM_RECORD_COUNT_FOR_CHECK, recordCount / 2), MAXIMUM_RECORD_COUNT_FOR_CHECK);
       } else {
@@ -421,8 +497,58 @@ public class ParquetRecordWriter extends ParquetOutputRecordWriter {
       }
       consumer.endField(fieldName, fieldId);
     }
+
+    @Override
+    public void writeListField() throws IOException {
+      if (reader.size() == 0) {
+        return;
+      }
+      consumer.startField(LIST, ZERO_IDX);
+      while (reader.next()) {
+        consumer.startGroup();
+        consumer.startField(ELEMENT, ZERO_IDX);
+
+        consumer.startGroup();
+        for (FieldConverter converter : converters) {
+          converter.writeField();
+        }
+        consumer.endGroup();
+
+        consumer.endField(ELEMENT, ZERO_IDX);
+        consumer.endGroup();
+      }
+      consumer.endField(LIST, ZERO_IDX);
+    }
   }
 
+  @Override
+  public FieldConverter getNewRepeatedListConverter(int fieldId, String fieldName, FieldReader reader) {
+    return new RepeatedListParquetConverter(fieldId, fieldName, reader);
+  }
+
+  public class RepeatedListParquetConverter extends FieldConverter {
+    private final FieldConverter converter;
+
+    RepeatedListParquetConverter(int fieldId, String fieldName, FieldReader reader) {
+      super(fieldId, fieldName, reader);
+      converter = EventBasedRecordWriter.getConverter(ParquetRecordWriter.this, 0, "", reader.reader());
+    }
+
+    @Override
+    public void writeField() throws IOException {
+      consumer.startField(fieldName, fieldId);
+      consumer.startField(LIST, ZERO_IDX);
+      while (reader.next()) {
+        consumer.startGroup();
+        consumer.startField(ELEMENT, ZERO_IDX);
+        converter.writeListField();
+        consumer.endField(ELEMENT, ZERO_IDX);
+        consumer.endGroup();
+      }
+      consumer.endField(LIST, ZERO_IDX);
+      consumer.endField(fieldName, fieldId);
+    }
+  }
 
   @Override
   public void startRecord() throws IOException {
@@ -435,29 +561,10 @@ public class ParquetRecordWriter extends ParquetOutputRecordWriter {
 
     // we wait until there is at least one record before creating the parquet file
     if (parquetFileWriter == null) {
-      Path path = new Path(location, prefix + "_" + index + ".parquet");
-      // to ensure that our writer was the first to create output file, we create empty file first and fail if file exists
-      Path firstCreatedPath = storageStrategy.createFileAndApply(fs, path);
-
-      // since parquet reader supports partitions, it means that several output files may be created
-      // if this writer was the one to create table folder, we store only folder and delete it with its content in case of abort
-      // if table location was created before, we store only files created by this writer and delete them in case of abort
-      addCleanUpLocation(fs, firstCreatedPath);
-
-      // since ParquetFileWriter will overwrite empty output file (append is not supported)
-      // we need to re-apply file permission
-      if (useSingleFSBlock) {
-        // Passing blockSize creates files with this blockSize instead of filesystem default blockSize.
-        // Currently, this is supported only by filesystems included in
-        // BLOCK_FS_SCHEMES (ParquetFileWriter.java in parquet-mr), which includes HDFS.
-        // For other filesystems, it uses default blockSize configured for the file system.
-        parquetFileWriter = new ParquetFileWriter(conf, schema, path, ParquetFileWriter.Mode.OVERWRITE, blockSize, 0);
-      } else {
-        parquetFileWriter = new ParquetFileWriter(conf, schema, path, ParquetFileWriter.Mode.OVERWRITE);
-      }
-      storageStrategy.applyToFile(fs, path);
-      parquetFileWriter.start();
+      createParquetFileWriter();
     }
+
+    empty = false;
     recordCount++;
     checkBlockSizeReached();
   }
@@ -486,9 +593,47 @@ public class ParquetRecordWriter extends ParquetOutputRecordWriter {
 
   @Override
   public void cleanup() throws IOException {
-    flush();
+    flush(true);
 
     codecFactory.release();
+  }
+
+  private void createParquetFileWriter() throws IOException {
+    Path path = new Path(location, prefix + "_" + index + ".parquet");
+    // to ensure that our writer was the first to create output file, we create empty file first and fail if file exists
+    Path firstCreatedPath = storageStrategy.createFileAndApply(fs, path);
+
+    // since parquet reader supports partitions, it means that several output files may be created
+    // if this writer was the one to create table folder, we store only folder and delete it with its content in case of abort
+    // if table location was created before, we store only files created by this writer and delete them in case of abort
+    addCleanUpLocation(fs, firstCreatedPath);
+
+    // since ParquetFileWriter will overwrite empty output file (append is not supported)
+    // we need to re-apply file permission
+    if (useSingleFSBlock) {
+      // Passing blockSize creates files with this blockSize instead of filesystem default blockSize.
+      // Currently, this is supported only by filesystems included in
+      // BLOCK_FS_SCHEMES (ParquetFileWriter.java in parquet-mr), which includes HDFS.
+      // For other filesystems, it uses default blockSize configured for the file system.
+      parquetFileWriter = new ParquetFileWriter(conf, schema, path, ParquetFileWriter.Mode.OVERWRITE, blockSize, 0);
+    } else {
+      parquetFileWriter = new ParquetFileWriter(conf, schema, path, ParquetFileWriter.Mode.OVERWRITE);
+    }
+    storageStrategy.applyToFile(fs, path);
+    parquetFileWriter.start();
+  }
+
+  private void flushParquetFileWriter() throws IOException {
+    parquetFileWriter.startBlock(recordCount);
+    consumer.flush();
+    store.flush();
+    pageStore.flushToFileWriter(parquetFileWriter);
+    recordCount = 0;
+    parquetFileWriter.endBlock();
+
+    // we are writing one single block per file
+    parquetFileWriter.end(extraMetaData);
+    parquetFileWriter = null;
   }
 
   /**

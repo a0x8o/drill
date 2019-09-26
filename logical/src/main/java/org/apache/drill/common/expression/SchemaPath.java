@@ -25,6 +25,7 @@ import org.apache.drill.common.expression.PathSegment.ArraySegment;
 import org.apache.drill.common.expression.PathSegment.NameSegment;
 import org.apache.drill.common.expression.visitors.ExprVisitor;
 import org.apache.drill.common.parser.LogicalExpressionParser;
+import org.apache.drill.common.types.TypeProtos;
 import org.apache.drill.common.types.TypeProtos.MajorType;
 import org.apache.drill.common.types.Types;
 import org.apache.drill.exec.proto.UserBitShared.NamePart;
@@ -47,13 +48,20 @@ public class SchemaPath extends LogicalExpressionBase {
   private final NameSegment rootSegment;
 
   public SchemaPath(SchemaPath path) {
-    super(path.getPosition());
-    this.rootSegment = path.rootSegment;
+    this(path.rootSegment, path.getPosition());
   }
 
   public SchemaPath(NameSegment rootSegment) {
-    super(ExpressionPosition.UNKNOWN);
-    this.rootSegment = rootSegment;
+    this(rootSegment, ExpressionPosition.UNKNOWN);
+  }
+
+  /**
+   * @deprecated Use {@link #SchemaPath(NameSegment)}
+   * or {@link #SchemaPath(NameSegment, ExpressionPosition)} instead
+   */
+  @Deprecated
+  public SchemaPath(String simpleName, ExpressionPosition pos) {
+    this(new NameSegment(simpleName), pos);
   }
 
   public SchemaPath(NameSegment rootSegment, ExpressionPosition pos) {
@@ -95,12 +103,6 @@ public class SchemaPath extends LogicalExpressionBase {
       s = s.getChild();
     }
     return s;
-  }
-
-  @Deprecated
-  public SchemaPath(String simpleName, ExpressionPosition pos) {
-    super(pos);
-    this.rootSegment = new NameSegment(simpleName);
   }
 
   public NamePart getAsNamePart() {
@@ -301,8 +303,18 @@ public class SchemaPath extends LogicalExpressionBase {
     return new SchemaPath(newRoot);
   }
 
+  public SchemaPath getChild(String childPath, Object originalValue, TypeProtos.MajorType valueType) {
+    NameSegment newRoot = rootSegment.cloneWithNewChild(new NameSegment(childPath, originalValue, valueType));
+    return new SchemaPath(newRoot);
+  }
+
   public SchemaPath getChild(int index) {
     NameSegment newRoot = rootSegment.cloneWithNewChild(new ArraySegment(index));
+    return new SchemaPath(newRoot);
+  }
+
+  public SchemaPath getChild(int index, Object originalValue, TypeProtos.MajorType valueType) {
+    NameSegment newRoot = rootSegment.cloneWithNewChild(new ArraySegment(index, originalValue, valueType));
     return new SchemaPath(newRoot);
   }
 

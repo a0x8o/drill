@@ -43,6 +43,8 @@
     <module>format-maprdb</module>
     <module>format-syslog</module>
     <module>format-ltsv</module>
+    <module>format-excel</module>
+    <module>format-esri</module>
     <module>storage-hive</module>
     <module>storage-mongo</module>
     <module>storage-jdbc</module>

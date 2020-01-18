@@ -20,7 +20,6 @@ package org.apache.drill.exec.record;
 import java.util.Iterator;
 
 import org.apache.drill.common.exceptions.DrillRuntimeException;
-import org.apache.drill.common.exceptions.UserException;
 import org.apache.drill.common.expression.SchemaPath;
 import org.apache.drill.exec.ExecConstants;
 import org.apache.drill.exec.exception.OutOfMemoryException;
@@ -91,8 +90,6 @@ public abstract class AbstractRecordBatch<T extends PhysicalOperator> implements
     NOT_FIRST,
     /** The query most likely failed, we need to propagate STOP to the root. */
     STOP,
-    /** Out of Memory while building the Schema...Ouch! */
-    OUT_OF_MEMORY,
     /** All work is done, no more data to be sent. */
     DONE
   }
@@ -112,19 +109,15 @@ public abstract class AbstractRecordBatch<T extends PhysicalOperator> implements
   }
 
   public final IterOutcome next(RecordBatch b) {
-    if(!context.getExecutorState().shouldContinue()) {
-      return IterOutcome.STOP;
-    }
+    checkContinue();
     return next(0, b);
   }
 
   public final IterOutcome next(int inputIndex, RecordBatch b) {
     IterOutcome next;
-    stats.stopProcessing();
     try {
-      if (!context.getExecutorState().shouldContinue()) {
-        return IterOutcome.STOP;
-      }
+      stats.stopProcessing();
+      checkContinue();
       next = b.next();
     } finally {
       stats.startProcessing();
@@ -165,11 +158,6 @@ public abstract class AbstractRecordBatch<T extends PhysicalOperator> implements
             case DONE:
               lastOutcome = IterOutcome.NONE;
               break;
-            case OUT_OF_MEMORY:
-              // because we don't support schema changes, it is safe to fail the query right away
-              context.getExecutorState().fail(UserException.memoryError()
-                .build(logger));
-              // FALL-THROUGH
             case STOP:
               lastOutcome = IterOutcome.STOP;
               break;
@@ -253,7 +241,9 @@ public abstract class AbstractRecordBatch<T extends PhysicalOperator> implements
 
   @Override
   public VectorContainer getOutgoingContainer() {
-    throw new UnsupportedOperationException(String.format(" You should not call getOutgoingContainer() for class %s", this.getClass().getCanonicalName()));
+    throw new UnsupportedOperationException(String.format(
+        "You should not call getOutgoingContainer() for class %s",
+        getClass().getCanonicalName()));
   }
 
   @Override
@@ -272,5 +262,15 @@ public abstract class AbstractRecordBatch<T extends PhysicalOperator> implements
 
   public boolean isRecordBatchStatsLoggingEnabled() {
     return batchStatsContext.isEnableBatchSzLogging();
+  }
+
+  /**
+   * Checks if the query should continue. Throws a UserException if not.
+   * Operators should call this periodically to detect cancellation
+   * requests. The operator need not catch the exception: it will bubble
+   * up the operator tree and be handled like any other fatal error.
+   */
+  public void checkContinue() {
+    context.getExecutorState().checkContinue();
   }
 }

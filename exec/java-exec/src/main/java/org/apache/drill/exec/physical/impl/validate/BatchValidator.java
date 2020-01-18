@@ -17,25 +17,7 @@
  */
 package org.apache.drill.exec.physical.impl.validate;
 
-import java.util.IdentityHashMap;
-import java.util.Map;
-
 import org.apache.drill.common.types.TypeProtos.MinorType;
-import org.apache.drill.exec.physical.impl.ScanBatch;
-import org.apache.drill.exec.physical.impl.aggregate.HashAggBatch;
-import org.apache.drill.exec.physical.impl.aggregate.StreamingAggBatch;
-import org.apache.drill.exec.physical.impl.filter.FilterRecordBatch;
-import org.apache.drill.exec.physical.impl.filter.RuntimeFilterRecordBatch;
-import org.apache.drill.exec.physical.impl.flatten.FlattenRecordBatch;
-import org.apache.drill.exec.physical.impl.join.MergeJoinBatch;
-import org.apache.drill.exec.physical.impl.join.NestedLoopJoinBatch;
-import org.apache.drill.exec.physical.impl.limit.LimitRecordBatch;
-import org.apache.drill.exec.physical.impl.limit.PartitionLimitRecordBatch;
-import org.apache.drill.exec.physical.impl.project.ProjectRecordBatch;
-import org.apache.drill.exec.physical.impl.protocol.OperatorRecordBatch;
-import org.apache.drill.exec.physical.impl.svremover.RemovingRecordBatch;
-import org.apache.drill.exec.physical.impl.unnest.UnnestRecordBatch;
-import org.apache.drill.exec.record.CloseableRecordBatch;
 import org.apache.drill.exec.record.RecordBatch;
 import org.apache.drill.exec.record.SimpleVectorWrapper;
 import org.apache.drill.exec.record.VectorAccessible;
@@ -43,6 +25,10 @@ import org.apache.drill.exec.record.VectorContainer;
 import org.apache.drill.exec.record.VectorWrapper;
 import org.apache.drill.exec.vector.BitVector;
 import org.apache.drill.exec.vector.FixedWidthVector;
+import org.apache.drill.exec.vector.NullableVar16CharVector;
+import org.apache.drill.exec.vector.NullableVarBinaryVector;
+import org.apache.drill.exec.vector.NullableVarCharVector;
+import org.apache.drill.exec.vector.NullableVarDecimalVector;
 import org.apache.drill.exec.vector.NullableVector;
 import org.apache.drill.exec.vector.RepeatedBitVector;
 import org.apache.drill.exec.vector.UInt1Vector;
@@ -53,11 +39,10 @@ import org.apache.drill.exec.vector.VarCharVector;
 import org.apache.drill.exec.vector.VarDecimalVector;
 import org.apache.drill.exec.vector.VariableWidthVector;
 import org.apache.drill.exec.vector.ZeroVector;
+import org.apache.drill.exec.vector.complex.AbstractRepeatedMapVector;
 import org.apache.drill.exec.vector.complex.BaseRepeatedValueVector;
-import org.apache.drill.exec.vector.complex.DictVector;
 import org.apache.drill.exec.vector.complex.MapVector;
 import org.apache.drill.exec.vector.complex.RepeatedListVector;
-import org.apache.drill.exec.vector.complex.RepeatedMapVector;
 import org.apache.drill.exec.vector.complex.UnionVector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -69,6 +54,30 @@ import org.slf4j.LoggerFactory;
  * Only handles single (non-hyper) vectors at present. Current form is
  * self-contained. Better checks can be done by moving checks inside
  * vectors or by exposing more metadata from vectors.
+ * <p>
+ * Drill is not clear on how to handle a batch of zero records. Offset
+ * vectors normally have one more entry than the record count. If a
+ * batch has 1 record, the offset vector has 2 entries. The entry at
+ * 0 is always 0, the entry at 1 marks the end of the 0th record.
+ * <p>
+ * But, this gets a bit murky. If a batch has one record, and contains
+ * a repeated map, and the map has no entries, then the nested offset
+ * vector usually has 0 entries, not 1.
+ * <p>
+ * Generalizing, sometimes when a batch has zero records, the "top-level"
+ * offset vectors have 1 items, sometimes zero items.
+ * <p>
+ * The simplest solution would be to simply enforce here that all offset
+ * vectors must have n+1 entries, where n is the row count (top-level
+ * vectors) or item count (nested vectors.)
+ * <p>
+ * But, after fighting with the code, this seems an unobtainable goal.
+ * For one thing, deserialization seems to rely on nested offset vectors
+ * having zero entries when the value count is zero.
+ * <p>
+ * Instead, this code assumes that any offset vector, top-level or
+ * nested, will have zero entries if the value count is zero. That is
+ * an offset vector has either zero entries or n+1 entries.
  */
 
 public class BatchValidator {
@@ -160,75 +169,17 @@ public class BatchValidator {
     }
   }
 
-  private enum CheckMode {
-    /** No checking. */
-    NONE,
-    /** Check only batch, container counts. */
-    COUNTS,
-    /** Check vector value counts. */
-    VECTORS,
-    /** Check special handling of zero-sized vectors.
-     *  This is the most strict form of checking, but
-     *  many operators fail this check.
-     */
-    ZERO_SIZE
-    };
-
-  private static final Map<Class<? extends CloseableRecordBatch>, CheckMode> checkRules = buildRules();
-
   private final ErrorReporter errorReporter;
-  private final boolean checkZeroSize;
 
-  public BatchValidator(ErrorReporter errorReporter, boolean checkZeroSize) {
+  public BatchValidator(ErrorReporter errorReporter) {
     this.errorReporter = errorReporter;
-    this.checkZeroSize = checkZeroSize;
-  }
-
-  /**
-   * At present, most operators will not pass the checks here. The following
-   * table identifies those that should be checked, and the degree of check.
-   * Over time, this table should include all operators, and thus become
-   * unnecessary.
-   */
-  private static Map<Class<? extends CloseableRecordBatch>, CheckMode> buildRules() {
-    Map<Class<? extends CloseableRecordBatch>, CheckMode> rules = new IdentityHashMap<>();
-    rules.put(OperatorRecordBatch.class, CheckMode.ZERO_SIZE);
-    rules.put(ScanBatch.class, CheckMode.ZERO_SIZE);
-    rules.put(ProjectRecordBatch.class, CheckMode.ZERO_SIZE);
-    rules.put(FilterRecordBatch.class, CheckMode.VECTORS);
-    rules.put(PartitionLimitRecordBatch.class, CheckMode.VECTORS);
-    rules.put(UnnestRecordBatch.class, CheckMode.VECTORS);
-    rules.put(HashAggBatch.class, CheckMode.VECTORS);
-    rules.put(RemovingRecordBatch.class, CheckMode.ZERO_SIZE);
-    rules.put(StreamingAggBatch.class, CheckMode.ZERO_SIZE);
-    rules.put(RuntimeFilterRecordBatch.class, CheckMode.ZERO_SIZE);
-    rules.put(FlattenRecordBatch.class, CheckMode.ZERO_SIZE);
-    rules.put(MergeJoinBatch.class, CheckMode.ZERO_SIZE);
-    rules.put(NestedLoopJoinBatch.class, CheckMode.ZERO_SIZE);
-    rules.put(LimitRecordBatch.class, CheckMode.ZERO_SIZE);
-    return rules;
-  }
-
-  private static CheckMode lookup(Object subject) {
-    CheckMode checkMode = checkRules.get(subject.getClass());
-    return checkMode == null ? CheckMode.NONE : checkMode;
   }
 
   public static boolean validate(RecordBatch batch) {
-    CheckMode checkMode = lookup(batch);
-
-    // If no rule, don't check this batch.
-
-    if (checkMode == CheckMode.NONE) {
-
-      // As work proceeds, might want to log those batches not checked.
-      // For now, there are too many.
-
-      return true;
-    }
-
-    // All batches that do any checks will at least check counts.
-
+    // This is a handy place to trace batches as they flow up
+    // the DAG. Works best for single-threaded runs with a few records.
+    // System.out.println(batch.getClass().getSimpleName());
+    // RowSetFormatter.print(batch);
     ErrorReporter reporter = errorReporter(batch);
     int rowCount = batch.getRecordCount();
     int valueCount = rowCount;
@@ -286,17 +237,13 @@ public class BatchValidator {
         break;
       }
     }
-    if (checkMode == CheckMode.VECTORS ||
-        checkMode == CheckMode.ZERO_SIZE) {
-      new BatchValidator(reporter, checkMode == CheckMode.ZERO_SIZE)
-          .validateBatch(batch, valueCount);
-    }
+    new BatchValidator(reporter).validateBatch(batch, valueCount);
     return reporter.errorCount() == 0;
   }
 
   public static boolean validate(VectorAccessible batch) {
     ErrorReporter reporter = errorReporter(batch);
-    new BatchValidator(reporter, false).validateBatch(batch, batch.getRecordCount());
+    new BatchValidator(reporter).validateBatch(batch, batch.getRecordCount());
     return reporter.errorCount() == 0;
   }
 
@@ -317,61 +264,63 @@ public class BatchValidator {
 
   private void validateWrapper(int rowCount, VectorWrapper<? extends ValueVector> w) {
     if (w instanceof SimpleVectorWrapper) {
-      validateVector(rowCount, w.getValueVector(), true);
+      validateVector(rowCount, w.getValueVector());
     }
   }
 
-  private void validateVector(int expectedCount, ValueVector vector, boolean topLevel) {
-    validateVector(vector.getField().getName(), expectedCount, vector, topLevel);
+  private void validateVector(int expectedCount, ValueVector vector) {
+    validateVector(vector.getField().getName(), expectedCount, vector);
   }
 
-  private void validateVector(String name, int expectedCount, ValueVector vector, boolean topLevel) {
+  private void validateVector(String name, int expectedCount, ValueVector vector) {
     int valueCount = vector.getAccessor().getValueCount();
     if (valueCount != expectedCount) {
       error(name, vector,
           String.format("Row count = %d, but value count = %d",
               expectedCount, valueCount));
     }
-    validateVector(name, vector, topLevel);
+    validateVector(name, vector);
   }
 
-  private void validateVector(String name, ValueVector vector, boolean topLevel) {
+  private void validateVector(String name, ValueVector vector) {
     if (vector instanceof BitVector) {
       validateBitVector(name, (BitVector) vector);
     } else if (vector instanceof RepeatedBitVector) {
-      validateRepeatedBitVector(name, (RepeatedBitVector) vector, topLevel);
+      validateRepeatedBitVector(name, (RepeatedBitVector) vector);
     } else if (vector instanceof NullableVector) {
-      validateNullableVector(name, (NullableVector) vector, topLevel);
+      validateNullableVector(name, (NullableVector) vector);
     } else if (vector instanceof VarCharVector) {
-      validateVarCharVector(name, (VarCharVector) vector, topLevel);
+      validateVarCharVector(name, (VarCharVector) vector);
     } else if (vector instanceof VarBinaryVector) {
-      validateVarBinaryVector(name, (VarBinaryVector) vector, topLevel);
+      validateVarBinaryVector(name, (VarBinaryVector) vector);
     } else if (vector instanceof FixedWidthVector ||
                vector instanceof ZeroVector) {
       // Not much to do. The only item to check is the vector
       // count itself, which was already done. There is no inner
       // structure to check.
     } else if (vector instanceof BaseRepeatedValueVector) {
-      validateRepeatedVector(name, (BaseRepeatedValueVector) vector, topLevel);
-    } else if (vector instanceof RepeatedMapVector) {
-      validateRepeatedMapVector(name, (RepeatedMapVector) vector, topLevel);
+      validateRepeatedVector(name, (BaseRepeatedValueVector) vector);
+    } else if (vector instanceof AbstractRepeatedMapVector) { // RepeatedMapVector or DictVector
+      // In case of DictVector, keys and values vectors are not validated explicitly to avoid NPE
+      // when keys and values vectors are not set. This happens when output dict vector's keys and
+      // values are not constructed while copying values from input reader to dict writer and the
+      // input reader is an instance of NullReader for all rows which does not have schema.
+      validateRepeatedMapVector(name, (AbstractRepeatedMapVector) vector);
     } else if (vector instanceof MapVector) {
       validateMapVector(name, (MapVector) vector);
     } else if (vector instanceof RepeatedListVector) {
-      validateRepeatedListVector(name, (RepeatedListVector) vector, topLevel);
-    } else if (vector instanceof DictVector) {
-      validateDictVector(name, (DictVector) vector, topLevel);
+      validateRepeatedListVector(name, (RepeatedListVector) vector);
     } else if (vector instanceof UnionVector) {
       validateUnionVector(name, (UnionVector) vector);
     } else if (vector instanceof VarDecimalVector) {
-      validateVarDecimalVector(name, (VarDecimalVector) vector, topLevel);
+      validateVarDecimalVector(name, (VarDecimalVector) vector);
     } else {
       logger.debug("Don't know how to validate vector: {}  of class {}",
           name, vector.getClass().getSimpleName());
     }
   }
 
-  private void validateNullableVector(String name, NullableVector vector, boolean topLevel) {
+  private void validateNullableVector(String name, NullableVector vector) {
     int outerCount = vector.getAccessor().getValueCount();
     ValueVector valuesVector = vector.getValuesVector();
     int valueCount = valuesVector.getAccessor().getValueCount();
@@ -380,45 +329,70 @@ public class BatchValidator {
           "Outer value count = %d, but inner value count = %d",
           outerCount, valueCount));
     }
-    verifyIsSetVector(vector, (UInt1Vector) vector.getBitsVector());
-    validateVector(name + "-values", valuesVector, topLevel);
-  }
-
-  private void validateVarCharVector(String name, VarCharVector vector, boolean topLevel) {
-    int dataLength = vector.getBuffer().writerIndex();
-    validateVarWidthVector(name, vector, dataLength, topLevel);
-  }
-
-  private void validateVarBinaryVector(String name, VarBinaryVector vector, boolean topLevel) {
-    int dataLength = vector.getBuffer().writerIndex();
-    validateVarWidthVector(name, vector, dataLength, topLevel);
-  }
-
-  private void validateVarDecimalVector(String name, VarDecimalVector vector,
-      boolean topLevel) {
-    int dataLength = vector.getBuffer().writerIndex();
-    validateVarWidthVector(name, vector, dataLength, topLevel);
-  }
-
-  private void validateVarWidthVector(String name, VariableWidthVector vector, int dataLength, boolean topLevel) {
-    int valueCount = vector.getAccessor().getValueCount();
-
-    // Disabled because a large number of operators
-    // set up offset vectors wrongly.
-    if (valueCount == 0 && !checkZeroSize) {
-      return;
+    int lastSet = getLastSet(vector);
+    if (lastSet != -2) {
+      if (lastSet != valueCount - 1) {
+        error(name, vector, String.format(
+            "Value count = %d, but last set = %d",
+            valueCount, lastSet));
+      }
     }
-
-    validateOffsetVector(name + "-offsets", vector.getOffsetVector(),
-        valueCount, dataLength, topLevel);
+    verifyIsSetVector(vector, (UInt1Vector) vector.getBitsVector());
+    validateVector(name + "-values", valuesVector);
   }
 
-  private void validateRepeatedVector(String name, BaseRepeatedValueVector vector, boolean topLevel) {
+  // getLastSet() is visible per vector type, not on a super class.
+  // There is no common nullable, variable width super class.
+
+  private int getLastSet(NullableVector vector) {
+    if (vector instanceof NullableVarCharVector) {
+      return ((NullableVarCharVector) vector).getMutator().getLastSet();
+    }
+    if (vector instanceof NullableVarBinaryVector) {
+      return ((NullableVarBinaryVector) vector).getMutator().getLastSet();
+    }
+    if (vector instanceof NullableVarDecimalVector) {
+      return ((NullableVarDecimalVector) vector).getMutator().getLastSet();
+    }
+    if (vector instanceof NullableVar16CharVector) {
+      return ((NullableVar16CharVector) vector).getMutator().getLastSet();
+    }
+    // Otherwise, return a value that is never legal for lastSet
+    return -2;
+  }
+
+  private void validateVarCharVector(String name, VarCharVector vector) {
+    int dataLength = vector.getBuffer().writerIndex();
+    validateVarWidthVector(name, vector, dataLength);
+  }
+
+  private void validateVarBinaryVector(String name, VarBinaryVector vector) {
+    int dataLength = vector.getBuffer().writerIndex();
+    int lastOffset = validateVarWidthVector(name, vector, dataLength);
+    if (lastOffset != dataLength) {
+      error(name, vector, String.format(
+          "Data vector has length %d, but offset vector has largest offset %d",
+          dataLength, lastOffset));
+    }
+  }
+
+  private void validateVarDecimalVector(String name, VarDecimalVector vector) {
+    int dataLength = vector.getBuffer().writerIndex();
+    validateVarWidthVector(name, vector, dataLength);
+  }
+
+  private int validateVarWidthVector(String name, VariableWidthVector vector, int dataLength) {
+    int valueCount = vector.getAccessor().getValueCount();
+    return validateOffsetVector(name + "-offsets", vector.getOffsetVector(),
+        valueCount, dataLength);
+  }
+
+  private void validateRepeatedVector(String name, BaseRepeatedValueVector vector) {
     ValueVector dataVector = vector.getDataVector();
     int dataLength = dataVector.getAccessor().getValueCount();
     int valueCount = vector.getAccessor().getValueCount();
     int itemCount = validateOffsetVector(name + "-offsets", vector.getOffsetVector(),
-        valueCount, dataLength, topLevel);
+        valueCount, dataLength);
 
     if (dataLength != itemCount) {
       error(name, vector, String.format(
@@ -429,14 +403,14 @@ public class BatchValidator {
     // Special handling of repeated VarChar vectors
     // The nested data vectors are not quite exactly like top-level vectors.
 
-    validateVector(name + "-data", dataVector, false);
+    validateVector(name + "-data", dataVector);
   }
 
-  private void validateRepeatedBitVector(String name, RepeatedBitVector vector, boolean topLevel) {
+  private void validateRepeatedBitVector(String name, RepeatedBitVector vector) {
     int valueCount = vector.getAccessor().getValueCount();
     int maxBitCount = valueCount * 8;
     int elementCount = validateOffsetVector(name + "-offsets",
-        vector.getOffsetVector(), valueCount, maxBitCount, topLevel);
+        vector.getOffsetVector(), valueCount, maxBitCount);
     BitVector dataVector = vector.getDataVector();
     if (dataVector.getAccessor().getValueCount() != elementCount) {
       error(name, vector, String.format(
@@ -461,34 +435,25 @@ public class BatchValidator {
   private void validateMapVector(String name, MapVector vector) {
     int valueCount = vector.getAccessor().getValueCount();
     for (ValueVector child: vector) {
-      validateVector(valueCount, child, false);
+      validateVector(valueCount, child);
     }
   }
 
-  private void validateRepeatedMapVector(String name,
-      RepeatedMapVector vector, boolean topLevel) {
+  private void validateRepeatedMapVector(String name, AbstractRepeatedMapVector vector) {
     int valueCount = vector.getAccessor().getValueCount();
     int elementCount = validateOffsetVector(name + "-offsets",
-        vector.getOffsetVector(), valueCount, Integer.MAX_VALUE, topLevel);
+        vector.getOffsetVector(), valueCount, Integer.MAX_VALUE);
     for (ValueVector child: vector) {
-      validateVector(elementCount, child, false);
+      validateVector(elementCount, child);
     }
-  }
-
-  private void validateDictVector(String name, DictVector vector, boolean topLevel) {
-    int valueCount = vector.getAccessor().getValueCount();
-    int elementCount = validateOffsetVector(name + "-offsets",
-        vector.getOffsetVector(), valueCount, Integer.MAX_VALUE, topLevel);
-    validateVector(elementCount, vector.getKeys(), false);
-    validateVector(elementCount, vector.getValues(), false);
   }
 
   private void validateRepeatedListVector(String name,
-      RepeatedListVector vector, boolean topLevel) {
+      RepeatedListVector vector) {
     int valueCount = vector.getAccessor().getValueCount();
     int elementCount = validateOffsetVector(name + "-offsets",
-        vector.getOffsetVector(), valueCount, Integer.MAX_VALUE, topLevel);
-    validateVector(elementCount, vector.getDataVector(), false);
+        vector.getOffsetVector(), valueCount, Integer.MAX_VALUE);
+    validateVector(elementCount, vector.getDataVector());
   }
 
   private void validateUnionVector(String name, UnionVector vector) {
@@ -506,35 +471,31 @@ public class BatchValidator {
       // empty map vector that causes validation to fail.
       ValueVector child = internalMap.getChild(type.name());
       if (child == null) {
-        error(name, vector, String.format(
-            "Union vector includes type %s, but the internal map has no matching member",
-            type.name()));
+        // Disabling this check for now. TopNBatch, SortBatch
+        // and perhaps others will create vectors with a set of
+        // types, but won't actually populate some of the types.
+        //
+        // error(name, vector, String.format(
+        //     "Union vector includes type %s, but the internal map has no matching member",
+        //     type.name()));
       } else {
         validateVector(name + "-type-" + type.name(),
-            valueCount, child, false);
+            valueCount, child);
       }
     }
   }
 
   private int validateOffsetVector(String name, UInt4Vector offsetVector,
-      int valueCount, int maxOffset, boolean topLevel) {
+      int valueCount, int maxOffset) {
+    // VectorPrinter.printOffsets(offsetVector, valueCount + 1);
     UInt4Vector.Accessor accessor = offsetVector.getAccessor();
     int offsetCount = accessor.getValueCount();
-    // TODO: Disabled because a large number of operators
-    // set up offset vectors incorrectly. Either that, or semantics
-    // are ill-defined: some vectors assume an offset vector length
-    // of 0 if the "outer" value count is zero (which, while fiddly, is
-    // a workable definition.)
-//    if (checkZeroSize && topLevel && offsetCount == 0) {
-//      error(name, offsetVector,
-//          "Offset vector has length 0, expected 1+");
-//    }
     if (valueCount == 0 && offsetCount > 1 || valueCount > 0 && offsetCount != valueCount + 1) {
       error(name, offsetVector, String.format(
           "Outer vector has %d values, but offset vector has %d, expected %d",
           valueCount, offsetCount, valueCount + 1));
     }
-    if (valueCount == 0 && (!topLevel || !checkZeroSize)) {
+    if (valueCount == 0) {
       return 0;
     }
 

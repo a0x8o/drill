@@ -24,6 +24,7 @@ import org.apache.drill.metastore.statistics.ColumnStatistics;
 import org.apache.drill.metastore.statistics.ColumnStatisticsKind;
 import org.apache.drill.metastore.statistics.StatisticsHolder;
 import org.apache.drill.metastore.statistics.TableStatisticsKind;
+import org.apache.drill.test.BaseTest;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
@@ -36,7 +37,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 @Category(MetastoreTest.class)
-public class MetadataSerDeTest {
+public class MetadataSerDeTest extends BaseTest {
 
   @Test
   public void testStatisticsHolderSerialization() {
@@ -69,7 +70,7 @@ public class MetadataSerDeTest {
 
   @Test
   public void testColumnStatisticsSerialization() {
-    List<StatisticsHolder> statistics = Arrays.asList(
+    List<StatisticsHolder<?>> statistics = Arrays.asList(
         new StatisticsHolder<>("aaa", ColumnStatisticsKind.MIN_VALUE),
         new StatisticsHolder<>("zzz", ColumnStatisticsKind.MAX_VALUE),
         new StatisticsHolder<>(3, ColumnStatisticsKind.NULLS_COUNT),
@@ -94,7 +95,7 @@ public class MetadataSerDeTest {
 
   @Test
   public void testColumnStatisticsDeserialization() {
-    List<StatisticsHolder> statistics = Arrays.asList(
+    List<StatisticsHolder<?>> statistics = Arrays.asList(
         new StatisticsHolder<>("aaa", ColumnStatisticsKind.MIN_VALUE),
         new StatisticsHolder<>("zzz", ColumnStatisticsKind.MAX_VALUE),
         new StatisticsHolder<>(3, ColumnStatisticsKind.NULLS_COUNT),
@@ -102,13 +103,13 @@ public class MetadataSerDeTest {
     ColumnStatistics<String> columnStatistics = new ColumnStatistics<>(statistics, TypeProtos.MinorType.VARCHAR);
     String serializedColumnStatistics = columnStatistics.jsonString();
 
-    ColumnStatistics deserialized = ColumnStatistics.of(serializedColumnStatistics);
+    ColumnStatistics<?> deserialized = ColumnStatistics.of(serializedColumnStatistics);
 
     assertEquals("Type was incorrectly deserialized",
         columnStatistics.getComparatorType(),
         deserialized.getComparatorType());
 
-    for (StatisticsHolder statistic : statistics) {
+    for (StatisticsHolder<?> statistic : statistics) {
       assertEquals("Statistics kind was incorrectly deserialized",
           statistic.getStatisticsKind().isExact(),
           deserialized.containsExact(statistic.getStatisticsKind()));
@@ -119,7 +120,7 @@ public class MetadataSerDeTest {
   }
 
   private <T> void checkStatisticsHolderSerialization(T statisticsValue,
-      BaseStatisticsKind statisticsKind, String expectedString) {
+      BaseStatisticsKind<?> statisticsKind, String expectedString) {
     StatisticsHolder<T> statisticsHolder =
         new StatisticsHolder<>(statisticsValue, statisticsKind);
     String serializedStatisticsHolder = statisticsHolder.jsonString();
@@ -130,10 +131,10 @@ public class MetadataSerDeTest {
   }
 
   private <T> void checkStatisticsHolderDeserialization(T statisticsValue,
-      BaseStatisticsKind statisticsKind) {
+      BaseStatisticsKind<?> statisticsKind) {
     StatisticsHolder<T> rowCount =
         new StatisticsHolder<>(statisticsValue, statisticsKind);
-    StatisticsHolder deserializedRowCount = StatisticsHolder.of(rowCount.jsonString());
+    StatisticsHolder<?> deserializedRowCount = StatisticsHolder.of(rowCount.jsonString());
 
     assertTrue("Statistics value was incorrectly deserialized",
         Objects.deepEquals(rowCount.getStatisticsValue(), deserializedRowCount.getStatisticsValue()));
@@ -141,7 +142,7 @@ public class MetadataSerDeTest {
     assertStatisticsKindsEquals(rowCount, deserializedRowCount);
   }
 
-  private <T> void assertStatisticsKindsEquals(StatisticsHolder<T> expected, StatisticsHolder actual) {
+  private <T> void assertStatisticsKindsEquals(StatisticsHolder<T> expected, StatisticsHolder<?> actual) {
     assertEquals("isExact statistics kind was incorrectly deserialized",
         expected.getStatisticsKind().isExact(),
         actual.getStatisticsKind().isExact());

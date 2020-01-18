@@ -295,6 +295,7 @@ public class UnnestRecordBatch extends AbstractTableFunctionRecordBatch<UnnestPO
       remainderIndex = 0;
       logger.debug("IterOutcome: EMIT.");
     }
+    rowIdVector.getMutator().setValueCount(outputRecords);
     container.setValueCount(outputRecords);
 
     memoryManager.updateOutgoingStats(outputRecords);
@@ -374,8 +375,7 @@ public class UnnestRecordBatch extends AbstractTableFunctionRecordBatch<UnnestPO
     TransferPair tp = resetUnnestTransferPair();
     container.add(TypeHelper.getNewVector(tp.getTo().getField(), oContext.getAllocator()));
     container.buildSchema(SelectionVectorMode.NONE);
-    container.allocateNew();
-    container.setValueCount(0);
+    container.setEmpty();
     return true;
   }
 

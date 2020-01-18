@@ -17,10 +17,10 @@
  */
 package org.apache.drill.exec.physical.unit;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.drill.shaded.guava.com.google.common.collect.ImmutableList;
 import org.apache.drill.shaded.guava.com.google.common.collect.Lists;
 import org.apache.calcite.rel.core.JoinRelType;
-import org.apache.directory.api.util.Strings;
 import org.apache.drill.common.exceptions.ExecutionSetupException;
 import org.apache.drill.common.expression.SchemaPath;
 import org.apache.drill.common.expression.LogicalExpression;
@@ -328,7 +328,7 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
         expr[i * 2] = "lower(" + baselineColumns[i] + ")";
         expr[i * 2 + 1] = baselineColumns[i];
       }
-      baselineValues[i] = (transfer ? testString : Strings.lowerCase(testString));
+      baselineValues[i] = (transfer ? testString : StringUtils.lowerCase(testString));
     }
     jsonRow.append("}");
     StringBuilder batchString = new StringBuilder("[");
@@ -385,7 +385,7 @@ public class TestOutputBatchSize extends PhysicalOpUnitTestBase {
       expr[i * 2] = "lower(" + baselineColumns[i] + ")";
       expr[i * 2 + 1] = baselineColumns[i];
 
-      baselineValues[i] = Strings.lowerCase(testString);
+      baselineValues[i] = StringUtils.lowerCase(testString);
     }
 
 

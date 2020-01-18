@@ -17,16 +17,16 @@
  */
 package org.apache.drill.exec.physical.rowSet;
 
-import org.apache.drill.exec.physical.impl.protocol.BatchAccessor;
-import org.apache.commons.io.output.StringBuilderWriter;
-import org.apache.drill.common.exceptions.DrillRuntimeException;
-import org.apache.drill.exec.record.BatchSchema.SelectionVectorMode;
-import org.apache.drill.exec.record.metadata.TupleMetadata;
-import org.apache.drill.exec.record.VectorContainer;
-
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
+
+import org.apache.commons.io.output.StringBuilderWriter;
+import org.apache.drill.common.exceptions.DrillRuntimeException;
+import org.apache.drill.exec.physical.impl.protocol.BatchAccessor;
+import org.apache.drill.exec.record.BatchSchema.SelectionVectorMode;
+import org.apache.drill.exec.record.VectorContainer;
+import org.apache.drill.exec.record.metadata.TupleMetadata;
 
 /**
  * Helper class to obtain string representation of RowSet.
@@ -82,6 +82,7 @@ public class RowSetFormatter {
         }
         writer.write("\n");
       }
+      writer.flush();
     } catch (IOException e) {
       throw new DrillRuntimeException("Error happened when writing rowSet to writer", e);
     }
@@ -115,18 +116,18 @@ public class RowSetFormatter {
   }
 
   private void writeHeader(Writer writer, RowSetReader reader, SelectionVectorMode selectionMode) throws IOException {
-    writer.write(Integer.toString(reader.logicalIndex()));
+    writer.write(String.valueOf(reader.logicalIndex()));
     switch (selectionMode) {
       case FOUR_BYTE:
         writer.write(" (");
-        writer.write(reader.hyperVectorIndex());
+        writer.write(String.valueOf(reader.hyperVectorIndex()));
         writer.write(", ");
-        writer.write(Integer.toString(reader.offset()));
+        writer.write(String.valueOf(reader.offset()));
         writer.write(")");
         break;
       case TWO_BYTE:
         writer.write(" (");
-        writer.write(Integer.toString(reader.offset()));
+        writer.write(String.valueOf(reader.offset()));
         writer.write(")");
         break;
       default:

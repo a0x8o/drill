@@ -642,6 +642,17 @@ public class TestParquetComplex extends BaseTestQuery {
   }
 
   @Test
+  public void testDictArrayTypeOf() throws Exception {
+    String query = "select typeof(map_array) as type from cp.`store/parquet/complex/map/parquet/000000_0.parquet` limit 1";
+    testBuilder()
+        .sqlQuery(query)
+        .ordered()
+        .baselineColumns("type")
+        .baselineValuesForSingleColumn("ARRAY<DICT<BIGINT,INT>>")
+        .go();
+  }
+
+  @Test
   public void testDictTypeOf() throws Exception {
     String query = "select typeof(map_array[0]) as type from cp.`store/parquet/complex/map/parquet/000000_0.parquet` limit 1";
     testBuilder()
@@ -833,6 +844,21 @@ public class TestParquetComplex extends BaseTestQuery {
         .baselineValues(5, TestBuilder.mapOfObject("b", 6, "c", 7, "a", 8, "abc4", 9, "bde", 10))
         .baselineValues(4, TestBuilder.mapOfObject("a", 3, "b", 4, "c", 5))
         .baselineValues(2, TestBuilder.mapOfObject("a", 1, "b", 2, "c", 3))
+        .go();
+  }
+
+  @Test // DRILL-7473
+  public void testDictInRepeatedMap() throws Exception {
+    String query = "select struct_array[1].d as d from cp.`store/parquet/complex/map/parquet/repeated_struct_with_dict.parquet`";
+    testBuilder()
+        .sqlQuery(query)
+        .unOrdered()
+        .baselineColumns("d")
+        .baselineValuesForSingleColumn(
+            TestBuilder.mapOfObject(1, "a", 2, "b", 3, "c"),
+            TestBuilder.mapOfObject(),
+            TestBuilder.mapOfObject(1, "a", 2, "b")
+        )
         .go();
   }
 }

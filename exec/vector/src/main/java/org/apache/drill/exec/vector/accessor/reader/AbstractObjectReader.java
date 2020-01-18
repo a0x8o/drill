@@ -20,6 +20,7 @@ package org.apache.drill.exec.vector.accessor.reader;
 import org.apache.drill.exec.record.metadata.ColumnMetadata;
 import org.apache.drill.exec.vector.accessor.ArrayReader;
 import org.apache.drill.exec.vector.accessor.ColumnReader;
+import org.apache.drill.exec.vector.accessor.DictReader;
 import org.apache.drill.exec.vector.accessor.ObjectReader;
 import org.apache.drill.exec.vector.accessor.ObjectType;
 import org.apache.drill.exec.vector.accessor.ScalarReader;
@@ -46,8 +47,14 @@ public abstract class AbstractObjectReader implements ObjectReader {
     throw new UnsupportedOperationException();
   }
 
+  @Override
+  public DictReader dict() {
+    throw new UnsupportedOperationException();
+  }
+
   public abstract ReaderEvents events();
 
+  @Override
   public abstract ColumnReader reader();
 
   @Override

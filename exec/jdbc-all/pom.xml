@@ -23,7 +23,7 @@
   <parent>
     <groupId>org.apache.drill.exec</groupId>
     <artifactId>exec-parent</artifactId>
-    <version>1.17.0-SNAPSHOT</version>
+    <version>1.18.0-SNAPSHOT</version>
   </parent>
 
   <artifactId>drill-jdbc-all</artifactId>
@@ -249,6 +249,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-failsafe-plugin</artifactId>
+        <version>3.0.0-M3</version>
         <executions>
           <execution>
             <goals>
@@ -341,6 +342,10 @@
               <exclude>commons-beanutils:commons-beanutils-core:jar:*</exclude>
               <exclude>commons-beanutils:commons-beanutils:jar:*</exclude>
               <exclude>io.netty:netty-tcnative:jar:*</exclude>
+              <exclude>com.google.code.findbugs:jsr305:*</exclude>
+              <exclude>com.esri.geometry:esri-geometry-api:*</exclude>
+              <exclude>fr.bmartel:pcapngdecoder:*</exclude>
+              <exclude>dnsjava:dnsjava:jar:*</exclude>
             </excludes>
           </artifactSet>
           <relocations>
@@ -403,6 +408,7 @@
             <relocation><pattern>org.apache.xpath.</pattern><shadedPattern>oadd.org.apache.xpath.</shadedPattern></relocation>
             <relocation><pattern>org.apache.zookeeper.</pattern><shadedPattern>oadd.org.apache.zookeeper.</shadedPattern></relocation>
             <relocation><pattern>org.apache.hadoop.</pattern><shadedPattern>oadd.org.apache.hadoop.</shadedPattern></relocation>
+            <relocation><pattern>com.ctc.wstx.</pattern><shadedPattern>oadd.com.ctc.wstx.</shadedPattern></relocation>
           </relocations>
           <transformers>
             <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
@@ -502,6 +508,8 @@
              <artifact>org.apache.calcite.avatica:*</artifact>
              <excludes>
                <exclude>META-INF/services/java.sql.Driver</exclude>
+               <!-- Excludes shaded slf4j to avoid conflicts when they are put into the fat jar -->
+               <exclude>org/slf4j/**</exclude>
              </excludes>
            </filter>
          </filters>
@@ -528,7 +536,7 @@
                   This is likely due to you adding new dependencies to a java-exec and not updating the excludes in this module. This is important as it minimizes the size of the dependency of Drill application users.
 
                   </message>
-                  <maxsize>41000000</maxsize>
+                  <maxsize>43000000</maxsize>
                   <minsize>15000000</minsize>
                   <files>
                    <file>${project.build.directory}/drill-jdbc-all-${project.version}.jar</file>
@@ -666,6 +674,9 @@
                     <exclude>commons-io:commons-io</exclude>
                     <exclude>commons-beanutils:commons-beanutils-core:jar:*</exclude>
                     <exclude>commons-beanutils:commons-beanutils:jar:*</exclude>
+                    <exclude>com.google.code.findbugs:jsr305:*</exclude>
+                    <exclude>com.esri.geometry:esri-geometry-api:*</exclude>
+                    <exclude>fr.bmartel:pcapngdecoder:*</exclude>
                   </excludes>
                 </artifactSet>
                 <relocations>
@@ -813,6 +824,8 @@
                     <artifact>org.apache.calcite.avatica:*</artifact>
                     <excludes>
                       <exclude>META-INF/services/java.sql.Driver</exclude>
+                      <!-- Excludes shaded slf4j to avoid conflicts when they are put into the fat jar -->
+                      <exclude>org/slf4j/**</exclude>
                     </excludes>
                   </filter>
                 </filters>

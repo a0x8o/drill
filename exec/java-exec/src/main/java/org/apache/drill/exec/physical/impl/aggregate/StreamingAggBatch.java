@@ -45,13 +45,12 @@ import org.apache.drill.exec.expr.CodeGenerator;
 import org.apache.drill.exec.expr.DrillFuncHolderExpr;
 import org.apache.drill.exec.expr.ExpressionTreeMaterializer;
 import org.apache.drill.exec.expr.HoldingContainerExpression;
-import org.apache.drill.exec.expr.TypeHelper;
 import org.apache.drill.exec.expr.ValueVectorWriteExpression;
 import org.apache.drill.exec.expr.fn.FunctionGenerationHelper;
 import org.apache.drill.exec.ops.FragmentContext;
 import org.apache.drill.exec.physical.config.StreamingAggregate;
 import org.apache.drill.exec.physical.impl.aggregate.StreamingAggregator.AggOutcome;
-import org.apache.drill.exec.physical.impl.xsort.managed.ExternalSortBatch;
+import org.apache.drill.exec.physical.impl.xsort.ExternalSortBatch;
 import org.apache.drill.exec.record.AbstractRecordBatch;
 import org.apache.drill.exec.record.BatchSchema;
 import org.apache.drill.exec.record.BatchSchema.SelectionVectorMode;
@@ -173,9 +172,6 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
         state = BatchState.DONE;
         container.buildSchema(SelectionVectorMode.NONE);
         return;
-      case OUT_OF_MEMORY:
-        state = BatchState.OUT_OF_MEMORY;
-        return;
       case STOP:
         state = BatchState.STOP;
         return;
@@ -187,9 +183,7 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
     if (!createAggregator()) {
       state = BatchState.DONE;
     }
-    for (VectorWrapper<?> w : container) {
-      w.getValueVector().allocateNew();
-    }
+    container.allocateNew();
 
     if (complexWriters != null) {
       container.buildSchema(SelectionVectorMode.NONE);
@@ -245,7 +239,6 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
             return IterOutcome.OK;
           }
           // else fall thru
-        case OUT_OF_MEMORY:
         case NOT_YET:
         case STOP:
           return lastKnownOutcome;
@@ -476,8 +469,8 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
       keyExprs[i] = expr;
       MaterializedField outputField = MaterializedField.create(ne.getRef().getLastSegment().getNameSegment().getPath(),
                                                                       expr.getMajorType());
-      ValueVector vector = TypeHelper.getNewVector(outputField, oContext.getAllocator());
-      keyOutputIds[i] = container.add(vector);
+      container.addOrGet(outputField);
+      keyOutputIds[i] = container.getValueVectorId(ne.getRef());
     }
 
     for (int i = 0; i < valueExprs.length; i++) {
@@ -501,15 +494,15 @@ public class StreamingAggBatch extends AbstractRecordBatch<StreamingAggregate> {
           complexWriters.clear();
         }
         // The reference name will be passed to ComplexWriter, used as the name of the output vector from the writer.
-        ((DrillFuncHolderExpr) expr).getFieldReference(ne.getRef());
+        ((DrillFuncHolderExpr) expr).setFieldReference(ne.getRef());
         MaterializedField field = MaterializedField.create(ne.getRef().getAsNamePart().getName(), UntypedNullHolder.TYPE);
         container.add(new UntypedNullVector(field, container.getAllocator()));
         valueExprs[i] = expr;
       } else {
         MaterializedField outputField = MaterializedField.create(ne.getRef().getLastSegment().getNameSegment().getPath(),
             expr.getMajorType());
-        ValueVector vector = TypeHelper.getNewVector(outputField, oContext.getAllocator());
-        TypedFieldId id = container.add(vector);
+        container.addOrGet(outputField);
+        TypedFieldId id = container.getValueVectorId(ne.getRef());
         valueExprs[i] = new ValueVectorWriteExpression(id, expr, true);
       }
     }

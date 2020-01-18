@@ -23,6 +23,7 @@ import org.apache.drill.common.scanner.RunTimeScan;
 import org.apache.drill.common.scanner.persistence.ScanResult;
 import org.apache.drill.exec.store.easy.text.TextFormatPlugin.TextFormatConfig;
 import org.apache.drill.exec.store.image.ImageFormatConfig;
+import org.apache.drill.test.BaseTest;
 import org.junit.Test;
 
 import java.util.Collection;
@@ -31,7 +32,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
 
-public class TestFormatPluginOptionExtractor {
+public class TestFormatPluginOptionExtractor extends BaseTest {
 
   @Test
   public void test() {
@@ -58,10 +59,12 @@ public class TestFormatPluginOptionExtractor {
           break;
         case "json":
         case "sequencefile":
-        case "pcap":
         case "pcapng":
         case "avro":
           assertEquals(d.typeName, "(type: String)", d.presentParams());
+          break;
+        case "pcap":
+          assertEquals(d.typeName, "(type: String, sessionizeTCPStreams: boolean)", d.presentParams());
           break;
         case "httpd":
           assertEquals("(type: String, logFormat: String, timestampFormat: String)", d.presentParams());

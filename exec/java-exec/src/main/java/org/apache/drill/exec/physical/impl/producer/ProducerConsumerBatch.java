@@ -26,6 +26,7 @@ import org.apache.drill.common.types.TypeProtos.MajorType;
 import org.apache.drill.exec.exception.OutOfMemoryException;
 import org.apache.drill.exec.expr.TypeHelper;
 import org.apache.drill.exec.ops.FragmentContext;
+import org.apache.drill.exec.ops.QueryCancelledException;
 import org.apache.drill.exec.physical.config.ProducerConsumer;
 import org.apache.drill.exec.physical.impl.sort.RecordBatchData;
 import org.apache.drill.exec.record.AbstractRecordBatch;
@@ -68,11 +69,7 @@ public class ProducerConsumerBatch extends AbstractRecordBatch<ProducerConsumer>
       wrapper = queue.take();
       logger.debug("Got batch from queue");
     } catch (final InterruptedException e) {
-      if (context.getExecutorState().shouldContinue()) {
-        context.getExecutorState().fail(e);
-      }
-      return IterOutcome.STOP;
-      // TODO InterruptedException
+      throw new QueryCancelledException();
     } finally {
       stats.stopWait();
     }
@@ -133,9 +130,6 @@ public class ProducerConsumerBatch extends AbstractRecordBatch<ProducerConsumer>
             case NONE:
               stop = true;
               break outer;
-            case OUT_OF_MEMORY:
-              queue.putFirst(RecordBatchDataWrapper.outOfMemory());
-              return;
             case STOP:
               queue.putFirst(RecordBatchDataWrapper.failed());
               return;
@@ -158,7 +152,7 @@ public class ProducerConsumerBatch extends AbstractRecordBatch<ProducerConsumer>
         }
       } catch (final InterruptedException e) {
         logger.warn("Producer thread is interrupted.", e);
-        // TODO InterruptedException
+        throw new QueryCancelledException();
       } finally {
         if (stop) {
           try {
@@ -206,6 +200,7 @@ public class ProducerConsumerBatch extends AbstractRecordBatch<ProducerConsumer>
     } catch (final InterruptedException e) {
       logger.warn("Interrupted while waiting for producer to clean up first. I will try to clean up now...", e);
       // TODO we should retry to wait for the latch
+      throw new QueryCancelledException();
     } finally {
       super.close();
       clearQueue();

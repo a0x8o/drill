@@ -33,7 +33,7 @@ import static org.apache.drill.exec.store.pcap.PcapFormatUtils.getByte;
 import static org.apache.drill.exec.store.pcap.PcapFormatUtils.getIntFileOrder;
 import static org.apache.drill.exec.store.pcap.PcapFormatUtils.getShort;
 
-public class Packet {
+public class Packet implements Comparable<Packet> {
   // pcap header
   //        typedef struct pcaprec_hdr_s {
   //            guint32 ts_sec;         // timestamp seconds
@@ -183,6 +183,24 @@ public class Packet {
     return getIPAddress(false);
   }
 
+  public String getSourceIpAddressString() {
+    InetAddress address = getSrc_ip();
+    if (address == null) {
+      return null;
+    } else {
+      return address.getHostAddress();
+    }
+  }
+
+  public String getDestinationIpAddressString() {
+    InetAddress address = getDst_ip();
+    if (address == null) {
+      return null;
+    } else {
+      return address.getHostAddress();
+    }
+  }
+
   public String getEthernetSource() {
     return getEthernetAddress(PacketConstants.ETHER_SRC_OFFSET);
   }
@@ -221,6 +239,42 @@ public class Packet {
 
   public void setIsCorrupt(boolean value) {
     isCorrupt = value;
+  }
+
+  public boolean getUrgFlag() {
+    return (getFlags() & 0x20) != 0;
+  }
+
+  public boolean getPshFlag() {
+    return (getFlags() & 0x8) != 0;
+  }
+
+  public boolean getEceFlag() {
+    return (getFlags() & 0x40) != 0;
+  }
+
+  public boolean getSynFlag() {
+    return (getFlags() & 0x2) != 0;
+  }
+
+  public boolean getAckFlag() {
+    return (getFlags() & 0x10) != 0;
+  }
+
+  public boolean getRstFlag() {
+    return (getFlags() & 0x4) != 0;
+  }
+
+  public boolean getFinFlag() {
+    return (getFlags() & 0x1) != 0;
+  }
+
+  public boolean getNSFlag() {
+    return (getFlags() & 0x100) != 0;
+  }
+
+  public boolean getCwrFlag() {
+    return (getFlags() & 0x80) != 0;
   }
 
   public static String formatFlags(int flags) {
@@ -459,12 +513,14 @@ public class Packet {
         case PacketConstants.AUTHENTICATION_V6:
         case PacketConstants.ENCAPSULATING_SECURITY_V6:
         case PacketConstants.MOBILITY_EXTENSION_V6:
+        case PacketConstants.HOST_IDENTITY_PROTOCOL:
+        case PacketConstants.SHIM6_PROTOCOL:
           nextHeader = getByte(raw, ipOffset + headerLength);
           headerLength += (getByte(raw, ipOffset + headerLength) + 1) * 8;
           break;
         default:
           //noinspection ConstantConditions
-          Preconditions.checkState(false, "Unknown V6 extension or protocol: ", nextHeader);
+          logger.warn("Unknown V6 extension or protocol: {}", nextHeader);
           return getByte(raw, ipOffset + headerLength);
       }
     }
@@ -490,5 +546,16 @@ public class Packet {
   private int getPort(int offset) {
     int dstPortOffset = ipOffset + getIPHeaderLength() + offset;
     return convertShort(raw, dstPortOffset);
+  }
+
+  /**
+   * This function is here so that packets can be sorted for re-sessionization. Packets in TCP streams
+   * are ordered by the sequence number, so being able to order the packets is necessary to reassemble the
+   * TCP session.
+   * @param o The packet to which the current packet is compared to.
+   * @return Returns the difference in sequence number.
+   */
+  public int compareTo(Packet o) {
+    return this.getSequenceNumber() - (o).getSequenceNumber();
   }
 }

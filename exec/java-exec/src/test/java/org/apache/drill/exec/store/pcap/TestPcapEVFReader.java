@@ -29,7 +29,6 @@ import org.apache.drill.test.ClusterTest;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
-
 import java.time.LocalDateTime;
 import java.time.Month;
 
@@ -98,6 +97,22 @@ public class TestPcapEVFReader extends ClusterTest {
       .baselineColumns("is_corrupt", "packet_count")
       .baselineValues(false, 6984L)
       .baselineValues(true, 16L)
+      .go();
+  }
+
+  @Test
+  public void testArpPcapFile() throws Exception {
+    String sql = "SELECT src_ip, dst_ip FROM cp.`store/pcap/arpWithNullIP.pcap` WHERE src_port=1";
+    testBuilder()
+      .sqlQuery(sql)
+      .ordered()
+      .baselineColumns("src_ip", "dst_ip")
+      .baselineValues((String)null, (String)null)
+      .baselineValues((String)null, (String)null)
+      .baselineValues((String)null, (String)null)
+      .baselineValues((String)null, (String)null)
+      .baselineValues((String)null, (String)null)
+      .baselineValues((String)null, (String)null)
       .go();
   }
 }

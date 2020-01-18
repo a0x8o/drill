@@ -65,7 +65,7 @@ public class LocalSyncableFileSystem extends FileSystem {
 
   @Override
   public FSDataOutputStream create(Path path, FsPermission fsPermission, boolean b, int i, short i2, long l, Progressable progressable) throws IOException {
-    return new FSDataOutputStream(new LocalSyncableOutputStream(path));
+    return new FSDataOutputStream(new LocalSyncableOutputStream(path), FileSystem.getStatistics(path.toUri().getScheme(), getClass()));
   }
 
   @Override
@@ -141,10 +141,9 @@ public class LocalSyncableFileSystem extends FileSystem {
       output = new BufferedOutputStream(fos, 64*1024);
     }
 
-    @Override
+    // TODO: remove it after upgrade MapR profile onto hadoop.version 3.1
     public void sync() throws IOException {
-      output.flush();
-      fos.getFD().sync();
+      hflush();
     }
 
     @Override
@@ -155,8 +154,7 @@ public class LocalSyncableFileSystem extends FileSystem {
 
     @Override
     public void hflush() throws IOException {
-      output.flush();
-      fos.getFD().sync();
+      hsync();
     }
 
     @Override

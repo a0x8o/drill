@@ -37,6 +37,7 @@ import org.junit.experimental.categories.Category;
 
 @Category({SqlFunctionTest.class, OperatorTest.class, PlannerTest.class, UnlikelyTest.class})
 public class TestExampleQueries extends BaseTestQuery {
+
   @BeforeClass
   public static void setupTestFiles() {
     dirTestWatcher.copyResourceToRoot(Paths.get("tpchmulti"));
@@ -1224,5 +1225,18 @@ public class TestExampleQueries extends BaseTestQuery {
         // exclude pattern where Project is projecting the 'columns' field
         new String[]{"Project.*columns"});
 
+  }
+
+  @Test // DRILL-6905
+  public void testCombineFilterWithNumericAndVarcharLiteral() throws Exception {
+    String query = "select n_nationkey from cp.`tpch/nation.parquet` where n_nationkey < 2 or n_nationkey = '10'";
+    testBuilder()
+        .sqlQuery(query)
+        .unOrdered()
+        .baselineColumns("n_nationkey")
+        .baselineValues(0)
+        .baselineValues(1)
+        .baselineValues(10)
+        .go();
   }
 }

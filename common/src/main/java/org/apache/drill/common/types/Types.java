@@ -232,6 +232,7 @@ public class Types {
       case NULL:            return "NULL";
       case UNION:           return "UNION";
       case GENERIC_OBJECT:  return "JAVA_OBJECT";
+      case LIST:            return "LIST";
 
       // Internal types not actually used at level of SQL types(?):
 
@@ -254,9 +255,11 @@ public class Types {
    * if type is a decimal
    */
   public static String getExtendedSqlTypeName(MajorType type) {
-
-    String typeName = getSqlTypeName(type);
+    String typeName = getBaseSqlTypeName(type);
     switch (type.getMinorType()) {
+    case LIST:
+      typeName = "ARRAY";
+      break;
     case DECIMAL9:
     case DECIMAL18:
     case DECIMAL28SPARSE:
@@ -806,16 +809,32 @@ public class Types {
     return typeBuilder;
   }
 
+  /**
+   * Check if two "core" types are the same, ignoring subtypes and
+   * children. Primarily for non-complex types.
+   *
+   * @param type1 first type
+   * @param type2 second type
+   * @return true if the two types are are the same minor type, mode,
+   * precision and scale
+   */
+
+  public static boolean isSameType(MajorType type1, MajorType type2) {
+    return type1.getMinorType() == type2.getMinorType() &&
+           type1.getMode() == type2.getMode() &&
+           type1.getScale() == type2.getScale() &&
+           type1.getPrecision() == type2.getPrecision();
+  }
+
+  /**
+   * Requires full type equality, including fields such as precision and scale.
+   * But, unset fields are equivalent to 0. Can't use the protobuf-provided
+   * isEquals() which treats set and unset fields as different.
+   */
+
   public static boolean isEquivalent(MajorType type1, MajorType type2) {
 
-    // Requires full type equality, including fields such as precision and scale.
-    // But, unset fields are equivalent to 0. Can't use the protobuf-provided
-    // isEquals() which treats set and unset fields as different.
-
-    if (type1.getMinorType() != type2.getMinorType() ||
-        type1.getMode() != type2.getMode() ||
-        type1.getScale() != type2.getScale() ||
-        type1.getPrecision() != type2.getPrecision()) {
+    if (!isSameType(type1, type2)) {
       return false;
     }
 

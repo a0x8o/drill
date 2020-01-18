@@ -20,12 +20,13 @@ package org.apache.drill.exec.store.kafka.decoders;
 import org.apache.drill.categories.KafkaStorageTest;
 import org.apache.drill.common.exceptions.UserException;
 import org.apache.drill.exec.proto.UserBitShared.DrillPBError.ErrorType;
+import org.apache.drill.test.BaseTest;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 
 @Category({KafkaStorageTest.class})
-public class MessageReaderFactoryTest {
+public class MessageReaderFactoryTest extends BaseTest {
 
   @Test
   public void testShouldThrowExceptionAsMessageReaderIsNull() {
@@ -33,7 +34,7 @@ public class MessageReaderFactoryTest {
       MessageReaderFactory.getMessageReader(null);
       Assert.fail("Message reader initialization succeeded even though it is null");
     } catch (UserException ue) {
-      Assert.assertTrue(ue.getErrorType() == ErrorType.VALIDATION);
+      Assert.assertSame(ue.getErrorType(), ErrorType.VALIDATION);
       Assert.assertTrue(ue.getMessage().contains(
           "VALIDATION ERROR: Please configure message reader implementation using the property 'store.kafka.record.reader'"));
     }
@@ -45,7 +46,7 @@ public class MessageReaderFactoryTest {
       MessageReaderFactory.getMessageReader(MessageReaderFactoryTest.class.getName());
       Assert.fail("Message reader initialization succeeded even though class does not implement message reader interface");
     } catch (UserException ue) {
-      Assert.assertTrue(ue.getErrorType() == ErrorType.VALIDATION);
+      Assert.assertSame(ue.getErrorType(), ErrorType.VALIDATION);
       Assert.assertTrue(ue.getMessage().contains(
           "VALIDATION ERROR: Message reader configured 'org.apache.drill.exec.store.kafka.decoders.MessageReaderFactoryTest' does not implement 'org.apache.drill.exec.store.kafka.decoders.MessageReader'"));
     }
@@ -57,7 +58,7 @@ public class MessageReaderFactoryTest {
       MessageReaderFactory.getMessageReader("a.b.c.d");
       Assert.fail("Message reader initialization succeeded even though class does not exist");
     } catch (UserException ue) {
-      Assert.assertTrue(ue.getErrorType() == ErrorType.VALIDATION);
+      Assert.assertSame(ue.getErrorType(), ErrorType.VALIDATION);
       Assert.assertTrue(ue.getMessage().contains("VALIDATION ERROR: Failed to initialize message reader : a.b.c.d"));
     }
   }

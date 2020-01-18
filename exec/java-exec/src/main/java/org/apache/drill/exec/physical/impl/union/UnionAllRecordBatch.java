@@ -18,6 +18,7 @@
 package org.apache.drill.exec.physical.impl.union;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -68,8 +69,8 @@ public class UnionAllRecordBatch extends AbstractBinaryRecordBatch<UnionAll> {
 
   private final SchemaChangeCallBack callBack = new SchemaChangeCallBack();
   private UnionAller unionall;
-  private final List<TransferPair> transfers = Lists.newArrayList();
-  private final List<ValueVector> allocationVectors = Lists.newArrayList();
+  private final List<TransferPair> transfers = new ArrayList<>();
+  private final List<ValueVector> allocationVectors = new ArrayList<>();
   private int recordCount;
   private UnionInputIterator unionInputIterator;
 
@@ -128,7 +129,6 @@ public class UnionAllRecordBatch extends AbstractBinaryRecordBatch<UnionAll> {
 
         switch (upstream) {
         case NONE:
-        case OUT_OF_MEMORY:
         case STOP:
           return upstream;
         case OK_NEW_SCHEMA:
@@ -338,7 +338,6 @@ public class UnionAllRecordBatch extends AbstractBinaryRecordBatch<UnionAll> {
     public int getRemainingRecords() {
       return (totalRecordsToProcess - recordsProcessed);
     }
-
   }
 
   private class UnionInputIterator implements Iterator<Pair<IterOutcome, BatchStatusWrappper>> {
@@ -391,7 +390,6 @@ public class UnionAllRecordBatch extends AbstractBinaryRecordBatch<UnionAll> {
               batchMemoryManager.getRecordBatchSizer(topStatus.inputIndex),
               getRecordBatchStatsContext());
             return Pair.of(outcome, topStatus);
-          case OUT_OF_MEMORY:
           case STOP:
             batchStatusStack.pop();
             return Pair.of(outcome, topStatus);

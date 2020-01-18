@@ -41,7 +41,7 @@ import static org.apache.drill.exec.record.RecordBatch.IterOutcome.NONE;
 public class LimitRecordBatch extends AbstractSingleRecordBatch<Limit> {
   private static final Logger logger = LoggerFactory.getLogger(LimitRecordBatch.class);
 
-  private SelectionVector2 outgoingSv;
+  private final SelectionVector2 outgoingSv;
   private SelectionVector2 incomingSv;
 
   // Start offset of the records
@@ -64,9 +64,6 @@ public class LimitRecordBatch extends AbstractSingleRecordBatch<Limit> {
       incoming.kill(true);
 
       IterOutcome upStream = next(incoming);
-      if (upStream == IterOutcome.OUT_OF_MEMORY) {
-        return upStream;
-      }
 
       while (upStream == IterOutcome.OK || upStream == IterOutcome.OK_NEW_SCHEMA) {
         // Clear the memory for the incoming batch
@@ -78,9 +75,6 @@ public class LimitRecordBatch extends AbstractSingleRecordBatch<Limit> {
           incomingSv.clear();
         }
         upStream = next(incoming);
-        if (upStream == IterOutcome.OUT_OF_MEMORY) {
-          return upStream;
-        }
       }
       // If EMIT that means leaf operator is UNNEST, in this case refresh the limit states and return EMIT.
       if (upStream == EMIT) {
@@ -234,7 +228,8 @@ public class LimitRecordBatch extends AbstractSingleRecordBatch<Limit> {
     outgoingSv.setRecordCount(svIndex);
     outgoingSv.setBatchActualRecordCount(inputRecordCount);
     // Actual number of values in the container; not the number in
-    // the SV.
+    // the SV. Set record count, not value count. Value count is
+    // carried over from input vectors.
     container.setRecordCount(inputRecordCount);
     // Update the start offset
     recordStartOffset = 0;

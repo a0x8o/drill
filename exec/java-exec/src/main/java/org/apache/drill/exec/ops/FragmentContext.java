@@ -36,6 +36,7 @@ import org.apache.drill.exec.ops.QueryContext.SqlStatementType;
 import org.apache.drill.exec.physical.base.PhysicalOperator;
 import org.apache.drill.exec.proto.ExecProtos;
 import org.apache.drill.exec.proto.UserBitShared.QueryId;
+import org.apache.drill.exec.record.RecordBatch;
 import org.apache.drill.exec.server.options.OptionManager;
 import org.apache.drill.exec.testing.ExecutionControls;
 import org.apache.drill.exec.work.filter.RuntimeFilterWritable;
@@ -201,15 +202,45 @@ public interface FragmentContext extends UdfUtilities, AutoCloseable {
    */
   MetastoreRegistry getMetastoreRegistry();
 
+  /**
+   * An operator is experiencing memory pressure. Asks the fragment
+   * executor to poll all operators to release an optional memory
+   * (such as by spilling.) The request is advisory. The caller should
+   * again try to allocate memory, and if the second request fails,
+   * throw an <code>OutOfMemoryException</code>.
+   */
+  void requestMemory(RecordBatch requestor);
+
   interface ExecutorState {
     /**
-     * Tells individual operations whether they should continue. In some cases, an external event (typically cancellation)
-     * will mean that the fragment should prematurely exit execution. Long running operations should check this every so
-     * often so that Drill is responsive to cancellation operations.
+     * Tells individual operations whether they should continue. In some cases,
+     * an external event (typically cancellation) will mean that the fragment
+     * should prematurely exit execution. Long running operations should check
+     * this every so often so that Drill is responsive to cancellation
+     * operations.
      *
-     * @return False if the action should terminate immediately, true if everything is okay.
+     * @return False if the action should terminate immediately, true if
+     *         everything is okay.
      */
     boolean shouldContinue();
+
+    /**
+     * Check if an operation should continue. In some cases,
+     * an external event (typically cancellation) will mean that the fragment
+     * should prematurely exit execution. Long running operations should check
+     * this every so often so that Drill is responsive to cancellation
+     * operations.
+     * <p>
+     * Throws QueryCancelledException if the query (fragment) should stop.
+     * The fragment executor interprets this as an exception it, itself,
+     * requested, and will call the operator's close() method to release
+     * resources. Operators should not catch and handle this exception,
+     * and should only call this method when the operator holds no
+     * transient resources (such as local variables.)
+     *
+     * @throws QueryCancelledException if the query (fragment) should stop.
+     */
+    void checkContinue();
 
     /**
      * Inform the executor if a exception occurs and fragment should be failed.

@@ -17,6 +17,7 @@
  */
 package org.apache.drill.jdbc;
 
+import org.apache.drill.test.BaseTest;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TestWatcher;
@@ -44,7 +45,7 @@ import java.util.stream.Collectors;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
-public class ITTestShadedJar {
+public class ITTestShadedJar extends BaseTest {
   private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(ITTestShadedJar.class);
 
   private static DrillbitClassLoader drillbitLoader;
@@ -234,8 +235,8 @@ public class ITTestShadedJar {
 
   private static void runWithLoader(String name, ClassLoader loader) throws Exception {
     Class<?> clazz = loader.loadClass(ITTestShadedJar.class.getName() + "$" + name);
-    Object o = clazz.getDeclaredConstructors()[0].newInstance(loader);
-    clazz.getMethod("go").invoke(o);
+    Object instance = clazz.getDeclaredConstructors()[0].newInstance(loader);
+    clazz.getMethod("go").invoke(instance);
   }
 
   public abstract static class AbstractLoaderThread extends Thread {
@@ -282,7 +283,7 @@ public class ITTestShadedJar {
       // loader.loadClass("org.apache.drill.exec.exception.SchemaChangeException");
 
       // execute a single query to make sure the drillbit is fully up
-      clazz.getMethod("testNoResult", String.class, new Object[] {}.getClass())
+      clazz.getMethod("testNoResult", String.class, Object[].class)
           .invoke(null, "select * from (VALUES 1)", new Object[] {});
 
       SEM.release();

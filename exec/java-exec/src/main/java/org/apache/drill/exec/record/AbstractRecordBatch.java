@@ -20,6 +20,7 @@ package org.apache.drill.exec.record;
 import java.util.Iterator;
 
 import org.apache.drill.common.exceptions.DrillRuntimeException;
+import org.apache.drill.common.exceptions.UserException;
 import org.apache.drill.common.expression.SchemaPath;
 import org.apache.drill.exec.ExecConstants;
 import org.apache.drill.exec.exception.OutOfMemoryException;
@@ -28,7 +29,7 @@ import org.apache.drill.exec.ops.FragmentContext;
 import org.apache.drill.exec.ops.OperatorContext;
 import org.apache.drill.exec.ops.OperatorStats;
 import org.apache.drill.exec.physical.base.PhysicalOperator;
-import org.apache.drill.exec.physical.impl.aggregate.SpilledRecordbatch;
+import org.apache.drill.exec.physical.impl.aggregate.SpilledRecordBatch;
 import org.apache.drill.exec.record.selection.SelectionVector2;
 import org.apache.drill.exec.record.selection.SelectionVector4;
 import org.apache.drill.exec.server.options.OptionValue;
@@ -123,7 +124,7 @@ public abstract class AbstractRecordBatch<T extends PhysicalOperator> implements
       stats.startProcessing();
     }
 
-    if (b instanceof SpilledRecordbatch) {
+    if (b instanceof SpilledRecordBatch) {
       // Don't double count records which were already read and spilled.
       // TODO evaluate whether swapping out upstream record batch with a SpilledRecordBatch
       // is the right thing to do.
@@ -272,5 +273,16 @@ public abstract class AbstractRecordBatch<T extends PhysicalOperator> implements
    */
   public void checkContinue() {
     context.getExecutorState().checkContinue();
+  }
+
+  protected UserException schemaChangeException(SchemaChangeException e, Logger logger) {
+    return schemaChangeException(e, getClass().getSimpleName(), logger);
+  }
+
+  public static UserException schemaChangeException(SchemaChangeException e,
+      String operator, Logger logger) {
+    return UserException.schemaChangeError(e)
+      .addContext("Unexpected schema change in %s operator", operator)
+      .build(logger);
   }
 }

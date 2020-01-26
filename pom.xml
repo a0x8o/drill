@@ -89,7 +89,7 @@
     <javassist.version>3.26.0-GA</javassist.version>
     <msgpack.version>0.6.6</msgpack.version>
     <reflections.version>0.9.10</reflections.version>
-    <avro.version>1.9.0</avro.version>
+    <avro.version>1.9.1</avro.version>
     <metrics.version>4.0.2</metrics.version>
     <jetty.version>9.3.25.v20180904</jetty.version>
     <jersey.version>2.25.1</jersey.version>
@@ -110,6 +110,8 @@
     <joda.version>2.10.5</joda.version>
     <javax.el.version>3.0.0</javax.el.version>
     <surefire.version>3.0.0-M4</surefire.version>
+    <commons.compress.version>1.19</commons.compress.version>
+    <commons.dbcp2.version>2.7.0</commons.dbcp2.version>
   </properties>
 
   <scm>
@@ -185,6 +187,12 @@
       <snapshots>
         <enabled>true</enabled>
       </snapshots>
+    </repository>
+
+    <repository>
+      <id>jhdf5-repo</id>
+      <name>ImageJ Repository</name>
+      <url>https://maven.scijava.org/content/repositories/public/</url>
     </repository>
 
     <repository>
@@ -330,6 +338,7 @@
             <!-- Types log1, log2, sqllog and sqllog2, ssdlog are used to test he logRegex format plugin. -->
             <exclude>**/*.log1</exclude>
             <exclude>**/*.log2</exclude>
+            <exclude>**/*.h5</exclude>
             <exclude>**/*.sqllog</exclude>
             <exclude>**/*.sqllog2</exclude>
             <exclude>**/*.syslog</exclude>
@@ -615,6 +624,7 @@
               <exclude>**/*.woff2</exclude>
               <exclude>**/*.ks</exclude>
               <exclude>**/*.pcap</exclude>
+              <exclude>**/*.h5</exclude>
               <exclude>**/*.syslog</exclude>
               <exclude>**/*.xls</exclude>
               <exclude>**/*.xlsx</exclude>
@@ -1825,6 +1835,22 @@
         <groupId>org.glassfish</groupId>
         <artifactId>javax.el</artifactId>
         <version>${javax.el.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.commons</groupId>
+        <artifactId>commons-compress</artifactId>
+        <version>${commons.compress.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.commons</groupId>
+        <artifactId>commons-dbcp2</artifactId>
+        <version>${commons.dbcp2.version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>commons-logging</groupId>
+            <artifactId>commons-logging</artifactId>
+          </exclusion>
+        </exclusions>
       </dependency>
     </dependencies>
   </dependencyManagement>

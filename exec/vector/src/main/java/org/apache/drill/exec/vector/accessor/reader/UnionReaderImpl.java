@@ -81,10 +81,10 @@ public class UnionReaderImpl implements VariantReader, ReaderEvents {
   private final VectorAccessor unionAccessor;
   private final VectorAccessor typeAccessor;
   private final UInt1ColumnReader typeReader;
-  private final AbstractObjectReader variants[];
+  private final AbstractObjectReader[] variants;
   protected NullStateReader nullStateReader;
 
-  public UnionReaderImpl(ColumnMetadata schema, VectorAccessor va, AbstractObjectReader variants[]) {
+  public UnionReaderImpl(ColumnMetadata schema, VectorAccessor va, AbstractObjectReader[] variants) {
     this.schema = schema;
     this.unionAccessor = va;
     typeReader = new UInt1ColumnReader();
@@ -115,6 +115,7 @@ public class UnionReaderImpl implements VariantReader, ReaderEvents {
       NullStateReader nullReader;
       MinorType type = MinorType.values()[i];
       switch(type) {
+      case DICT:
       case MAP:
       case LIST:
         nullReader = new NullStateReaders.ComplexMemberStateReader(typeReader, type);
@@ -175,18 +176,18 @@ public class UnionReaderImpl implements VariantReader, ReaderEvents {
 
   @Override
   public void reposition() {
-    for (int i = 0; i < variants.length; i++) {
-      if (variants[i] != null) {
-        variants[i].events().reposition();
+    for (AbstractObjectReader variantReader : variants) {
+      if (variantReader != null) {
+        variantReader.events().reposition();
       }
     }
   }
 
   @Override
   public void bindBuffer() {
-    for (int i = 0; i < variants.length; i++) {
-      if (variants[i] != null) {
-        variants[i].events().bindBuffer();
+    for (AbstractObjectReader variantReader : variants) {
+      if (variantReader != null) {
+        variantReader.events().bindBuffer();
       }
     }
   }

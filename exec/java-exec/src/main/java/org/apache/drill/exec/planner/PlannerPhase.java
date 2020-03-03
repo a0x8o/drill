@@ -17,6 +17,7 @@
  */
 package org.apache.drill.exec.planner;
 
+import org.apache.drill.exec.planner.logical.ConvertMetadataAggregateToDirectScanRule;
 import org.apache.drill.exec.planner.physical.MetadataAggPrule;
 import org.apache.drill.exec.planner.physical.MetadataControllerPrule;
 import org.apache.drill.exec.planner.physical.MetadataHandlerPrule;
@@ -102,7 +103,6 @@ import java.util.Set;
  * Only rules which use DrillRelFactories should be used in this enum.
  */
 public enum PlannerPhase {
-  //private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(DrillRuleSets.class);
 
   LOGICAL_PRUNE_AND_JOIN("Logical Planning (with join and partition pruning)") {
     public RuleSet getRules(OptimizerRulesContext context, Collection<StoragePlugin> plugins) {
@@ -525,6 +525,7 @@ public enum PlannerPhase {
     ruleList.add(MetadataControllerPrule.INSTANCE);
     ruleList.add(MetadataHandlerPrule.INSTANCE);
     ruleList.add(MetadataAggPrule.INSTANCE);
+    ruleList.add(ConvertMetadataAggregateToDirectScanRule.INSTANCE);
 
     ruleList.add(UnnestPrule.INSTANCE);
     ruleList.add(LateralJoinPrule.INSTANCE);

@@ -17,8 +17,6 @@
  */
 package org.apache.drill.exec.store.kafka;
 
-import static org.junit.Assert.assertEquals;
-
 import java.util.List;
 import java.util.Map;
 
@@ -54,7 +52,7 @@ public class KafkaTestBase extends PlanTestBase {
     kafkaConsumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, "drill-test-consumer");
     storagePluginConfig = new KafkaStoragePluginConfig(kafkaConsumerProps);
     storagePluginConfig.setEnabled(true);
-    pluginRegistry.createOrUpdate(KafkaStoragePluginConfig.NAME, storagePluginConfig, true);
+    pluginRegistry.put(KafkaStoragePluginConfig.NAME, storagePluginConfig);
     testNoResult(String.format("alter session set `%s` = '%s'", ExecConstants.KAFKA_RECORD_READER,
         "org.apache.drill.exec.store.kafka.decoders.JsonMessageReader"));
     testNoResult(String.format("alter session set `%s` = %d", ExecConstants.KAFKA_POLL_TIMEOUT, 5000));
@@ -77,18 +75,10 @@ public class KafkaTestBase extends PlanTestBase {
     }
   }
 
-  public void testHelper(String query, String expectedExprInPlan, int expectedRecordCount) throws Exception {
-    testPhysicalPlan(query, expectedExprInPlan);
-    int actualRecordCount = testSql(query);
-    assertEquals(String.format("Received unexpected number of rows in output: expected=%d, received=%s",
-        expectedRecordCount, actualRecordCount), expectedRecordCount, actualRecordCount);
-  }
-
   @AfterClass
-  public static void tearDownKafkaTestBase() throws Exception {
+  public static void tearDownKafkaTestBase() {
     if (TestKafkaSuit.isRunningSuite()) {
       TestKafkaSuit.tearDownCluster();
     }
   }
-
 }

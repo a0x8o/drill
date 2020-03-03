@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 import org.apache.drill.common.expression.SchemaPath;
 import org.apache.drill.common.logical.data.NamedExpression;
+import org.apache.drill.metastore.metadata.MetadataType;
 
 import java.util.List;
 import java.util.Objects;
@@ -34,14 +35,20 @@ import java.util.StringJoiner;
 public class MetadataAggregateContext {
   private final List<NamedExpression> groupByExpressions;
   private final List<SchemaPath> interestingColumns;
-  private final List<SchemaPath> excludedColumns;
+
+  /**
+   * List of columns which do not belong to table schema, but used to pass some metadata information like file location, row group index, etc.
+   */
+  private final List<SchemaPath> metadataColumns;
   private final boolean createNewAggregations;
+  private final MetadataType metadataLevel;
 
   public MetadataAggregateContext(MetadataAggregateContextBuilder builder) {
     this.groupByExpressions = builder.groupByExpressions;
     this.interestingColumns = builder.interestingColumns;
     this.createNewAggregations = builder.createNewAggregations;
-    this.excludedColumns = builder.excludedColumns;
+    this.metadataColumns = builder.metadataColumns;
+    this.metadataLevel = builder.metadataLevel;
   }
 
   @JsonProperty
@@ -60,8 +67,13 @@ public class MetadataAggregateContext {
   }
 
   @JsonProperty
-  public List<SchemaPath> excludedColumns() {
-    return excludedColumns;
+  public List<SchemaPath> metadataColumns() {
+    return metadataColumns;
+  }
+
+  @JsonProperty
+  public MetadataType metadataLevel() {
+    return metadataLevel;
   }
 
   @Override
@@ -70,7 +82,7 @@ public class MetadataAggregateContext {
         .add("groupByExpressions=" + groupByExpressions)
         .add("interestingColumns=" + interestingColumns)
         .add("createNewAggregations=" + createNewAggregations)
-        .add("excludedColumns=" + excludedColumns)
+        .add("excludedColumns=" + metadataColumns)
         .toString();
   }
 
@@ -78,15 +90,30 @@ public class MetadataAggregateContext {
     return new MetadataAggregateContextBuilder();
   }
 
+  public MetadataAggregateContextBuilder toBuilder() {
+    return new MetadataAggregateContextBuilder()
+        .groupByExpressions(groupByExpressions)
+        .interestingColumns(interestingColumns)
+        .createNewAggregations(createNewAggregations)
+        .metadataColumns(metadataColumns)
+        .metadataLevel(metadataLevel);
+  }
+
   @JsonPOJOBuilder(withPrefix = "")
   public static class MetadataAggregateContextBuilder {
     private List<NamedExpression> groupByExpressions;
     private List<SchemaPath> interestingColumns;
     private Boolean createNewAggregations;
-    private List<SchemaPath> excludedColumns;
+    private MetadataType metadataLevel;
+    private List<SchemaPath> metadataColumns;
 
     public MetadataAggregateContextBuilder groupByExpressions(List<NamedExpression> groupByExpressions) {
       this.groupByExpressions = groupByExpressions;
+      return this;
+    }
+
+    public MetadataAggregateContextBuilder metadataLevel(MetadataType metadataLevel) {
+      this.metadataLevel = metadataLevel;
       return this;
     }
 
@@ -100,15 +127,16 @@ public class MetadataAggregateContext {
       return this;
     }
 
-    public MetadataAggregateContextBuilder excludedColumns(List<SchemaPath> excludedColumns) {
-      this.excludedColumns = excludedColumns;
+    public MetadataAggregateContextBuilder metadataColumns(List<SchemaPath> metadataColumns) {
+      this.metadataColumns = metadataColumns;
       return this;
     }
 
     public MetadataAggregateContext build() {
       Objects.requireNonNull(groupByExpressions, "groupByExpressions were not set");
       Objects.requireNonNull(createNewAggregations, "createNewAggregations was not set");
-      Objects.requireNonNull(excludedColumns, "excludedColumns were not set");
+      Objects.requireNonNull(metadataColumns, "metadataColumns were not set");
+      Objects.requireNonNull(metadataLevel, "metadataLevel was not set");
       return new MetadataAggregateContext(this);
     }
   }

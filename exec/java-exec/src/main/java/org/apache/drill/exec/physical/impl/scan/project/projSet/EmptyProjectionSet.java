@@ -36,8 +36,16 @@ public class EmptyProjectionSet implements ProjectionSet {
   }
 
   @Override
+  public ColumnReadProjection readDictProjection(ColumnMetadata col) {
+    return readProjection(col);
+  }
+
+  @Override
   public void setErrorContext(CustomErrorContext errorContext) { }
 
   @Override
   public boolean isEmpty() { return true; }
+
+  @Override
+  public boolean isProjected(String colName) { return false; }
 }

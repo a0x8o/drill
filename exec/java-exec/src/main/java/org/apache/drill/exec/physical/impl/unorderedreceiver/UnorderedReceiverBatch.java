@@ -22,9 +22,9 @@ import io.netty.buffer.ByteBuf;
 import java.io.IOException;
 import java.util.Iterator;
 
+import org.apache.drill.common.exceptions.UserException;
 import org.apache.drill.common.expression.SchemaPath;
 import org.apache.drill.exec.exception.OutOfMemoryException;
-import org.apache.drill.exec.exception.SchemaChangeException;
 import org.apache.drill.exec.ops.ExchangeFragmentContext;
 import org.apache.drill.exec.ops.FragmentContext;
 import org.apache.drill.exec.ops.MetricDef;
@@ -51,9 +51,11 @@ import org.apache.drill.exec.rpc.RpcException;
 import org.apache.drill.exec.rpc.RpcOutcomeListener;
 import org.apache.drill.exec.testing.ControlsInjector;
 import org.apache.drill.exec.testing.ControlsInjectorFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class UnorderedReceiverBatch implements CloseableRecordBatch {
-  private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(UnorderedReceiverBatch.class);
+  private static final Logger logger = LoggerFactory.getLogger(UnorderedReceiverBatch.class);
   private static final ControlsInjector injector = ControlsInjectorFactory.getInjector(UnorderedReceiverBatch.class);
 
   private final RecordBatchLoader batchLoader;
@@ -78,11 +80,15 @@ public class UnorderedReceiverBatch implements CloseableRecordBatch {
     }
   }
 
-  public UnorderedReceiverBatch(final ExchangeFragmentContext context, final RawFragmentBatchProvider fragProvider, final UnorderedReceiver config) throws OutOfMemoryException {
+  public UnorderedReceiverBatch(ExchangeFragmentContext context,
+      RawFragmentBatchProvider fragProvider, UnorderedReceiver config)
+          throws OutOfMemoryException {
     this.fragProvider = fragProvider;
     this.context = context;
-    // In normal case, batchLoader does not require an allocator. However, in case of splitAndTransfer of a value vector,
-    // we may need an allocator for the new offset vector. Therefore, here we pass the context's allocator to batchLoader.
+    // In normal case, batchLoader does not require an allocator. However, in
+    // case of splitAndTransfer of a value vector,
+    // we may need an allocator for the new offset vector. Therefore, here we
+    // pass the context's allocator to batchLoader.
     oContext = context.newOperatorContext(config);
     this.batchLoader = new RecordBatchLoader(oContext.getAllocator());
 
@@ -90,8 +96,10 @@ public class UnorderedReceiverBatch implements CloseableRecordBatch {
     this.stats.setLongStat(Metric.NUM_SENDERS, config.getNumSenders());
     this.config = config;
 
-    // Register this operator's buffer allocator so that incoming buffers are owned by this allocator
-    context.getBuffers().getCollector(config.getOppositeMajorFragmentId()).setAllocator(oContext.getAllocator());
+    // Register this operator's buffer allocator so that incoming buffers are
+    // owned by this allocator
+    context.getBuffers().getCollector(config.getOppositeMajorFragmentId())
+      .setAllocator(oContext.getAllocator());
   }
 
   @Override
@@ -110,10 +118,8 @@ public class UnorderedReceiverBatch implements CloseableRecordBatch {
   }
 
   @Override
-  public void kill(final boolean sendUpstream) {
-    if (sendUpstream) {
-      informSenders();
-    }
+  public void cancel() {
+    informSenders();
     fragProvider.kill(context);
   }
 
@@ -133,25 +139,30 @@ public class UnorderedReceiverBatch implements CloseableRecordBatch {
   }
 
   @Override
-  public TypedFieldId getValueVectorId(final SchemaPath path) {
+  public TypedFieldId getValueVectorId(SchemaPath path) {
     return batchLoader.getValueVectorId(path);
   }
 
   @Override
-  public VectorWrapper<?> getValueAccessorById(final Class<?> clazz, final int... ids) {
+  public VectorWrapper<?> getValueAccessorById(Class<?> clazz, int... ids) {
     return batchLoader.getValueAccessorById(clazz, ids);
   }
 
-  private RawFragmentBatch getNextBatch() throws IOException {
+  private RawFragmentBatch getNextBatch() {
     try {
       injector.injectInterruptiblePause(context.getExecutionControls(), "waiting-for-data", logger);
       return fragProvider.getNext();
-    } catch(final InterruptedException e) {
-      // Preserve evidence that the interruption occurred so that code higher up on the call stack can learn of the
+    } catch(InterruptedException e) {
+      // Preserve evidence that the interruption occurred so that code higher up
+      // on the call stack can learn of the
       // interruption and respond to it if it wants to.
       Thread.currentThread().interrupt();
 
       return null;
+    } catch (IOException e) {
+      throw UserException.dataReadError(e)
+          .addContext("Failure when reading incoming batch")
+          .build(logger);
     }
   }
 
@@ -179,25 +190,25 @@ public class UnorderedReceiverBatch implements CloseableRecordBatch {
       if (batch == null) {
         lastOutcome = IterOutcome.NONE;
         batchLoader.zero();
-        if (!context.getExecutorState().shouldContinue()) {
-          lastOutcome = IterOutcome.STOP;
-        }
+        context.getExecutorState().checkContinue();
         return lastOutcome;
       }
 
       if (context.getAllocator().isOverLimit()) {
-        lastOutcome = IterOutcome.OUT_OF_MEMORY;
-        return lastOutcome;
+        context.requestMemory(this);
+        if (context.getAllocator().isOverLimit()) {
+          throw new OutOfMemoryException("Allocator over limit");
+        }
       }
 
-      final RecordBatchDef rbd = batch.getHeader().getDef();
-      final boolean schemaChanged = batchLoader.load(rbd, batch.getBody());
+      RecordBatchDef rbd = batch.getHeader().getDef();
+      boolean schemaChanged = batchLoader.load(rbd, batch.getBody());
       // TODO:  Clean:  DRILL-2933:  That load(...) no longer throws
       // SchemaChangeException, so check/clean catch clause below.
       stats.addLongStat(Metric.BYTES_RECEIVED, batch.getByteCount());
 
       batch.release();
-      if(schemaChanged) {
+      if (schemaChanged) {
         this.schema = batchLoader.getSchema();
         stats.batchReceived(0, rbd.getRecordCount(), true);
         lastOutcome = IterOutcome.OK_NEW_SCHEMA;
@@ -206,13 +217,6 @@ public class UnorderedReceiverBatch implements CloseableRecordBatch {
         lastOutcome = IterOutcome.OK;
       }
       return lastOutcome;
-    } catch (SchemaChangeException | IOException ex) {
-      context.getExecutorState().fail(ex);
-      lastOutcome = IterOutcome.STOP;
-      return lastOutcome;
-    } catch (Exception e) {
-      lastOutcome = IterOutcome.STOP;
-      throw e;
     } finally {
       stats.stopProcessing();
     }
@@ -230,7 +234,9 @@ public class UnorderedReceiverBatch implements CloseableRecordBatch {
 
   @Override
   public VectorContainer getOutgoingContainer() {
-    throw new UnsupportedOperationException(String.format(" You should not call getOutgoingContainer() for class %s", this.getClass().getCanonicalName()));
+    throw new UnsupportedOperationException(
+        String.format("You should not call getOutgoingContainer() for class %s",
+            getClass().getCanonicalName()));
   }
 
   @Override
@@ -240,15 +246,15 @@ public class UnorderedReceiverBatch implements CloseableRecordBatch {
 
   private void informSenders() {
     logger.info("Informing senders of request to terminate sending.");
-    final FragmentHandle handlePrototype = FragmentHandle.newBuilder()
+    FragmentHandle handlePrototype = FragmentHandle.newBuilder()
             .setMajorFragmentId(config.getOppositeMajorFragmentId())
             .setQueryId(context.getHandle().getQueryId())
             .build();
-    for (final MinorFragmentEndpoint providingEndpoint : config.getProvidingEndpoints()) {
-      final FragmentHandle sender = FragmentHandle.newBuilder(handlePrototype)
+    for (MinorFragmentEndpoint providingEndpoint : config.getProvidingEndpoints()) {
+      FragmentHandle sender = FragmentHandle.newBuilder(handlePrototype)
               .setMinorFragmentId(providingEndpoint.getId())
               .build();
-      final FinishedReceiver finishedReceiver = FinishedReceiver.newBuilder()
+      FinishedReceiver finishedReceiver = FinishedReceiver.newBuilder()
               .setReceiver(context.getHandle())
               .setSender(sender)
               .build();
@@ -262,19 +268,19 @@ public class UnorderedReceiverBatch implements CloseableRecordBatch {
   private class OutcomeListener implements RpcOutcomeListener<Ack> {
 
     @Override
-    public void failed(final RpcException ex) {
+    public void failed(RpcException ex) {
       logger.warn("Failed to inform upstream that receiver is finished");
     }
 
     @Override
-    public void success(final Ack value, final ByteBuf buffer) {
+    public void success(Ack value, ByteBuf buffer) {
       // Do nothing
     }
 
     @Override
-    public void interrupted(final InterruptedException e) {
+    public void interrupted(InterruptedException e) {
       if (context.getExecutorState().shouldContinue()) {
-        final String errMsg = "Received an interrupt RPC outcome while sending ReceiverFinished message";
+        String errMsg = "Received an interrupt RPC outcome while sending ReceiverFinished message";
         logger.error(errMsg, e);
         context.getExecutorState().fail(new RpcException(errMsg, e));
       }
@@ -284,10 +290,5 @@ public class UnorderedReceiverBatch implements CloseableRecordBatch {
   @Override
   public void dump() {
     logger.error("UnorderedReceiverBatch[batchLoader={}, schema={}]", batchLoader, schema);
-  }
-
-  @Override
-  public boolean hasFailed() {
-    return lastOutcome == IterOutcome.STOP;
   }
 }

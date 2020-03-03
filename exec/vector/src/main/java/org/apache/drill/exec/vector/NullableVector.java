@@ -23,9 +23,19 @@ import org.apache.drill.exec.record.MaterializedField;
 
 public interface NullableVector extends ValueVector {
 
+  public interface Mutator extends ValueVector.Mutator {
+
+    /**
+     * Used by the vector accessors to force the last set value.
+     * @param n the value of the last set field used to
+     * fill empties
+     */
+
+    void setSetCount(int n);
+  }
+
   MaterializedField bitsField = MaterializedField.create(BITS_VECTOR_NAME, Types.required(MinorType.UINT1));
 
   ValueVector getBitsVector();
   ValueVector getValuesVector();
-  void finalizeLastSet(int count);
 }

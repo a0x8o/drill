@@ -18,6 +18,7 @@
 package org.apache.drill.exec.physical.resultSet.model.single;
 
 import org.apache.drill.exec.physical.resultSet.model.ReaderIndex;
+import org.apache.drill.exec.record.VectorContainer;
 
 /**
  * Reader index that points directly to each row in the row set.
@@ -28,8 +29,8 @@ import org.apache.drill.exec.physical.resultSet.model.ReaderIndex;
 
 public class DirectRowIndex extends ReaderIndex {
 
-  public DirectRowIndex(int rowCount) {
-    super(rowCount);
+  public DirectRowIndex(VectorContainer container) {
+    super(container.getRecordCount());
   }
 
   @Override

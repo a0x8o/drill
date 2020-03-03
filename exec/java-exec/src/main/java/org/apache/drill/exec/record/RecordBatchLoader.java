@@ -75,7 +75,8 @@ public class RecordBatchLoader implements VectorAccessible, Iterable<VectorWrapp
    * @throws SchemaChangeException
    *   TODO:  Clean:  DRILL-2933  load(...) never actually throws SchemaChangeException.
    */
-  public boolean load(RecordBatchDef def, DrillBuf buf) throws SchemaChangeException {
+  @SuppressWarnings("resource")
+  public boolean load(RecordBatchDef def, DrillBuf buf) {
     if (logger.isTraceEnabled()) {
       logger.trace("Loading record batch with def {} and data {}", def, buf);
       logger.trace("Load, ThreadID: {}\n{}", Thread.currentThread().getId(), new StackTrace());
@@ -89,18 +90,18 @@ public class RecordBatchLoader implements VectorAccessible, Iterable<VectorWrapp
     // the schema has changed since the previous call.
 
     // Set up to recognize previous fields that no longer exist.
-    final Map<String, ValueVector> oldFields = CaseInsensitiveMap.newHashMap();
-    for (final VectorWrapper<?> wrapper : container) {
-      final ValueVector vector = wrapper.getValueVector();
+    Map<String, ValueVector> oldFields = CaseInsensitiveMap.newHashMap();
+    for (VectorWrapper<?> wrapper : container) {
+      ValueVector vector = wrapper.getValueVector();
       oldFields.put(vector.getField().getName(), vector);
     }
 
-    final VectorContainer newVectors = new VectorContainer();
+    VectorContainer newVectors = new VectorContainer();
     try {
-      final List<SerializedField> fields = def.getFieldList();
+      List<SerializedField> fields = def.getFieldList();
       int bufOffset = 0;
-      for (final SerializedField field : fields) {
-        final MaterializedField fieldDef = MaterializedField.create(field);
+      for (SerializedField field : fields) {
+        MaterializedField fieldDef = MaterializedField.create(field);
         ValueVector vector = oldFields.remove(fieldDef.getName());
 
         if (vector == null) {
@@ -144,8 +145,8 @@ public class RecordBatchLoader implements VectorAccessible, Iterable<VectorWrapp
       }
 
       // rebuild the schema.
-      final SchemaBuilder builder = BatchSchema.newBuilder();
-      for (final VectorWrapper<?> v : newVectors) {
+      SchemaBuilder builder = BatchSchema.newBuilder();
+      for (VectorWrapper<?> v : newVectors) {
         builder.addField(v.getField());
       }
       builder.setSelectionVectorMode(BatchSchema.SelectionVectorMode.NONE);
@@ -156,14 +157,12 @@ public class RecordBatchLoader implements VectorAccessible, Iterable<VectorWrapp
     } catch (final Throwable cause) {
       // We have to clean up new vectors created here and pass over the actual cause. It is upper layer who should
       // adjudicate to call upper layer specific clean up logic.
-      for (final VectorWrapper<?> wrapper:newVectors) {
-        wrapper.getValueVector().clear();
-      }
+      VectorAccessibleUtilities.clear(newVectors);
       throw cause;
     } finally {
       if (! oldFields.isEmpty()) {
         schemaChanged = true;
-        for (final ValueVector vector : oldFields.values()) {
+        for (ValueVector vector : oldFields.values()) {
           vector.clear();
         }
       }

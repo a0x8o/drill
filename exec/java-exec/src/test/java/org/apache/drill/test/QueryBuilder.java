@@ -67,26 +67,23 @@ import static org.junit.Assert.assertEquals;
  * Builder for a Drill query. Provides all types of query formats,
  * and a variety of ways to run the query.
  */
-
 public class QueryBuilder {
 
   /**
    * Listener used to retrieve the query summary (only) asynchronously
    * using a {@link QuerySummaryFuture}.
    */
-
   public static class SummaryOnlyQueryEventListener implements UserResultsListener {
 
     /**
      * The future to be notified. Created here and returned by the
      * query builder.
      */
-
     private final QuerySummaryFuture future;
     private QueryId queryId;
     private int recordCount;
     private int batchCount;
-    private long startTime;
+    private final long startTime;
 
     public SummaryOnlyQueryEventListener(QuerySummaryFuture future) {
       this.future = future;
@@ -132,7 +129,7 @@ public class QueryBuilder {
      * launched the query.
      */
 
-    private CountDownLatch lock = new CountDownLatch(1);
+    private final CountDownLatch lock = new CountDownLatch(1);
     private QuerySummary summary;
 
     /**
@@ -373,29 +370,25 @@ public class QueryBuilder {
 
     // Unload the batch and convert to a row set.
 
-    final RecordBatchLoader loader = new RecordBatchLoader(client.allocator());
-    try {
-      loader.load(resultBatch.getHeader().getDef(), resultBatch.getData());
-      resultBatch.release();
-      VectorContainer container = loader.getContainer();
-      container.setRecordCount(loader.getRecordCount());
+    RecordBatchLoader loader = new RecordBatchLoader(client.allocator());
+    loader.load(resultBatch.getHeader().getDef(), resultBatch.getData());
+    resultBatch.release();
+    VectorContainer container = loader.getContainer();
+    container.setRecordCount(loader.getRecordCount());
 
-      // Null results? Drill will return a single batch with no rows
-      // and no columns even if the scan (or other) operator returns
-      // no batches at all. For ease of testing, simply map this null
-      // result set to a null output row set that says "nothing at all
-      // was returned." Note that this is different than an empty result
-      // set which has a schema, but no rows.
+    // Null results? Drill will return a single batch with no rows
+    // and no columns even if the scan (or other) operator returns
+    // no batches at all. For ease of testing, simply map this null
+    // result set to a null output row set that says "nothing at all
+    // was returned." Note that this is different than an empty result
+    // set which has a schema, but no rows.
 
-      if (container.getRecordCount() == 0 && container.getNumberOfColumns() == 0) {
-        container.clear();
-        return null;
-      }
-
-      return DirectRowSet.fromContainer(container);
-    } catch (SchemaChangeException e) {
-      throw new IllegalStateException(e);
+    if (container.getRecordCount() == 0 && container.getNumberOfColumns() == 0) {
+      container.clear();
+      return null;
     }
+
+    return DirectRowSet.fromContainer(container);
   }
 
   public QueryRowSetIterator rowSetIterator() {
@@ -760,18 +753,18 @@ public class QueryBuilder {
    */
   private String queryPlan(String columnName) throws Exception {
     Preconditions.checkArgument(queryType == QueryType.SQL, "Can only explain an SQL query.");
-    final List<QueryDataBatch> results = results();
-    final RecordBatchLoader loader = new RecordBatchLoader(client.allocator());
-    final StringBuilder builder = new StringBuilder();
+    List<QueryDataBatch> results = results();
+    RecordBatchLoader loader = new RecordBatchLoader(client.allocator());
+    StringBuilder builder = new StringBuilder();
 
-    for (final QueryDataBatch b : results) {
+    for (QueryDataBatch b : results) {
       if (!b.hasData()) {
         continue;
       }
 
       loader.load(b.getHeader().getDef(), b.getData());
 
-      final VectorWrapper<?> vw;
+      VectorWrapper<?> vw;
       try {
           vw = loader.getValueAccessorById(
               NullableVarCharVector.class,
@@ -780,9 +773,9 @@ public class QueryBuilder {
         throw new IllegalStateException("Looks like you did not provide an explain plan query, please add EXPLAIN PLAN FOR to the beginning of your query.");
       }
 
-      final ValueVector vv = vw.getValueVector();
+      ValueVector vv = vw.getValueVector();
       for (int i = 0; i < vv.getAccessor().getValueCount(); i++) {
-        final Object o = vv.getAccessor().getObject(i);
+        Object o = vv.getAccessor().getObject(i);
         builder.append(o);
       }
       loader.clear();

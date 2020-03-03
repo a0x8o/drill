@@ -19,7 +19,9 @@ package org.apache.drill.exec.vector.accessor.writer;
 
 import org.apache.drill.exec.record.metadata.ColumnMetadata;
 import org.apache.drill.exec.vector.accessor.ArrayWriter;
-import org.apache.drill.exec.vector.accessor.ColumnWriter;
+import org.apache.drill.exec.vector.accessor.ColumnReader;
+import org.apache.drill.exec.vector.accessor.ObjectReader;
+import org.apache.drill.exec.vector.accessor.DictWriter;
 import org.apache.drill.exec.vector.accessor.ObjectType;
 import org.apache.drill.exec.vector.accessor.ObjectWriter;
 import org.apache.drill.exec.vector.accessor.ScalarWriter;
@@ -59,7 +61,10 @@ public abstract class AbstractObjectWriter implements ObjectWriter {
     throw new UnsupportedOperationException();
   }
 
-  public abstract ColumnWriter writer();
+  @Override
+  public DictWriter dict() {
+    throw new UnsupportedOperationException();
+  }
 
   @Override
   public abstract WriterEvents events();
@@ -81,6 +86,12 @@ public abstract class AbstractObjectWriter implements ObjectWriter {
 
   @Override
   public boolean isProjected() { return writer().isProjected(); }
+
+  @Override
+  public void copy(ColumnReader from) {
+    ObjectReader source = (ObjectReader) from;
+    writer().copy(source.reader());
+  }
 
   public abstract void dump(HierarchicalFormatter format);
 

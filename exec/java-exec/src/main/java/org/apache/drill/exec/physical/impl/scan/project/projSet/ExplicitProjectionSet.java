@@ -17,17 +17,14 @@
  */
 package org.apache.drill.exec.physical.impl.scan.project.projSet;
 
-import org.apache.drill.common.exceptions.UserException;
-import org.apache.drill.common.types.Types;
 import org.apache.drill.exec.physical.resultSet.ProjectionSet;
-import org.apache.drill.exec.physical.resultSet.project.ProjectionType;
+import org.apache.drill.exec.physical.resultSet.project.RequestedColumn;
+import org.apache.drill.exec.physical.resultSet.project.RequestedColumnImpl;
 import org.apache.drill.exec.physical.resultSet.project.RequestedTuple;
-import org.apache.drill.exec.physical.resultSet.project.RequestedTuple.RequestedColumn;
 import org.apache.drill.exec.physical.resultSet.project.RequestedTuple.TupleProjectionType;
 import org.apache.drill.exec.record.metadata.ColumnMetadata;
 import org.apache.drill.exec.vector.accessor.convert.ColumnConversionFactory;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.drill.exec.vector.complex.DictVector;
 
 /**
  * Projection set based on an explicit set of columns provided
@@ -36,7 +33,6 @@ import org.slf4j.LoggerFactory;
  */
 
 public class ExplicitProjectionSet extends AbstractProjectionSet {
-  private static final Logger logger = LoggerFactory.getLogger(ExplicitProjectionSet.class);
 
   private final RequestedTuple requestedProj;
 
@@ -46,28 +42,37 @@ public class ExplicitProjectionSet extends AbstractProjectionSet {
   }
 
   @Override
+  public boolean isProjected(String colName) {
+    return requestedProj.get(colName) != null;
+  }
+
+  @Override
   public ColumnReadProjection readProjection(ColumnMetadata col) {
     RequestedColumn reqCol = requestedProj.get(col.name());
     if (reqCol == null) {
       return new UnprojectedReadColumn(col);
     }
+
+    return getReadProjection(col, reqCol);
+  }
+
+  private ColumnReadProjection getReadProjection(ColumnMetadata col, RequestedColumn reqCol) {
     ColumnMetadata outputSchema = outputSchema(col);
-    validateProjection(reqCol, outputSchema == null ? col : outputSchema);
-    if (!col.isMap()) {
+    ProjectionChecker.validateProjection(reqCol, outputSchema == null ? col : outputSchema, errorContext);
+    if (!col.isMap() && !col.isDict()) {
 
       // Non-map column.
 
       ColumnConversionFactory conv = conversion(col, outputSchema);
       return new ProjectedReadColumn(col, reqCol, outputSchema, conv);
-    }
-    else {
+    } else {
 
       // Maps are tuples. Create a tuple projection and wrap it in
       // a column projection.
 
       TypeConverter childConverter = childConverter(outputSchema);
       ProjectionSet mapProjection;
-      if (! reqCol.type().isTuple() || reqCol.mapProjection().type() == TupleProjectionType.ALL) {
+      if (! reqCol.isTuple() || reqCol.tuple().type() == TupleProjectionType.ALL) {
 
         // Projection is simple: "m". This is equivalent to
         // (non-SQL) m.*
@@ -82,31 +87,30 @@ public class ExplicitProjectionSet extends AbstractProjectionSet {
         // projected; that case, while allowed in the RequestedTuple
         // implementation, can never occur in a SELECT list.)
 
-        mapProjection = new ExplicitProjectionSet(reqCol.mapProjection(), childConverter);
+        mapProjection = new ExplicitProjectionSet(reqCol.tuple(), childConverter);
       }
-      return new ProjectedMapColumn(col, reqCol, outputSchema, mapProjection);
+      if (col.isMap()) {
+        return new ProjectedMapColumn(col, reqCol, outputSchema, mapProjection);
+      } else {
+        return new ProjectedDictColumn(col, reqCol, outputSchema, mapProjection);
+      }
     }
   }
 
-  public void validateProjection(RequestedColumn colReq, ColumnMetadata readCol) {
-    if (colReq == null || readCol == null) {
-      return;
+  @Override
+  public ColumnReadProjection readDictProjection(ColumnMetadata col) {
+    // Unlike for a MAP, requestedProj contains a key value, rather than nested field's name:
+    // create DICT's members somewhat artificially
+
+    assert DictVector.fieldNames.contains(col.name());
+    if (col.name().equals(DictVector.FIELD_KEY_NAME)) {
+      // This field is considered not projected but its
+      // vector and writer will be instantiated later.
+      return new UnprojectedReadColumn(col);
     }
-    ProjectionType type = colReq.type();
-    if (type == null) {
-      return;
-    }
-    ProjectionType neededType = ProjectionType.typeFor(readCol.majorType());
-    if (type.isCompatible(neededType)) {
-      return;
-    }
-    throw UserException.validationError()
-      .message("Column type not compatible with projection specification")
-      .addContext("Column:", readCol.name())
-      .addContext("Projection type:", type.label())
-      .addContext("Column type:", Types.getSqlTypeName(readCol.majorType()))
-      .addContext(errorContext)
-      .build(logger);
+
+    RequestedColumn reqCol = new RequestedColumnImpl(requestedProj, col.name()); // this is the 'value' column
+    return getReadProjection(col, reqCol);
   }
 
   @Override

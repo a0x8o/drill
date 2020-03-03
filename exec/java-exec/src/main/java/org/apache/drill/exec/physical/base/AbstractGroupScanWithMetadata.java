@@ -85,9 +85,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 /**
  * Represents table group scan with metadata usage.
  */
-public abstract class AbstractGroupScanWithMetadata extends AbstractFileGroupScan {
+public abstract class AbstractGroupScanWithMetadata<P extends TableMetadataProvider> extends AbstractFileGroupScan {
 
-  protected TableMetadataProvider metadataProvider;
+  protected P metadataProvider;
 
   // table metadata info
   protected TableMetadata tableMetadata;
@@ -118,7 +118,7 @@ public abstract class AbstractGroupScanWithMetadata extends AbstractFileGroupSca
     this.filter = filter;
   }
 
-  protected AbstractGroupScanWithMetadata(AbstractGroupScanWithMetadata that) {
+  protected AbstractGroupScanWithMetadata(AbstractGroupScanWithMetadata<P> that) {
     super(that.getUserName());
     this.columns = that.columns;
     this.filter = that.filter;
@@ -167,29 +167,46 @@ public abstract class AbstractGroupScanWithMetadata extends AbstractFileGroupSca
    */
   @Override
   public long getColumnValueCount(SchemaPath column) {
-    long tableRowCount, colNulls;
-    Long nulls;
     ColumnStatistics<?> columnStats = getTableMetadata().getColumnStatistics(column);
-    ColumnStatistics<?> nonInterestingColStats = null;
-    if (columnStats == null) {
-      nonInterestingColStats = getNonInterestingColumnsMetadata().getColumnStatistics(column);
-    }
+    ColumnStatistics<?> nonInterestingColStats = columnStats == null
+        ? getNonInterestingColumnsMetadata().getColumnStatistics(column) : null;
 
+    long tableRowCount;
     if (columnStats != null) {
       tableRowCount = TableStatisticsKind.ROW_COUNT.getValue(getTableMetadata());
     } else if (nonInterestingColStats != null) {
       tableRowCount = TableStatisticsKind.ROW_COUNT.getValue(getNonInterestingColumnsMetadata());
+      columnStats = nonInterestingColStats;
+    } else if (hasNestedStatsForColumn(column, getTableMetadata())
+        || hasNestedStatsForColumn(column, getNonInterestingColumnsMetadata())) {
+      // When statistics for nested field exists, this is complex column which is present in table.
+      // But its nested fields statistics can't be used to extract tableRowCount for this column.
+      // So NO_COLUMN_STATS returned here to avoid problems described in DRILL-7491.
+      return Statistic.NO_COLUMN_STATS;
     } else {
       return 0; // returns 0 if the column doesn't exist in the table.
     }
 
-    columnStats = columnStats != null ? columnStats : nonInterestingColStats;
-    nulls = ColumnStatisticsKind.NULLS_COUNT.getFrom(columnStats);
-    colNulls = nulls != null ? nulls : Statistic.NO_COLUMN_STATS;
+    Long nulls = ColumnStatisticsKind.NULLS_COUNT.getFrom(columnStats);
+    if (nulls == null || Statistic.NO_COLUMN_STATS == nulls || Statistic.NO_COLUMN_STATS == tableRowCount) {
+      return Statistic.NO_COLUMN_STATS;
+    } else {
+      return tableRowCount - nulls;
+    }
+  }
 
-    return Statistic.NO_COLUMN_STATS == tableRowCount
-            || Statistic.NO_COLUMN_STATS == colNulls
-            ? Statistic.NO_COLUMN_STATS : tableRowCount - colNulls;
+  /**
+   * For complex columns, stats may be present only for nested fields. For example, a column path is `a`,
+   * but stats present for `a`.`b`. So before making a decision that column is absent, the case needs
+   * to be tested.
+   *
+   * @param column   parent column path
+   * @param metadata metadata with column statistics
+   * @return whether stats exists for nested fields
+   */
+  private boolean hasNestedStatsForColumn(SchemaPath column, Metadata metadata) {
+    return metadata.getColumnsStatistics().keySet().stream()
+        .anyMatch(path -> path.contains(column));
   }
 
   @Override
@@ -215,7 +232,7 @@ public abstract class AbstractGroupScanWithMetadata extends AbstractFileGroupSca
   }
 
   @Override
-  public TableMetadataProvider getMetadataProvider() {
+  public P getMetadataProvider() {
     return metadataProvider;
   }
 
@@ -261,7 +278,7 @@ public abstract class AbstractGroupScanWithMetadata extends AbstractFileGroupSca
    * @return group scan with applied filter expression
    */
   @Override
-  public AbstractGroupScanWithMetadata applyFilter(LogicalExpression filterExpr, UdfUtilities udfUtilities,
+  public AbstractGroupScanWithMetadata<?> applyFilter(LogicalExpression filterExpr, UdfUtilities udfUtilities,
       FunctionImplementationRegistry functionImplementationRegistry, OptionManager optionManager) {
 
     // Builds filter for pruning. If filter cannot be built, null should be returned.
@@ -516,7 +533,13 @@ public abstract class AbstractGroupScanWithMetadata extends AbstractFileGroupSca
   // partition pruning methods start
   @Override
   public List<SchemaPath> getPartitionColumns() {
-    return partitionColumns != null ? partitionColumns : new ArrayList<>();
+    if (partitionColumns == null) {
+      partitionColumns = metadataProvider.getPartitionColumns();
+      if (partitionColumns == null) {
+        partitionColumns = new ArrayList<>();
+      }
+    }
+    return partitionColumns;
   }
 
   @JsonIgnore
@@ -525,7 +548,6 @@ public abstract class AbstractGroupScanWithMetadata extends AbstractFileGroupSca
     return columnMetadata != null ? columnMetadata.majorType() : null;
   }
 
-  @SuppressWarnings("unchecked")
   @JsonIgnore
   public <T> T getPartitionValue(Path path, SchemaPath column, Class<T> clazz) {
     return getPartitionsMetadata().stream()
@@ -567,8 +589,8 @@ public abstract class AbstractGroupScanWithMetadata extends AbstractFileGroupSca
     return ColumnExplorer.isPartitionColumn(optionManager, schemaPath) || implicitColNames.contains(schemaPath.getRootSegmentPath());
   }
 
-  // protected methods for internal usage
-  protected Map<Path, FileMetadata> getFilesMetadata() {
+  @JsonIgnore
+  public Map<Path, FileMetadata> getFilesMetadata() {
     if (files == null) {
       files = metadataProvider.getFilesMetadataMap();
     }
@@ -583,14 +605,16 @@ public abstract class AbstractGroupScanWithMetadata extends AbstractFileGroupSca
     return tableMetadata;
   }
 
-  protected List<PartitionMetadata> getPartitionsMetadata() {
+  @JsonIgnore
+  public List<PartitionMetadata> getPartitionsMetadata() {
     if (partitions == null) {
       partitions = metadataProvider.getPartitionsMetadata();
     }
     return partitions;
   }
 
-  protected Map<Path, SegmentMetadata> getSegmentsMetadata() {
+  @JsonIgnore
+  public Map<Path, SegmentMetadata> getSegmentsMetadata() {
     if (segments == null) {
       segments = metadataProvider.getSegmentsMetadataMap();
     }
@@ -614,7 +638,7 @@ public abstract class AbstractGroupScanWithMetadata extends AbstractFileGroupSca
    * This class is responsible for filtering different metadata levels.
    */
   protected abstract static class GroupScanWithMetadataFilterer<B extends GroupScanWithMetadataFilterer<B>> {
-    protected final AbstractGroupScanWithMetadata source;
+    protected final AbstractGroupScanWithMetadata<? extends TableMetadataProvider> source;
 
     protected boolean matchAllMetadata = false;
 
@@ -634,7 +658,7 @@ public abstract class AbstractGroupScanWithMetadata extends AbstractFileGroupSca
     // and files which belongs to that partitions may be returned
     protected MetadataType overflowLevel = MetadataType.NONE;
 
-    public GroupScanWithMetadataFilterer(AbstractGroupScanWithMetadata source) {
+    public GroupScanWithMetadataFilterer(AbstractGroupScanWithMetadata<?> source) {
       this.source = source;
     }
 
@@ -643,7 +667,7 @@ public abstract class AbstractGroupScanWithMetadata extends AbstractFileGroupSca
      *
      * @return implementation of {@link AbstractGroupScanWithMetadata} with filtered metadata
      */
-    public abstract AbstractGroupScanWithMetadata build();
+    public abstract AbstractGroupScanWithMetadata<?> build();
 
     public B table(TableMetadata tableMetadata) {
       this.tableMetadata = tableMetadata;
@@ -952,7 +976,7 @@ public abstract class AbstractGroupScanWithMetadata extends AbstractFileGroupSca
         Iterable<T> metadataList,
         FilterPredicate<?> filterPredicate,
         OptionManager optionManager) {
-      List<T> qualifiedFiles = new ArrayList<>();
+      List<T> qualifiedMetadata = new ArrayList<>();
 
       for (T metadata : metadataList) {
         TupleMetadata schema = metadata.getSchema();
@@ -960,8 +984,7 @@ public abstract class AbstractGroupScanWithMetadata extends AbstractFileGroupSca
           filterPredicate = getFilterPredicate(filterExpression, udfUtilities,
               context, optionManager, true, true, schema);
         }
-        @SuppressWarnings("rawtypes")
-        Map<SchemaPath, ColumnStatistics> columnsStatistics = metadata.getColumnsStatistics();
+        Map<SchemaPath, ColumnStatistics<?>> columnsStatistics = metadata.getColumnsStatistics();
 
         // adds partition (dir) column statistics if it may be used during filter evaluation
         if (metadata instanceof LocationProvider && optionManager != null) {
@@ -983,12 +1006,12 @@ public abstract class AbstractGroupScanWithMetadata extends AbstractFileGroupSca
         if (matchAllMetadata) {
           matchAllMetadata = match == RowsMatch.ALL;
         }
-        qualifiedFiles.add(metadata);
+        qualifiedMetadata.add(metadata);
       }
-      if (qualifiedFiles.isEmpty()) {
+      if (qualifiedMetadata.isEmpty()) {
         matchAllMetadata = false;
       }
-      return qualifiedFiles;
+      return qualifiedMetadata;
     }
 
     protected abstract B self();

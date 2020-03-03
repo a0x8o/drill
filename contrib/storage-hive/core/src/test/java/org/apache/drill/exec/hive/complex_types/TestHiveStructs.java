@@ -23,13 +23,13 @@ import java.nio.file.Paths;
 import org.apache.drill.categories.HiveStorageTest;
 import org.apache.drill.categories.SlowTest;
 import org.apache.drill.exec.ExecConstants;
+import org.apache.drill.exec.hive.HiveClusterTest;
 import org.apache.drill.exec.hive.HiveTestFixture;
 import org.apache.drill.exec.hive.HiveTestUtilities;
 import org.apache.drill.exec.util.JsonStringHashMap;
 import org.apache.drill.exec.util.StoragePluginTestUtils;
 import org.apache.drill.exec.util.Text;
 import org.apache.drill.test.ClusterFixture;
-import org.apache.drill.test.ClusterTest;
 import org.apache.hadoop.hive.ql.Driver;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -44,7 +44,7 @@ import static org.apache.drill.test.TestBuilder.mapOf;
 import static org.apache.drill.test.TestBuilder.mapOfObject;
 
 @Category({SlowTest.class, HiveStorageTest.class})
-public class TestHiveStructs extends ClusterTest {
+public class TestHiveStructs extends HiveClusterTest {
 
   private static final JsonStringHashMap<String, Object> STR_N0_ROW_1 = mapOf(
       "f_int", -3000, "f_string", new Text("AbbBBa"), "f_varchar", new Text("-c54g"), "f_char", new Text("Th"),
@@ -88,7 +88,7 @@ public class TestHiveStructs extends ClusterTest {
   }
 
   @AfterClass
-  public static void tearDown() throws Exception {
+  public static void tearDown() {
     if (hiveTestFixture != null) {
       hiveTestFixture.getPluginManager().removeHivePluginFrom(cluster.drillbit());
     }
@@ -474,6 +474,27 @@ public class TestHiveStructs extends ClusterTest {
         .baselineColumns("rid", "str_u")
         .baselineValues(1, mapOf("n", -3, "u", 1000))
         .baselineValues(2, mapOf("n", 5, "u", "Text"))
+        .go();
+  }
+
+  @Test // DRILL-7386
+  public void countStructColumn() throws Exception {
+    testBuilder()
+        .sqlQuery("SELECT COUNT(str_n0) cnt FROM hive.struct_tbl")
+        .unOrdered()
+        .baselineColumns("cnt")
+        .baselineValues(3L)
+        .go();
+  }
+
+  @Test // DRILL-7386
+  public void typeOfFunctions() throws Exception {
+    testBuilder()
+        .sqlQuery("SELECT sqlTypeOf(%1$s) sto, typeOf(%1$s) to, modeOf(%1$s) mo, drillTypeOf(%1$s) dto " +
+            "FROM hive.struct_tbl LIMIT 1", "str_n0")
+        .unOrdered()
+        .baselineColumns("sto", "to", "mo", "dto")
+        .baselineValues("STRUCT", "MAP", "NOT NULL", "MAP")
         .go();
   }
 }

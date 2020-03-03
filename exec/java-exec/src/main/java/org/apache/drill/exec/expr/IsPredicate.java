@@ -27,6 +27,8 @@ import org.apache.drill.metastore.statistics.ColumnStatistics;
 import org.apache.drill.metastore.statistics.ColumnStatisticsKind;
 import org.apache.drill.metastore.statistics.Statistic;
 import org.apache.drill.shaded.guava.com.google.common.base.Preconditions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -34,6 +36,7 @@ import java.util.List;
 import java.util.function.BiFunction;
 
 public class IsPredicate<C extends Comparable<C>> extends LogicalExpressionBase implements FilterPredicate<C> {
+  private static final Logger logger = LoggerFactory.getLogger(IsPredicate.class);
 
   private final LogicalExpression expr;
 
@@ -63,7 +66,8 @@ public class IsPredicate<C extends Comparable<C>> extends LogicalExpressionBase 
    */
   @Override
   public RowsMatch matches(StatisticsProvider<C> evaluator) {
-    ColumnStatistics<C> exprStat = expr.accept(evaluator, null);
+    @SuppressWarnings("unchecked")
+    ColumnStatistics<C> exprStat = (ColumnStatistics<C>) expr.accept(evaluator, null);
     return isNullOrEmpty(exprStat) ? RowsMatch.SOME : predicate.apply(exprStat, evaluator);
   }
 
@@ -71,7 +75,7 @@ public class IsPredicate<C extends Comparable<C>> extends LogicalExpressionBase 
    * @param stat statistics object
    * @return <tt>true</tt> if the input stat object is null or has invalid statistics; false otherwise
    */
-  static boolean isNullOrEmpty(ColumnStatistics stat) {
+  public static boolean isNullOrEmpty(ColumnStatistics<?> stat) {
     return stat == null
         || !stat.contains(ColumnStatisticsKind.MIN_VALUE)
         || !stat.contains(ColumnStatisticsKind.MAX_VALUE)
@@ -85,7 +89,7 @@ public class IsPredicate<C extends Comparable<C>> extends LogicalExpressionBase 
    * If it contains some null values, then we change the RowsMatch.ALL into RowsMatch.SOME, which sya that maybe
    * some values (the null ones) should be disgarded.
    */
-  private static RowsMatch checkNull(ColumnStatistics exprStat) {
+  private static RowsMatch checkNull(ColumnStatistics<?> exprStat) {
     return hasNoNulls(exprStat) ? RowsMatch.ALL : RowsMatch.SOME;
   }
 
@@ -95,7 +99,7 @@ public class IsPredicate<C extends Comparable<C>> extends LogicalExpressionBase 
    * @param stat column statistics
    * @return <tt>true</tt> if the statistics does not have nulls and <tt>false</tt> otherwise
    */
-  static boolean hasNoNulls(ColumnStatistics stat) {
+  static boolean hasNoNulls(ColumnStatistics<?> stat) {
     return ColumnStatisticsKind.NULLS_COUNT.getFrom(stat) == 0;
   }
 

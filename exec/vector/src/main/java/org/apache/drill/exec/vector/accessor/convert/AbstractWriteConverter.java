@@ -20,6 +20,7 @@ package org.apache.drill.exec.vector.accessor.convert;
 import java.math.BigDecimal;
 
 import org.apache.drill.exec.record.metadata.ColumnMetadata;
+import org.apache.drill.exec.vector.accessor.ColumnReader;
 import org.apache.drill.exec.vector.accessor.ObjectType;
 import org.apache.drill.exec.vector.accessor.ScalarWriter;
 import org.apache.drill.exec.vector.accessor.ValueType;
@@ -35,7 +36,7 @@ import org.joda.time.Period;
  * perform the type conversion, such as overriding "setString" to convert
  * from a string representation of a value to the actual format.
  * <p>
- * The {@link #setObject()} method works here: the object is passed
+ * The {@link #setObject(Object)} method works here: the object is passed
  * to this class's set methods, allowing, say, setting a string object
  * for an int column in the case above.
  */
@@ -142,5 +143,10 @@ public abstract class AbstractWriteConverter extends AbstractScalarWriter {
   @Override
   public void setTimestamp(Instant value) {
     baseWriter.setTimestamp(value);
+  }
+
+  @Override
+  public final void copy(ColumnReader from) {
+    throw new UnsupportedOperationException("Cannot copy values through a type converter");
   }
 }

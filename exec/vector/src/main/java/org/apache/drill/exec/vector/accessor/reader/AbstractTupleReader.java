@@ -23,6 +23,7 @@ import java.util.List;
 import org.apache.drill.exec.vector.accessor.ArrayReader;
 import org.apache.drill.exec.vector.accessor.ColumnReader;
 import org.apache.drill.exec.vector.accessor.ColumnReaderIndex;
+import org.apache.drill.exec.vector.accessor.DictReader;
 import org.apache.drill.exec.vector.accessor.ObjectReader;
 import org.apache.drill.exec.vector.accessor.ObjectType;
 import org.apache.drill.exec.vector.accessor.ScalarReader;
@@ -38,11 +39,12 @@ public abstract class AbstractTupleReader implements TupleReader, ReaderEvents {
 
   public static class TupleObjectReader extends AbstractObjectReader {
 
-    private final AbstractTupleReader tupleReader;
+    protected final AbstractTupleReader tupleReader;
 
     public TupleObjectReader(AbstractTupleReader tupleReader) {
       this.tupleReader = tupleReader;
     }
+
     @Override
     public TupleReader tuple() {
       return tupleReader;
@@ -65,10 +67,10 @@ public abstract class AbstractTupleReader implements TupleReader, ReaderEvents {
     public ColumnReader reader() { return tupleReader; }
   }
 
-  private final AbstractObjectReader readers[];
+  protected final AbstractObjectReader[] readers;
   protected NullStateReader nullStateReader;
 
-  protected AbstractTupleReader(AbstractObjectReader readers[]) {
+  protected AbstractTupleReader(AbstractObjectReader[] readers) {
     this.readers = readers;
   }
 
@@ -77,8 +79,8 @@ public abstract class AbstractTupleReader implements TupleReader, ReaderEvents {
 
   @Override
   public void bindIndex(ColumnReaderIndex index) {
-    for (int i = 0; i < readers.length; i++) {
-      readers[i].events().bindIndex(index);
+    for (AbstractObjectReader reader : readers) {
+      reader.events().bindIndex(index);
     }
   }
 
@@ -89,8 +91,8 @@ public abstract class AbstractTupleReader implements TupleReader, ReaderEvents {
 
   @Override
   public void bindBuffer() {
-    for (int i = 0; i < readers.length; i++) {
-      readers[i].events().bindBuffer();
+    for (AbstractObjectReader reader : readers) {
+      reader.events().bindBuffer();
     }
   }
 
@@ -112,7 +114,8 @@ public abstract class AbstractTupleReader implements TupleReader, ReaderEvents {
   public ObjectReader column(String colName) {
     int index = tupleSchema().index(colName);
     if (index == -1) {
-      return null; }
+      return null;
+    }
     return readers[index];
   }
 
@@ -167,17 +170,27 @@ public abstract class AbstractTupleReader implements TupleReader, ReaderEvents {
   }
 
   @Override
+  public DictReader dict(int colIndex) {
+    return column(colIndex).dict();
+  }
+
+  @Override
+  public DictReader dict(String colName) {
+    return column(colName).dict();
+  }
+
+  @Override
   public void reposition() {
-    for (int i = 0; i < columnCount(); i++) {
-      readers[i].events().reposition();
+    for (AbstractObjectReader reader : readers) {
+      reader.events().reposition();
     }
   }
 
   @Override
   public Object getObject() {
     List<Object> elements = new ArrayList<>();
-    for (int i = 0; i < columnCount(); i++) {
-      elements.add(readers[i].getObject());
+    for (AbstractObjectReader reader : readers) {
+      elements.add(reader.getObject());
     }
     return elements;
   }

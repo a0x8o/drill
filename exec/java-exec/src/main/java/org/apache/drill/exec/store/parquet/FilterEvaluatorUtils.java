@@ -66,7 +66,7 @@ public class FilterEvaluatorUtils {
 
     RowGroupMetadata rowGroupMetadata = new ArrayList<>(ParquetTableMetadataUtils.getRowGroupsMetadata(footer).values()).get(rowGroupIndex);
     NonInterestingColumnsMetadata nonInterestingColumnsMetadata = ParquetTableMetadataUtils.getNonInterestingColumnsMeta(footer);
-    Map<SchemaPath, ColumnStatistics> columnsStatistics = rowGroupMetadata.getColumnsStatistics();
+    Map<SchemaPath, ColumnStatistics<?>> columnsStatistics = rowGroupMetadata.getColumnsStatistics();
 
     // Add column statistics of non-interesting columns if there are any
     columnsStatistics.putAll(nonInterestingColumnsMetadata.getColumnsStatistics());
@@ -78,7 +78,7 @@ public class FilterEvaluatorUtils {
         fragmentContext, fragmentContext.getFunctionRegistry(), new HashSet<>(schemaPathsInExpr));
   }
 
-  public static RowsMatch matches(LogicalExpression expr, Map<SchemaPath, ColumnStatistics> columnsStatistics, TupleMetadata schema,
+  public static RowsMatch matches(LogicalExpression expr, Map<SchemaPath, ColumnStatistics<?>> columnsStatistics, TupleMetadata schema,
                                   long rowCount, UdfUtilities udfUtilities, FunctionLookupContext functionImplementationRegistry,
                                   Set<SchemaPath> schemaPathsInExpr) {
     ErrorCollector errorCollector = new ErrorCollectorImpl();
@@ -95,24 +95,34 @@ public class FilterEvaluatorUtils {
     }
 
     Set<LogicalExpression> constantBoundaries = ConstantExpressionIdentifier.getConstantExpressionSet(materializedFilter);
-    FilterPredicate parquetPredicate = FilterBuilder.buildFilterPredicate(
+    FilterPredicate<?> parquetPredicate = FilterBuilder.buildFilterPredicate(
         materializedFilter, constantBoundaries, udfUtilities, true);
 
     return matches(parquetPredicate, columnsStatistics, rowCount, schema, schemaPathsInExpr);
   }
 
   @SuppressWarnings("unchecked")
-  public static RowsMatch matches(FilterPredicate parquetPredicate,
-                                  Map<SchemaPath, ColumnStatistics> columnsStatistics,
+  public static <T extends Comparable<T>> RowsMatch matches(FilterPredicate<T> parquetPredicate,
+                                  Map<SchemaPath, ColumnStatistics<?>> columnsStatistics,
                                   long rowCount,
                                   TupleMetadata fileMetadata,
                                   Set<SchemaPath> schemaPathsInExpr) {
     RowsMatch rowsMatch = RowsMatch.SOME;
     if (parquetPredicate != null) {
-      StatisticsProvider rangeExprEvaluator = new StatisticsProvider(columnsStatistics, rowCount);
+      @SuppressWarnings("rawtypes")
+      StatisticsProvider<T> rangeExprEvaluator = new StatisticsProvider(columnsStatistics, rowCount);
       rowsMatch = parquetPredicate.matches(rangeExprEvaluator);
     }
-    return rowsMatch == RowsMatch.ALL && isRepeated(schemaPathsInExpr, fileMetadata) ? RowsMatch.SOME : rowsMatch;
+
+    if (rowsMatch == RowsMatch.ALL && isMetaNotApplicable(schemaPathsInExpr, fileMetadata)) {
+      rowsMatch = RowsMatch.SOME;
+    }
+
+    return rowsMatch;
+  }
+
+  private static boolean isMetaNotApplicable(Set<SchemaPath> schemaPathsInExpr, TupleMetadata fileMetadata) {
+    return isRepeated(schemaPathsInExpr, fileMetadata) || isDictOrRepeatedMapChild(schemaPathsInExpr, fileMetadata);
   }
 
   private static boolean isRepeated(Set<SchemaPath> fields, TupleMetadata fileMetadata) {
@@ -120,6 +130,15 @@ public class FilterEvaluatorUtils {
       ColumnMetadata columnMetadata = SchemaPathUtils.getColumnMetadata(field, fileMetadata);
       TypeProtos.MajorType fieldType = columnMetadata != null ? columnMetadata.majorType() : null;
       if (fieldType != null && fieldType.getMode() == TypeProtos.DataMode.REPEATED) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean isDictOrRepeatedMapChild(Set<SchemaPath> fields, TupleMetadata fileMetadata) {
+    for (SchemaPath field : fields) {
+      if (SchemaPathUtils.isFieldNestedInDictOrRepeatedMap(field, fileMetadata)) {
         return true;
       }
     }

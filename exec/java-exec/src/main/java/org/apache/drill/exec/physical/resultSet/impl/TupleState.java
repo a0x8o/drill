@@ -38,6 +38,8 @@ import org.apache.drill.exec.vector.accessor.impl.HierarchicalFormatter;
 import org.apache.drill.exec.vector.accessor.writer.AbstractObjectWriter;
 import org.apache.drill.exec.vector.accessor.writer.AbstractTupleWriter;
 import org.apache.drill.exec.vector.complex.AbstractMapVector;
+import org.apache.drill.exec.vector.complex.DictVector;
+import org.apache.drill.exec.vector.complex.RepeatedDictVector;
 
 /**
  * Represents the loader state for a tuple: a row or a map. This is "state" in
@@ -88,7 +90,6 @@ import org.apache.drill.exec.vector.complex.AbstractMapVector;
  * either one list of columns or another, the internal and external maps must
  * differ. The set of child vectors (except for child maps) are shared.
  */
-
 public abstract class TupleState extends ContainerState
   implements AbstractTupleWriter.TupleWriterListener {
 
@@ -123,7 +124,6 @@ public abstract class TupleState extends ContainerState
    * a structured: an ordered, named list of columns.) When looking for newly
    * added columns, they will always be at the end.
    */
-
   public static class MapColumnState extends BaseContainerColumnState {
     protected final MapState mapState;
     protected boolean isVersioned;
@@ -142,7 +142,7 @@ public abstract class TupleState extends ContainerState
       } else {
         outputSchema = schema();
       }
-      mapState.bindOutputSchema(outputSchema.mapSchema());
+      mapState.bindOutputSchema(outputSchema.tupleSchema());
     }
 
     public MapState mapState() { return mapState; }
@@ -167,7 +167,6 @@ public abstract class TupleState extends ContainerState
      * </ul>
      * @return <tt>true</tt> if this map is versioned as described above
      */
-
     public boolean isVersioned() { return isVersioned; }
 
     @Override
@@ -179,7 +178,6 @@ public abstract class TupleState extends ContainerState
    * vector. The map vector itself is a pseudo-vector that is simply a
    * container for other vectors, and so needs no management itself.
    */
-
   public static class MapVectorState implements VectorState {
 
     private final AbstractMapVector mapVector;
@@ -230,7 +228,9 @@ public abstract class TupleState extends ContainerState
 
     @Override
     public void dump(HierarchicalFormatter format) {
-      // TODO
+      format.startObject(this)
+          .attribute("field", mapVector != null ? mapVector.getField() : "null")
+          .endObject();
     }
   }
 
@@ -239,14 +239,12 @@ public abstract class TupleState extends ContainerState
    * Note that by "row" we mean the set of vectors that define the
    * set of rows.
    */
-
   public static class RowState extends TupleState {
 
     /**
      * The row-level writer for stepping through rows as they are written,
      * and for accessing top-level columns.
      */
-
     private final RowSetLoaderImpl writer;
 
     /**
@@ -255,7 +253,6 @@ public abstract class TupleState extends ContainerState
      * consumer of the writers. Also excludes columns if added during
      * an overflow row.
      */
-
     private final VectorContainer outputContainer;
 
     public RowState(ResultSetLoaderImpl rsLoader, ResultVectorCache vectorCache) {
@@ -279,7 +276,6 @@ public abstract class TupleState extends ContainerState
      *
      * @return <tt>true</tt>
      */
-
     @Override
     protected boolean isVersioned() { return true; }
 
@@ -310,7 +306,6 @@ public abstract class TupleState extends ContainerState
    * The map state is associated with a map vector. This vector is built
    * either during harvest time (normal maps) or on the fly (union maps.)
    */
-
   public static abstract class MapState extends TupleState {
 
     public MapState(LoaderInternals events,
@@ -362,7 +357,6 @@ public abstract class TupleState extends ContainerState
      * that maps are materialized regardless of nesting depth within
      * a union.
      */
-
     @Override
     protected boolean isVersioned() {
       return ((MapColumnState) parentColumn).isVersioned();
@@ -396,7 +390,6 @@ public abstract class TupleState extends ContainerState
      * map, then it is the writer itself. If this is a map array,
      * then the tuple is nested inside the array.
      */
-
     @Override
     public AbstractTupleWriter writer() {
       return (AbstractTupleWriter) parentColumn.writer().tuple();
@@ -416,7 +409,6 @@ public abstract class TupleState extends ContainerState
      * map, then it is the writer itself. If this is a map array,
      * then the tuple is nested inside the array.
      */
-
     @Override
     public AbstractTupleWriter writer() {
       return (AbstractTupleWriter) parentColumn.writer().array().tuple();
@@ -429,13 +421,11 @@ public abstract class TupleState extends ContainerState
    * query does not project; the result set loader creates a dummy column
    * and dummy writer, then does not project the column to the output.)
    */
-
   protected final List<ColumnState> columns = new ArrayList<>();
 
   /**
    * Internal writer schema that matches the column list.
    */
-
   protected final TupleMetadata schema = new TupleSchema();
 
   /**
@@ -451,7 +441,6 @@ public abstract class TupleState extends ContainerState
    * not defer columns because of the muddy semantics (and infrequent use)
    * of unions.
    */
-
   protected TupleMetadata outputSchema;
 
   private int prevHarvestIndex = -1;
@@ -475,7 +464,6 @@ public abstract class TupleState extends ContainerState
    * @return ordered list of column states for the columns within
    * this tuple
    */
-
   public List<ColumnState> columns() { return columns; }
 
   public TupleMetadata schema() { return writer().tupleSchema(); }
@@ -514,12 +502,10 @@ public abstract class TupleState extends ContainerState
   protected void updateOutput(int curSchemaVersion) {
 
     // Scan all columns
-
     for (int i = 0; i < columns.size(); i++) {
       final ColumnState colState = columns.get(i);
 
       // Ignore unprojected columns
-
       if (! colState.writer().isProjected()) {
         continue;
       }
@@ -539,7 +525,7 @@ public abstract class TupleState extends ContainerState
         prevHarvestIndex = i;
       }
 
-      // If the column is a map, then we have to recurse into the map
+      // If the column is a map or a dict, then we have to recurse into it
       // itself. If the map is inside a union, then the map's vectors
       // already appear in the map vector, but we still must update the
       // output schema.
@@ -547,6 +533,9 @@ public abstract class TupleState extends ContainerState
       if (colState.schema().isMap()) {
         final MapState childMap = ((MapColumnState) colState).mapState();
         childMap.updateOutput(curSchemaVersion);
+      } else if (colState.schema().isDict()) {
+        final DictState child = ((DictColumnState) colState).dictState();
+        child.updateOutput(curSchemaVersion);
       }
     }
   }
@@ -566,5 +555,227 @@ public abstract class TupleState extends ContainerState
     format
       .endArray()
       .endObject();
+  }
+
+  public static class DictColumnState extends BaseContainerColumnState {
+    protected final DictState dictState;
+    protected boolean isVersioned;
+    protected final ColumnMetadata outputSchema;
+
+    public DictColumnState(DictState dictState,
+                          AbstractObjectWriter writer,
+                          VectorState vectorState,
+                          boolean isVersioned) {
+      super(dictState.loader(), writer, vectorState);
+      this.dictState = dictState;
+      dictState.bindColumnState(this);
+      this.isVersioned = isVersioned;
+      if (isVersioned) {
+        outputSchema = schema().cloneEmpty();
+      } else {
+        outputSchema = schema();
+      }
+      dictState.bindOutputSchema(outputSchema.tupleSchema());
+    }
+
+    @Override
+    public void buildOutput(TupleState tupleState) {
+      outputIndex = tupleState.addOutputColumn(vector(), outputSchema());
+    }
+
+    public DictState dictState() {
+      return dictState;
+    }
+
+    @Override
+    public ContainerState container() {
+      return dictState;
+    }
+
+    @Override
+    public boolean isProjected() {
+      return dictState.hasProjections();
+    }
+
+    public boolean isVersioned() {
+      return isVersioned;
+    }
+
+    @Override
+    public ColumnMetadata outputSchema() { return outputSchema; }
+  }
+
+  public static abstract class DictState extends MapState {
+
+    public DictState(LoaderInternals events,
+                    ResultVectorCache vectorCache,
+                    ProjectionSet projectionSet) {
+      super(events, vectorCache, projectionSet);
+    }
+
+    @Override
+    public void bindColumnState(ColumnState colState) {
+      super.bindColumnState(colState);
+      writer().bindListener(this);
+    }
+
+    @Override
+    protected boolean isVersioned() {
+      return ((DictColumnState) parentColumn).isVersioned();
+    }
+
+    @Override
+    public void dump(HierarchicalFormatter format) {
+      format.startObject(this)
+          .attribute("column", parentColumn.schema().name())
+          .attribute("cardinality", innerCardinality())
+          .endObject();
+    }
+  }
+
+  public static class SingleDictState extends DictState {
+
+    public SingleDictState(LoaderInternals events,
+                          ResultVectorCache vectorCache,
+                          ProjectionSet projectionSet) {
+      super(events, vectorCache, projectionSet);
+    }
+
+    @Override
+    public AbstractTupleWriter writer() {
+      return (AbstractTupleWriter) parentColumn.writer().dict().tuple();
+    }
+  }
+
+  public static class DictArrayState extends DictState {
+
+    public DictArrayState(LoaderInternals events,
+                         ResultVectorCache vectorCache,
+                         ProjectionSet projectionSet) {
+      super(events, vectorCache, projectionSet);
+    }
+
+    @Override
+    public int addOutputColumn(ValueVector vector, ColumnMetadata colSchema) {
+      final RepeatedDictVector repeatedDictVector = parentColumn.vector();
+      DictVector dictVector = (DictVector) repeatedDictVector.getDataVector();
+      if (isVersioned()) {
+        dictVector.putChild(colSchema.name(), vector);
+      }
+      final int index = outputSchema.addColumn(colSchema);
+      assert dictVector.size() == outputSchema.size();
+      assert dictVector.getField().getChildren().size() == outputSchema.size();
+      return index;
+    }
+
+    @Override
+    public AbstractTupleWriter writer() {
+      return (AbstractTupleWriter) parentColumn.writer().array().dict().tuple();
+    }
+  }
+
+  public static abstract class DictVectorState<T extends ValueVector> implements VectorState {
+
+    protected final T vector;
+    protected final VectorState offsets;
+
+    public DictVectorState(T vector, VectorState offsets) {
+      this.vector = vector;
+      this.offsets = offsets;
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public T vector() {
+      return vector;
+    }
+
+    @Override
+    public int allocate(int cardinality) {
+      return offsets.allocate(cardinality);
+    }
+
+    @Override
+    public void rollover(int cardinality) {
+      offsets.rollover(cardinality);
+    }
+
+    @Override
+    public void harvestWithLookAhead() {
+      offsets.harvestWithLookAhead();
+    }
+
+    @Override
+    public void startBatchWithLookAhead() {
+      offsets.harvestWithLookAhead();
+    }
+
+    @Override
+    public void close() {
+      offsets.close();
+    }
+
+    public VectorState offsetVectorState() {
+      return offsets;
+    }
+
+    @Override
+    public boolean isProjected() {
+      return offsets.isProjected();
+    }
+
+    @Override
+    public void dump(HierarchicalFormatter format) {
+      format.startObject(this)
+          .attribute("field", vector != null ? vector.getField() : "null")
+          .endObject();
+    }
+  }
+
+  public static class SingleDictVectorState extends DictVectorState<DictVector> {
+
+    public SingleDictVectorState(DictVector vector, VectorState offsets) {
+      super(vector, offsets);
+    }
+  }
+
+  public static class DictArrayVectorState extends DictVectorState<RepeatedDictVector> {
+
+    // offsets for the data vector
+    private final VectorState dictOffsets;
+
+    public DictArrayVectorState(RepeatedDictVector vector, VectorState offsets, VectorState dictOffsets) {
+      super(vector, offsets);
+      this.dictOffsets = dictOffsets;
+    }
+
+    @Override
+    public int allocate(int cardinality) {
+      return offsets.allocate(cardinality);
+    }
+
+    @Override
+    public void rollover(int cardinality) {
+      super.rollover(cardinality);
+      dictOffsets.rollover(cardinality);
+    }
+
+    @Override
+    public void harvestWithLookAhead() {
+      super.harvestWithLookAhead();
+      dictOffsets.harvestWithLookAhead();
+    }
+
+    @Override
+    public void startBatchWithLookAhead() {
+      super.startBatchWithLookAhead();
+      dictOffsets.harvestWithLookAhead();
+    }
+
+    @Override
+    public void close() {
+      super.close();
+      dictOffsets.close();
+    }
   }
 }

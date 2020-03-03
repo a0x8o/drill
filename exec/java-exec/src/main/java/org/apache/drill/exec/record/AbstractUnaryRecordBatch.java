@@ -18,14 +18,13 @@
 package org.apache.drill.exec.record;
 
 import org.apache.drill.exec.exception.OutOfMemoryException;
-import org.apache.drill.exec.exception.SchemaChangeException;
 import org.apache.drill.exec.ops.FragmentContext;
 import org.apache.drill.exec.physical.base.PhysicalOperator;
 import org.apache.drill.exec.record.BatchSchema.SelectionVectorMode;
 import org.apache.drill.exec.vector.SchemaChangeCallBack;
 
 /**
- * The base class for operators that have a single input. The concrete implementations provide the
+ * Base class for operators that have a single input. The concrete implementations provide the
  * input by implementing the getIncoming() method
  * Known implementations:  AbstractSingleRecordBatch and AbstractTableFunctionRecordBatch.
  * @see org.apache.drill.exec.record.AbstractRecordBatch
@@ -34,9 +33,7 @@ import org.apache.drill.exec.vector.SchemaChangeCallBack;
  * @param <T>
  */
 public abstract class AbstractUnaryRecordBatch<T extends PhysicalOperator> extends AbstractRecordBatch<T> {
-  private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(new Object() {}.getClass().getEnclosingClass());
 
-  protected boolean outOfMemory = false;
   protected SchemaChangeCallBack callBack = new SchemaChangeCallBack();
   private IterOutcome lastKnownOutcome;
 
@@ -47,9 +44,8 @@ public abstract class AbstractUnaryRecordBatch<T extends PhysicalOperator> exten
   protected abstract RecordBatch getIncoming();
 
   @Override
-  protected void killIncoming(boolean sendUpstream) {
-    final RecordBatch incoming = getIncoming();
-    incoming.kill(sendUpstream);
+  protected void cancelIncoming() {
+    getIncoming().cancel();
   }
 
   @Override
@@ -83,12 +79,9 @@ public abstract class AbstractUnaryRecordBatch<T extends PhysicalOperator> exten
         }
         return upstream;
       case NOT_YET:
-      case STOP:
         if (state == BatchState.FIRST) {
           container.buildSchema(SelectionVectorMode.NONE);
         }
-        return upstream;
-      case OUT_OF_MEMORY:
         return upstream;
       case OK_NEW_SCHEMA:
         if (state == BatchState.FIRST) {
@@ -99,11 +92,6 @@ public abstract class AbstractUnaryRecordBatch<T extends PhysicalOperator> exten
           if (!setupNewSchema()) {
             upstream = IterOutcome.OK;
           }
-        } catch (SchemaChangeException ex) {
-          kill(false);
-          logger.error("Failure during query", ex);
-          context.getExecutorState().fail(ex);
-          return IterOutcome.STOP;
         } finally {
           stats.stopSetup();
         }
@@ -120,11 +108,6 @@ public abstract class AbstractUnaryRecordBatch<T extends PhysicalOperator> exten
           upstream = out;
         }
 
-        if (outOfMemory) {
-          outOfMemory = false;
-          return IterOutcome.OUT_OF_MEMORY;
-        }
-
         // Check if schema has changed
         if (callBack.getSchemaChangedAndReset()) {
           return IterOutcome.OK_NEW_SCHEMA;
@@ -136,28 +119,27 @@ public abstract class AbstractUnaryRecordBatch<T extends PhysicalOperator> exten
     }
   }
 
-  protected abstract boolean setupNewSchema() throws SchemaChangeException;
+  protected abstract boolean setupNewSchema();
   protected abstract IterOutcome doWork();
 
   /**
-   * Default behavior to handle NULL input (aka FAST NONE): incoming return NONE before return a OK_NEW_SCHEMA:
-   * This could happen when the underneath Scan operators do not produce any batch with schema.
-   *
+   * Default behavior to handle NULL input (aka FAST NONE): incoming return NONE
+   * before return a OK_NEW_SCHEMA: This could happen when the underneath Scan
+   * operators do not produce any batch with schema.
    * <p>
-   * Notice that NULL input is different from input with an empty batch. In the later case, input provides
-   * at least a batch, thought it's empty.
-   *</p>
-   *
+   * Notice that NULL input is different from input with an empty batch. In the
+   * later case, input provides at least a batch, thought it's empty.
+   * </p>
    * <p>
-   * This behavior could be override in each individual operator, if the operator's semantics is to
-   * inject a batch with schema.
-   *</p>
+   * This behavior could be override in each individual operator, if the
+   * operator's semantics is to inject a batch with schema.
+   * </p>
    *
    * @return IterOutcome.NONE.
    */
   protected IterOutcome handleNullInput() {
     container.buildSchema(SelectionVectorMode.NONE);
-    container.setRecordCount(0);
+    container.setEmpty();
     return IterOutcome.NONE;
   }
 

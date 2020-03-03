@@ -24,7 +24,7 @@
   <parent>
     <groupId>org.apache.drill.contrib.storage-hive</groupId>
     <artifactId>drill-contrib-storage-hive-parent</artifactId>
-    <version>1.17.0-SNAPSHOT</version>
+    <version>1.18.0-SNAPSHOT</version>
   </parent>
 
   <artifactId>drill-hive-exec-shaded</artifactId>
@@ -92,6 +92,8 @@
           <artifactSet>
             <includes>
               <include>org.apache.hive:hive-exec</include>
+              <!-- Provides custom version of parquet-hadoop-bundle instead of the shaded one
+                to be able to use version with some critical fixes like PARQUET-363 -->
               <include>org.apache.parquet:parquet-hadoop-bundle</include>
               <include>commons-codec:commons-codec</include>
               <include>com.fasterxml.jackson.core:jackson-databind</include>
@@ -146,6 +148,14 @@
               <pattern>com.google.protobuf.</pattern>
               <shadedPattern>hive.com.google.protobuf.</shadedPattern>
             </relocation>
+            <relocation>
+              <pattern>org.apache.commons.lang.</pattern>
+              <shadedPattern>hive.org.apache.commons.lang.</shadedPattern>
+            </relocation>
+            <relocation>
+              <pattern>org.apache.commons.lang3.</pattern>
+              <shadedPattern>hive.org.apache.commons.lang3.</shadedPattern>
+            </relocation>
           </relocations>
           <filters>
             <filter>
@@ -154,7 +164,8 @@
                 <!-- This exclusion can be removed once hive-exec uses parquet-hadoop-bundle 1.8.2 or higher.
                  It can be so, for example, after upgrading Hive to 3.0. To check if it's safe to remove the exclusion
                  you can use TestHiveStorage.readFromAlteredPartitionedTableWithEmptyGroupType() test case. -->
-                <exclude>org/apache/parquet/schema/*</exclude>
+                <exclude>org/apache/parquet/**</exclude>
+                <exclude>shaded/parquet/org/**</exclude>
               </excludes>
             </filter>
           </filters>

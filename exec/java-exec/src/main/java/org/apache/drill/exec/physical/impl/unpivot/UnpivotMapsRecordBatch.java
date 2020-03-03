@@ -23,7 +23,6 @@ import org.apache.drill.common.expression.SchemaPath;
 import org.apache.drill.common.types.TypeProtos.MajorType;
 import org.apache.drill.common.types.TypeProtos.MinorType;
 import org.apache.drill.exec.exception.OutOfMemoryException;
-import org.apache.drill.exec.exception.SchemaChangeException;
 import org.apache.drill.exec.expr.TypeHelper;
 import org.apache.drill.exec.ops.FragmentContext;
 import org.apache.drill.exec.physical.config.UnpivotMaps;
@@ -31,12 +30,15 @@ import org.apache.drill.exec.record.AbstractSingleRecordBatch;
 import org.apache.drill.exec.record.MaterializedField;
 import org.apache.drill.exec.record.RecordBatch;
 import org.apache.drill.exec.record.TransferPair;
+import org.apache.drill.exec.record.VectorAccessibleUtilities;
 import org.apache.drill.exec.record.VectorContainer;
 import org.apache.drill.exec.record.VectorWrapper;
 import org.apache.drill.exec.vector.ValueVector;
 import org.apache.drill.exec.vector.complex.MapVector;
 import org.apache.drill.shaded.guava.com.google.common.collect.Lists;
 import org.apache.drill.shaded.guava.com.google.common.collect.Maps;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Unpivot maps. Assumptions are:
@@ -44,7 +46,7 @@ import org.apache.drill.shaded.guava.com.google.common.collect.Maps;
  *  2) Each map contains the same number of fields and field names are also same (types could be different).
  *
  * Example input and output:
- * Schema of input:
+ * Schema of input: <pre>
  *    "schema"        : BIGINT - Schema number. For each schema change this number is incremented.
  *    "computed"      : BIGINT - What time is it computed?
  *    "columns" : MAP - Column names
@@ -61,30 +63,31 @@ import org.apache.drill.shaded.guava.com.google.common.collect.Maps;
  *       "sales_city" : BIGINT - nonnullstatcount(sales_city)
  *       "cnt"        : BIGINT - nonnullstatcount(cnt)
  *   .... another map for next stats function ....
- *
- * Schema of output:
+ * </pre>
+ * Schema of output: <pre>
  *  "schema"           : BIGINT - Schema number. For each schema change this number is incremented.
  *  "computed"         : BIGINT - What time is this computed?
  *  "column"           : column name
  *  "statscount"       : BIGINT
  *  "nonnullstatcount" : BIGINT
  *  .... one column for each map type ...
+ *  </pre>
  */
 public class UnpivotMapsRecordBatch extends AbstractSingleRecordBatch<UnpivotMaps> {
-  private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(UnpivotMapsRecordBatch.class);
+  private static final Logger logger = LoggerFactory.getLogger(UnpivotMapsRecordBatch.class);
 
   private final List<String> mapFieldsNames;
   private boolean first = true;
-  private int keyIndex = 0;
-  private List<String> keyList = null;
+  private int keyIndex;
+  private List<String> keyList;
 
-  private Map<MaterializedField, Map<String, ValueVector>> dataSrcVecMap = null;
+  private Map<MaterializedField, Map<String, ValueVector>> dataSrcVecMap;
 
   // Map of non-map fields to VV in the incoming schema
-  private Map<MaterializedField, ValueVector> copySrcVecMap = null;
+  private Map<MaterializedField, ValueVector> copySrcVecMap;
 
   private List<TransferPair> transferList;
-  private int recordCount = 0;
+  private int recordCount;
 
   public UnpivotMapsRecordBatch(UnpivotMaps pop, RecordBatch incoming, FragmentContext context)
       throws OutOfMemoryException {
@@ -108,48 +111,28 @@ public class UnpivotMapsRecordBatch extends AbstractSingleRecordBatch<UnpivotMap
     // Process according to upstream outcome
     switch (upStream) {
       case NONE:
-      case OUT_OF_MEMORY:
       case NOT_YET:
-      case STOP:
         return upStream;
       case OK_NEW_SCHEMA:
-        if (first) {
-          first = false;
-        }
-        try {
-          if (!setupNewSchema()) {
-            upStream = IterOutcome.OK;
-          } else {
-            return upStream;
-          }
-        } catch (SchemaChangeException ex) {
-          kill(false);
-          logger.error("Failure during query", ex);
-          context.getExecutorState().fail(ex);
-          return IterOutcome.STOP;
-        }
-        //fall through
+        first = false;
+        setupNewSchema();
+        return upStream;
+
       case OK:
         assert first == false : "First batch should be OK_NEW_SCHEMA";
-        try {
-          container.zeroVectors();
-          IterOutcome out = doWork();
-          // Preserve OK_NEW_SCHEMA unless doWork() runs into an issue
-          if (out != IterOutcome.OK) {
-            upStream = out;
-          }
-        } catch (Exception ex) {
-          kill(false);
-          logger.error("Failure during query", ex);
-          context.getExecutorState().fail(ex);
-          return IterOutcome.STOP;
+        container.zeroVectors();
+        IterOutcome out = doWork();
+        // Preserve OK_NEW_SCHEMA unless doWork() runs into an issue
+        if (out != IterOutcome.OK) {
+          upStream = out;
         }
-       return upStream;
+        return upStream;
       default:
         throw new UnsupportedOperationException("Unsupported upstream state " + upStream);
     }
   }
 
+  @Override
   public VectorContainer getOutgoingContainer() {
     return this.container;
   }
@@ -170,11 +153,10 @@ public class UnpivotMapsRecordBatch extends AbstractSingleRecordBatch<UnpivotMap
 
     keyIndex = (keyIndex + 1) % keyList.size();
     recordCount = outRecordCount;
+    container.setRecordCount(recordCount);
 
     if (keyIndex == 0) {
-      for (VectorWrapper w : incoming) {
-        w.clear();
-      }
+      VectorAccessibleUtilities.clear(incoming.getContainer());
     }
     return IterOutcome.OK;
   }
@@ -266,10 +248,11 @@ public class UnpivotMapsRecordBatch extends AbstractSingleRecordBatch<UnpivotMap
   }
 
   @Override
-  protected boolean setupNewSchema() throws SchemaChangeException {
+  protected boolean setupNewSchema() {
     container.clear();
     buildKeyList();
     buildOutputContainer();
+    container.setEmpty();
     return true;
   }
 

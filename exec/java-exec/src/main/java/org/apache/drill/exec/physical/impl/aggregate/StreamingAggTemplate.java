@@ -34,7 +34,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public abstract class StreamingAggTemplate implements StreamingAggregator {
-  private static final Logger logger = LoggerFactory.getLogger(StreamingAggregator.class);
+  private static final Logger logger = LoggerFactory.getLogger(StreamingAggTemplate.class);
   private static final boolean EXTRA_DEBUG = false;
   private int maxOutputRows = ValueVector.MAX_ROW_COUNT;
 
@@ -136,9 +136,6 @@ public abstract class StreamingAggTemplate implements StreamingAggregator {
                     currentIndex = this.getVectorIndex(underlyingIndex);
                     break outer;
                   }
-                case OUT_OF_MEMORY:
-                  outcome = out;
-                  return AggOutcome.RETURN_OUTCOME;
                 case EMIT:
                   outerOutcome = EMIT;
                   if (incoming.getRecordCount() == 0) {
@@ -153,7 +150,6 @@ public abstract class StreamingAggTemplate implements StreamingAggregator {
 
                 case NONE:
                   out = IterOutcome.OK_NEW_SCHEMA;
-                case STOP:
                 default:
                   lastOutcome = out;
                   outcome = out;
@@ -331,7 +327,6 @@ public abstract class StreamingAggTemplate implements StreamingAggregator {
                     continue outside;
                   }
                 }
-              case STOP:
               default:
                 lastOutcome = out;
                 outcome = out;

@@ -158,7 +158,7 @@ public interface RecordCollector {
 
       return drillSchema.getTableNamesAndTypes().stream()
         .filter(entry -> filterEvaluator.shouldVisitTable(schemaPath, entry.getKey(), entry.getValue()))
-        .map(entry -> new Records.Table(IS_CATALOG_NAME, schemaPath, entry.getKey(), entry.getValue().toString()))
+        .map(entry -> new Records.Table(IS_CATALOG_NAME, schemaPath, entry.getKey(), entry.getValue().jdbcName))
         .collect(Collectors.toList());
     }
 
@@ -339,13 +339,13 @@ public interface RecordCollector {
           // if column is a map / struct, recursively scan nested columns
           if (column.isMap()) {
             List<Records.Column> mapRecords =
-              columns(schemaPath, table, column.mapSchema(), columnName, currentIndex, true);
+              columns(schemaPath, table, column.tupleSchema(), columnName, currentIndex, true);
             records.addAll(mapRecords);
           }
 
           String tableName = table.getTableInfo().name();
           if (filterEvaluator.shouldVisitColumn(schemaPath, tableName, columnName)) {
-            ColumnStatistics columnStatistics =
+            ColumnStatistics<?> columnStatistics =
               table.getColumnStatistics(SchemaPath.parseFromString(columnName));
             records.add(new Records.Column(IS_CATALOG_NAME, schemaPath, tableName, columnName,
               column, columnStatistics, currentIndex, isNested));

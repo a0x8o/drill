@@ -77,12 +77,8 @@ public class MockRecordBatch implements CloseableRecordBatch {
     this.allocator = context.getAllocator();
     this.container = new VectorContainer(allocator, schema);
     this.allOutcomes = iterOutcomes;
-    this.currentContainerIndex = 0;
-    this.currentOutcomeIndex = 0;
-    this.isDone = false;
   }
 
-  @Deprecated
   public MockRecordBatch(@Nullable FragmentContext context,
                          @Nullable OperatorContext oContext,
                          @NotNull List<VectorContainer> testContainers,
@@ -130,7 +126,7 @@ public class MockRecordBatch implements CloseableRecordBatch {
   @Override
   public void close() {
     container.clear();
-    container.setRecordCount(0);
+    container.setEmpty();
     currentContainerIndex = 0;
     currentOutcomeIndex = 0;
     if (sv2 != null) {
@@ -164,14 +160,9 @@ public class MockRecordBatch implements CloseableRecordBatch {
   }
 
   @Override
-  public void kill(boolean sendUpstream) {
+  public void cancel() {
     if (!limitWithUnnest) {
       isDone = true;
-      container.clear();
-      container.setRecordCount(0);
-      if (sv2 != null) {
-        sv2.clear();
-      }
     }
   }
 
@@ -193,7 +184,7 @@ public class MockRecordBatch implements CloseableRecordBatch {
   @Override
   public IterOutcome next() {
 
-    if(isDone) {
+    if (isDone) {
       return IterOutcome.NONE;
     }
 
@@ -213,16 +204,18 @@ public class MockRecordBatch implements CloseableRecordBatch {
       switch (rowSet.indirectionType()) {
         case NONE:
         case TWO_BYTE:
-          container.transferIn(input);
-          if ( input.hasRecordCount() ) { // in case special test of uninitialized input container
-            container.setRecordCount(input.getRecordCount());
+          if (input.hasRecordCount()) { // in case special test of uninitialized input container
+            container.transferIn(input);
+          } else {
+            // Not normally a valid condition, supported here just for testing
+            container.rawTransferIn(input);
           }
           SelectionVector2 inputSv2 = ((RowSet.SingleRowSet) rowSet).getSv2();
 
           if (sv2 != null) {
             // Operators assume that new values for an Sv2 are transferred in.
             sv2.allocateNewSafe(inputSv2.getCount());
-            for (int i=0; i<inputSv2.getCount(); ++i) {
+            for (int i=0; i < inputSv2.getCount(); ++i) {
               sv2.setIndex(i, inputSv2.getIndex(i));
             }
             sv2.setRecordCount(inputSv2.getCount());
@@ -256,8 +249,6 @@ public class MockRecordBatch implements CloseableRecordBatch {
         ++currentContainerIndex;
         return currentOutcome;
       case NONE:
-      case STOP:
-      case OUT_OF_MEMORY:
         isDone = true;
       case NOT_YET:
         container.setRecordCount(0);
@@ -289,13 +280,7 @@ public class MockRecordBatch implements CloseableRecordBatch {
   }
 
   @Override
-  public boolean hasFailed() {
-    return false;
-  }
-
-  @Override
-  public void dump() {
-  }
+  public void dump() { }
 
   public static class Builder {
     private final List<RowSet> rowSets = new ArrayList<>();
@@ -328,9 +313,6 @@ public class MockRecordBatch implements CloseableRecordBatch {
     }
 
     public Builder terminateWithError(IterOutcome errorOutcome) {
-      Preconditions.checkArgument(errorOutcome != IterOutcome.STOP);
-      Preconditions.checkArgument(errorOutcome != IterOutcome.OUT_OF_MEMORY);
-
       iterOutcomes.add(errorOutcome);
       return this;
     }

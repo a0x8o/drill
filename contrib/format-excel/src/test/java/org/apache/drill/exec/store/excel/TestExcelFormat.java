@@ -63,9 +63,6 @@ public class TestExcelFormat extends ClusterTest {
   public static void setup() throws Exception {
     ClusterTest.startCluster(ClusterFixture.builder(dirTestWatcher));
 
-    ExcelFormatConfig formatConfig = new ExcelFormatConfig();
-    cluster.defineFormat("cp", "excel", formatConfig);
-
     // Needed for compressed file unit test
     dirTestWatcher.copyResourceToRoot(Paths.get("excel/"));
   }
@@ -377,6 +374,25 @@ public class TestExcelFormat extends ClusterTest {
       .addRow(3.0, "Waiter", 17.0)
       .addRow(4.0, "Cicely", 6.0)
       .addRow(5.0, "Dorie", 17.0)
+      .build();
+
+    new RowSetComparison(expected).verifyAndClearAll(results);
+  }
+
+  @Test
+  public void testFileWithDoubleDates() throws Exception {
+    String sql = "SELECT `Close Date`, `Type` FROM table(cp.`excel/test_data.xlsx` (type=> 'excel', sheetName => 'comps')) WHERE style='Contemporary'";
+
+    RowSet results = client.queryBuilder().sql(sql).rowSet();
+
+    TupleMetadata expectedSchema = new SchemaBuilder()
+      .addNullable("Close Date", TypeProtos.MinorType.TIMESTAMP)
+      .addNullable("Type", TypeProtos.MinorType.VARCHAR)
+      .buildSchema();
+
+    RowSet expected = new RowSetBuilder(client.allocator(), expectedSchema)
+      .addRow(1412294400000L, "Hi Rise")
+      .addRow(1417737600000L, "Hi Rise")
       .build();
 
     new RowSetComparison(expected).verifyAndClearAll(results);

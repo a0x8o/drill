@@ -31,6 +31,9 @@ public class WildcardProjectionSet extends AbstractProjectionSet {
   }
 
   @Override
+  public boolean isProjected(String colName) { return true; }
+
+  @Override
   public ColumnReadProjection readProjection(ColumnMetadata col) {
     if (isSpecial(col)) {
       return new UnprojectedReadColumn(col);
@@ -43,7 +46,7 @@ public class WildcardProjectionSet extends AbstractProjectionSet {
     } else if (isSpecial(outputSchema)) {
       return new UnprojectedReadColumn(col);
     }
-    if (col.isMap()) {
+    if (col.isMap() || col.isDict()) {
       return new ProjectedMapColumn(col, null, outputSchema,
           new WildcardProjectionSet(childConverter(outputSchema), isStrict));
 
@@ -51,6 +54,11 @@ public class WildcardProjectionSet extends AbstractProjectionSet {
       ColumnConversionFactory conv = conversion(col, outputSchema);
       return new ProjectedReadColumn(col, null, outputSchema, conv);
     }
+  }
+
+  @Override
+  public ColumnReadProjection readDictProjection(ColumnMetadata col) {
+    return readProjection(col);
   }
 
   // Wildcard means use whatever schema is provided by the reader,

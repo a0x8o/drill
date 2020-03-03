@@ -21,16 +21,15 @@ import org.apache.drill.common.expression.SchemaPath;
 import org.apache.drill.exec.record.selection.SelectionVector2;
 import org.apache.drill.exec.record.selection.SelectionVector4;
 
-// TODO javadoc
 public interface VectorAccessible extends Iterable<VectorWrapper<?>> {
   // TODO are these <?> related in any way? Should they be the same one?
-  // TODO javadoc
   VectorWrapper<?> getValueAccessorById(Class<?> clazz, int... fieldIds);
 
   /**
    * Get the value vector type and id for the given schema path. The TypedFieldId
    * should store a fieldId which is the same as the ordinal position of the field
-   * within the Iterator provided this classes implementation of Iterable<ValueVector>.
+   * within the Iterator provided this classes implementation of
+   * <code>Iterable&lt;ValueVector><code>.
    *
    * @param path the path where the vector should be located.
    * @return the local field id associated with this vector. If no field matches this

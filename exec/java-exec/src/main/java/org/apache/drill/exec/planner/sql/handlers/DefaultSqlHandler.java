@@ -77,7 +77,6 @@ import org.apache.drill.exec.planner.logical.DrillProjectRel;
 import org.apache.drill.exec.planner.logical.DrillRel;
 import org.apache.drill.exec.planner.logical.DrillRelFactories;
 import org.apache.drill.exec.planner.logical.DrillScreenRel;
-import org.apache.drill.exec.planner.logical.DrillStoreRel;
 import org.apache.drill.exec.planner.logical.PreProcessLogicalRel;
 import org.apache.drill.exec.planner.physical.DrillDistributionTrait;
 import org.apache.drill.exec.planner.physical.PhysicalPlanCreator;
@@ -105,15 +104,14 @@ import org.apache.drill.exec.util.Pointer;
 import org.apache.drill.exec.work.foreman.ForemanSetupException;
 import org.apache.drill.exec.work.foreman.SqlUnsupportedException;
 import org.slf4j.Logger;
-
+import org.slf4j.LoggerFactory;
 import org.apache.drill.shaded.guava.com.google.common.base.Preconditions;
 import org.apache.drill.shaded.guava.com.google.common.base.Stopwatch;
 import org.apache.drill.shaded.guava.com.google.common.collect.Lists;
 
 public class DefaultSqlHandler extends AbstractSqlHandler {
-  private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(DefaultSqlHandler.class);
+  private static final Logger logger = LoggerFactory.getLogger(DefaultSqlHandler.class);
 
-  // protected final QueryContext context;
   private final Pointer<String> textPlan;
   private final long targetSliceSize;
   protected final SqlHandlerConfig config;
@@ -129,7 +127,6 @@ public class DefaultSqlHandler extends AbstractSqlHandler {
     this.context = config.getContext();
     this.textPlan = textPlan;
     this.targetSliceSize = config.getContext().getOptions().getOption(ExecConstants.SLICE_TARGET_OPTION);
-
   }
 
   protected void log(final PlannerType plannerType, final PlannerPhase phase, final RelNode node, final Logger logger,
@@ -181,7 +178,6 @@ public class DefaultSqlHandler extends AbstractSqlHandler {
     log("Drill Plan", plan, logger);
     return plan;
   }
-
 
   /**
    * Rewrite the parse tree. Used before validating the parse tree. Useful if a particular statement needs to converted
@@ -278,23 +274,17 @@ public class DefaultSqlHandler extends AbstractSqlHandler {
       // Convert SUM to $SUM0
       final RelNode convertedRelNodeWithSum0 = transform(PlannerType.HEP_BOTTOM_UP, PlannerPhase.SUM_CONVERSION, convertedRelNode);
 
-      final DrillRel drillRel = (DrillRel) convertedRelNodeWithSum0;
-
-      if (drillRel instanceof DrillStoreRel) {
-        throw new UnsupportedOperationException();
-      } else {
-
-        // If the query contains a limit 0 clause, disable distributed mode since it is overkill for determining schema.
-        if (FindLimit0Visitor.containsLimit0(convertedRelNodeWithSum0) &&
-            FindHardDistributionScans.canForceSingleMode(convertedRelNodeWithSum0)) {
-          context.getPlannerSettings().forceSingleMode();
-          if (context.getOptions().getOption(ExecConstants.LATE_LIMIT0_OPT)) {
-            return FindLimit0Visitor.addLimitOnTopOfLeafNodes(drillRel);
-          }
+      DrillRel drillRel = (DrillRel) convertedRelNodeWithSum0;
+      // If the query contains a limit 0 clause, disable distributed mode since it is overkill for determining schema.
+      if (FindLimit0Visitor.containsLimit0(convertedRelNodeWithSum0) &&
+          FindHardDistributionScans.canForceSingleMode(convertedRelNodeWithSum0)) {
+        context.getPlannerSettings().forceSingleMode();
+        if (context.getOptions().getOption(ExecConstants.LATE_LIMIT0_OPT)) {
+          drillRel = FindLimit0Visitor.addLimitOnTopOfLeafNodes(drillRel);
         }
-
-        return drillRel;
       }
+
+      return drillRel;
     } catch (RelOptPlanner.CannotPlanException ex) {
       logger.error(ex.getMessage());
 
@@ -334,18 +324,14 @@ public class DefaultSqlHandler extends AbstractSqlHandler {
         return super.visit(other);
       }
     }
-
   }
 
   /**
    * Transform RelNode to a new RelNode without changing any traits. Also will log the outcome.
    *
-   * @param plannerType
-   *          The type of Planner to use.
-   * @param phase
-   *          The transformation phase we're running.
-   * @param input
-   *          The origianl RelNode
+   * @param plannerType The type of Planner to use.
+   * @param phase The transformation phase we're running.
+   * @param input The original RelNode
    * @return The transformed relnode.
    */
   private RelNode transform(PlannerType plannerType, PlannerPhase phase, RelNode input) {
@@ -355,14 +341,10 @@ public class DefaultSqlHandler extends AbstractSqlHandler {
   /**
    * Transform RelNode to a new RelNode, targeting the provided set of traits. Also will log the outcome.
    *
-   * @param plannerType
-   *          The type of Planner to use.
-   * @param phase
-   *          The transformation phase we're running.
-   * @param input
-   *          The origianl RelNode
-   * @param targetTraits
-   *          The traits we are targeting for output.
+   * @param plannerType The type of Planner to use.
+   * @param phase The transformation phase we're running.
+   * @param input The original RelNode
+   * @param targetTraits The traits we are targeting for output.
    * @return The transformed relnode.
    */
   protected RelNode transform(PlannerType plannerType, PlannerPhase phase, RelNode input, RelTraitSet targetTraits) {
@@ -372,16 +354,11 @@ public class DefaultSqlHandler extends AbstractSqlHandler {
   /**
    * Transform RelNode to a new RelNode, targeting the provided set of traits. Also will log the outcome if asked.
    *
-   * @param plannerType
-   *          The type of Planner to use.
-   * @param phase
-   *          The transformation phase we're running.
-   * @param input
-   *          The origianl RelNode
-   * @param targetTraits
-   *          The traits we are targeting for output.
-   * @param log
-   *          Whether to log the planning phase.
+   * @param plannerType The type of Planner to use.
+   * @param phase The transformation phase we're running.
+   * @param input The original RelNode
+   * @param targetTraits The traits we are targeting for output.
+   * @param log Whether to log the planning phase.
    * @return The transformed relnode.
    */
   protected RelNode transform(PlannerType plannerType, PlannerPhase phase, RelNode input, RelTraitSet targetTraits,
@@ -658,7 +635,6 @@ public class DefaultSqlHandler extends AbstractSqlHandler {
       }
       return null;
     }
-
   }
 
   protected Pair<SqlNode, RelDataType> validateNode(SqlNode sqlNode) throws ValidationException, RelConversionException, ForemanSetupException {
@@ -795,6 +771,4 @@ public class DefaultSqlHandler extends AbstractSqlHandler {
       return this.validatedRowType;
     }
   }
-
-
 }

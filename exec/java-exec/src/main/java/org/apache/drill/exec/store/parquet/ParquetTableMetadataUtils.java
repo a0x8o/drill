@@ -57,6 +57,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.OriginalType;
 import org.apache.parquet.schema.PrimitiveType;
+import org.apache.parquet.schema.Type;
 import org.joda.time.DateTimeConstants;
 
 import java.math.BigDecimal;
@@ -80,7 +81,7 @@ import java.util.stream.Collectors;
 @SuppressWarnings("WeakerAccess")
 public class ParquetTableMetadataUtils {
 
-  static final List<CollectableColumnStatisticsKind> PARQUET_COLUMN_STATISTICS =
+  static final List<CollectableColumnStatisticsKind<?>> PARQUET_COLUMN_STATISTICS =
           ImmutableList.of(
               ColumnStatisticsKind.MAX_VALUE,
               ColumnStatisticsKind.MIN_VALUE,
@@ -102,8 +103,8 @@ public class ParquetTableMetadataUtils {
    * @param supportsFileImplicitColumns whether implicit columns are supported
    * @return map with added statistics for implicit and partition (dir) columns
    */
-  public static Map<SchemaPath, ColumnStatistics> addImplicitColumnsStatistics(
-      Map<SchemaPath, ColumnStatistics> columnsStatistics, List<SchemaPath> columns,
+  public static Map<SchemaPath, ColumnStatistics<?>> addImplicitColumnsStatistics(
+      Map<SchemaPath, ColumnStatistics<?>> columnsStatistics, List<SchemaPath> columns,
       List<String> partitionValues, OptionManager optionManager, Path location, boolean supportsFileImplicitColumns) {
     ColumnExplorer columnExplorer = new ColumnExplorer(optionManager, columns);
 
@@ -157,11 +158,11 @@ public class ParquetTableMetadataUtils {
    */
   public static RowGroupMetadata getRowGroupMetadata(MetadataBase.ParquetTableMetadataBase tableMetadata,
       MetadataBase.RowGroupMetadata rowGroupMetadata, int rgIndexInFile, Path location) {
-    Map<SchemaPath, ColumnStatistics> columnsStatistics = getRowGroupColumnStatistics(tableMetadata, rowGroupMetadata);
-    List<StatisticsHolder> rowGroupStatistics = new ArrayList<>();
+    Map<SchemaPath, ColumnStatistics<?>> columnsStatistics = getRowGroupColumnStatistics(tableMetadata, rowGroupMetadata);
+    List<StatisticsHolder<?>> rowGroupStatistics = new ArrayList<>();
     rowGroupStatistics.add(new StatisticsHolder<>(rowGroupMetadata.getRowCount(), TableStatisticsKind.ROW_COUNT));
-    rowGroupStatistics.add(new StatisticsHolder<>(rowGroupMetadata.getStart(), new BaseStatisticsKind(ExactStatisticsConstants.START, true)));
-    rowGroupStatistics.add(new StatisticsHolder<>(rowGroupMetadata.getLength(), new BaseStatisticsKind(ExactStatisticsConstants.LENGTH, true)));
+    rowGroupStatistics.add(new StatisticsHolder<>(rowGroupMetadata.getStart(), new BaseStatisticsKind<>(ExactStatisticsConstants.START, true)));
+    rowGroupStatistics.add(new StatisticsHolder<>(rowGroupMetadata.getLength(), new BaseStatisticsKind<>(ExactStatisticsConstants.LENGTH, true)));
 
     Map<SchemaPath, TypeProtos.MajorType> columns = getRowGroupFields(tableMetadata, rowGroupMetadata);
     Map<SchemaPath, TypeProtos.MajorType> intermediateColumns = getIntermediateFields(tableMetadata, rowGroupMetadata);
@@ -195,7 +196,7 @@ public class ParquetTableMetadataUtils {
     if (rowGroups.isEmpty()) {
       return null;
     }
-    List<StatisticsHolder> fileStatistics = new ArrayList<>();
+    List<StatisticsHolder<?>> fileStatistics = new ArrayList<>();
     fileStatistics.add(new StatisticsHolder<>(TableStatisticsKind.ROW_COUNT.mergeStatistics(rowGroups), TableStatisticsKind.ROW_COUNT));
 
     RowGroupMetadata rowGroupMetadata = rowGroups.iterator().next();
@@ -255,23 +256,23 @@ public class ParquetTableMetadataUtils {
    * @param rowGroupMetadata metadata to convert
    * @return map with converted row group metadata
    */
-  public static Map<SchemaPath, ColumnStatistics> getRowGroupColumnStatistics(
+  public static Map<SchemaPath, ColumnStatistics<?>> getRowGroupColumnStatistics(
       MetadataBase.ParquetTableMetadataBase tableMetadata, MetadataBase.RowGroupMetadata rowGroupMetadata) {
 
-    Map<SchemaPath, ColumnStatistics> columnsStatistics = new HashMap<>();
+    Map<SchemaPath, ColumnStatistics<?>> columnsStatistics = new HashMap<>();
 
     for (MetadataBase.ColumnMetadata column : rowGroupMetadata.getColumns()) {
       SchemaPath colPath = SchemaPath.getCompoundPath(column.getName());
 
       Long nulls = column.getNulls();
-      if (!column.isNumNullsSet() || nulls == null) {
+      if (hasInvalidStatistics(column, tableMetadata)) {
         nulls = Statistic.NO_COLUMN_STATS;
       }
       PrimitiveType.PrimitiveTypeName primitiveType = getPrimitiveTypeName(tableMetadata, column);
       OriginalType originalType = getOriginalType(tableMetadata, column);
       TypeProtos.MinorType type = ParquetReaderUtility.getMinorType(primitiveType, originalType);
 
-      List<StatisticsHolder> statistics = new ArrayList<>();
+      List<StatisticsHolder<?>> statistics = new ArrayList<>();
       statistics.add(new StatisticsHolder<>(getValue(column.getMinValue(), primitiveType, originalType), ColumnStatisticsKind.MIN_VALUE));
       statistics.add(new StatisticsHolder<>(getValue(column.getMaxValue(), primitiveType, originalType), ColumnStatisticsKind.MAX_VALUE));
       statistics.add(new StatisticsHolder<>(nulls, ColumnStatisticsKind.NULLS_COUNT));
@@ -280,13 +281,20 @@ public class ParquetTableMetadataUtils {
     return columnsStatistics;
   }
 
+  private static boolean hasInvalidStatistics(MetadataBase.ColumnMetadata column,
+        MetadataBase.ParquetTableMetadataBase tableMetadata) {
+    return !column.isNumNullsSet() || ((column.getMinValue() == null || column.getMaxValue() == null)
+        && column.getNulls() == 0
+        && tableMetadata.getRepetition(column.getName()) == Type.Repetition.REQUIRED);
+  }
+
   /**
    * Returns the non-interesting column's metadata
    * @param parquetTableMetadata the source of column metadata for non-interesting column's statistics
    * @return returns non-interesting columns metadata
    */
   public static NonInterestingColumnsMetadata getNonInterestingColumnsMeta(MetadataBase.ParquetTableMetadataBase parquetTableMetadata) {
-    Map<SchemaPath, ColumnStatistics> columnsStatistics = new HashMap<>();
+    Map<SchemaPath, ColumnStatistics<?>> columnsStatistics = new HashMap<>();
     if (parquetTableMetadata instanceof Metadata_V4.ParquetTableMetadata_v4) {
       Map<Metadata_V4.ColumnTypeMetadata_v4.Key, Metadata_V4.ColumnTypeMetadata_v4> columnTypeInfoMap =
               ((Metadata_V4.ParquetTableMetadata_v4) parquetTableMetadata).getColumnTypeInfoMap();
@@ -298,7 +306,7 @@ public class ParquetTableMetadataUtils {
       for (Metadata_V4.ColumnTypeMetadata_v4 columnTypeMetadata : columnTypeInfoMap.values()) {
         if (!columnTypeMetadata.isInteresting) {
           SchemaPath schemaPath = SchemaPath.getCompoundPath(columnTypeMetadata.name);
-          List<StatisticsHolder> statistics = new ArrayList<>();
+          List<StatisticsHolder<?>> statistics = new ArrayList<>();
           statistics.add(new StatisticsHolder<>(Statistic.NO_COLUMN_STATS, ColumnStatisticsKind.NULLS_COUNT));
           PrimitiveType.PrimitiveTypeName primitiveType = columnTypeMetadata.primitiveType;
           OriginalType originalType = columnTypeMetadata.originalType;
@@ -371,7 +379,8 @@ public class ParquetTableMetadataUtils {
     } else if (value instanceof String) { // value is obtained from metadata cache v2+
       return ((String) value).getBytes();
     } else if (value instanceof Map) { // value is obtained from metadata cache v1
-      String bytesString = (String) ((Map) value).get("bytes");
+      @SuppressWarnings("unchecked")
+      String bytesString = ((Map<String,String>) value).get("bytes");
       if (bytesString != null) {
         return bytesString.getBytes();
       }
@@ -471,7 +480,7 @@ public class ParquetTableMetadataUtils {
   public static Map<SchemaPath, TypeProtos.MajorType> getRowGroupFields(
       MetadataBase.ParquetTableMetadataBase parquetTableMetadata, MetadataBase.RowGroupMetadata rowGroup) {
     Map<SchemaPath, TypeProtos.MajorType> columns = new LinkedHashMap<>();
-    if (new MetadataVersion(parquetTableMetadata.getMetadataVersion()).compareTo(new MetadataVersion(4, 0)) > 0
+    if (new MetadataVersion(parquetTableMetadata.getMetadataVersion()).isHigherThan(4, 0)
         && !((Metadata_V4.ParquetTableMetadata_v4) parquetTableMetadata).isAllColumnsInteresting()) {
       // adds non-interesting fields from table metadata
       for (MetadataBase.ColumnTypeMetadata columnTypeMetadata : parquetTableMetadata.getColumnTypeInfoList()) {
@@ -506,27 +515,61 @@ public class ParquetTableMetadataUtils {
       MetadataBase.ParquetTableMetadataBase parquetTableMetadata) {
     int precision = 0;
     int scale = 0;
-    int definitionLevel = 1;
-    int repetitionLevel = 0;
     MetadataVersion metadataVersion = new MetadataVersion(parquetTableMetadata.getMetadataVersion());
     // only ColumnTypeMetadata_v3 and ColumnTypeMetadata_v4 store information about scale, precision, repetition level and definition level
-    if (parquetTableMetadata.hasColumnMetadata() && (metadataVersion.compareTo(new MetadataVersion(3, 0)) >= 0)) {
+    if (metadataVersion.isAtLeast(3, 0)) {
       scale = parquetTableMetadata.getScale(name);
       precision = parquetTableMetadata.getPrecision(name);
-      repetitionLevel = parquetTableMetadata.getRepetitionLevel(name);
-      definitionLevel = parquetTableMetadata.getDefinitionLevel(name);
     }
-    TypeProtos.DataMode mode;
-    if (repetitionLevel >= 1) {
-      mode = TypeProtos.DataMode.REPEATED;
-    } else if (repetitionLevel == 0 && definitionLevel == 0) {
-      mode = TypeProtos.DataMode.REQUIRED;
-    } else {
-      mode = TypeProtos.DataMode.OPTIONAL;
-    }
+
+    TypeProtos.DataMode mode = getDataMode(parquetTableMetadata, metadataVersion, name);
     return TypeProtos.MajorType.newBuilder(ParquetReaderUtility.getType(primitiveType, originalType, precision, scale))
         .setMode(mode)
         .build();
+  }
+
+  /**
+   * Obtain data mode from table metadata for a column. Algorithm for retrieving data mode depends on metadata version:
+   * <ul>
+   *   <li>starting from version {@code 4.2}, Parquet's {@link org.apache.parquet.schema.Type.Repetition}
+   *   is stored in table metadata itself;</li>
+   *   <li>starting from {@code 3.0} to {@code 4.2} (exclusively) the data mode is
+   *   computed based on max {@code definition} and {@code repetition} levels
+   *   ({@link MetadataBase.ParquetTableMetadataBase#getDefinitionLevel(String[])} and
+   *   {@link MetadataBase.ParquetTableMetadataBase#getRepetitionLevel(String[])} respectively)
+   *   obtained from Parquet's schema;
+   *
+   *   <p><strong>Note:</strong> this computation may lead to erroneous results,
+   *   when there are few nesting levels.</p>
+   *   </li>
+   *   <li>prior to {@code 3.0} {@code DataMode.OPTIONAL} is returned.</li>
+   * </ul>
+   * @param tableMetadata Parquet table metadata
+   * @param metadataVersion version of Parquet table metadata
+   * @param name (leaf) column to obtain data mode for
+   * @return data mode of the specified column
+   */
+  private static TypeProtos.DataMode getDataMode(MetadataBase.ParquetTableMetadataBase tableMetadata,
+      MetadataVersion metadataVersion, String[] name) {
+    TypeProtos.DataMode mode;
+    if (metadataVersion.isAtLeast(4, 2)) {
+      mode = ParquetReaderUtility.getDataMode(tableMetadata.getRepetition(name));
+    } else if (metadataVersion.isAtLeast(3, 0)) {
+      int definitionLevel = tableMetadata.getDefinitionLevel(name);
+      int repetitionLevel = tableMetadata.getRepetitionLevel(name);
+
+      if (repetitionLevel >= 1) {
+        mode = TypeProtos.DataMode.REPEATED;
+      } else if (repetitionLevel == 0 && definitionLevel == 0) {
+        mode = TypeProtos.DataMode.REQUIRED;
+      } else {
+        mode = TypeProtos.DataMode.OPTIONAL;
+      }
+    } else {
+      mode = TypeProtos.DataMode.OPTIONAL;
+    }
+
+    return mode;
   }
 
   /**
@@ -546,8 +589,7 @@ public class ParquetTableMetadataUtils {
     Map<SchemaPath, TypeProtos.MajorType> columns = new LinkedHashMap<>();
 
     MetadataVersion metadataVersion = new MetadataVersion(parquetTableMetadata.getMetadataVersion());
-    boolean hasParentTypes = parquetTableMetadata.hasColumnMetadata()
-        && metadataVersion.compareTo(new MetadataVersion(4, 1)) >= 0;
+    boolean hasParentTypes = metadataVersion.isAtLeast(4, 1);
 
     if (!hasParentTypes) {
       return Collections.emptyMap();
@@ -647,7 +689,7 @@ public class ParquetTableMetadataUtils {
    * @param statistics source of column statistics
    * @return map with schema path and {@link ColumnStatistics}
    */
-  public static Map<SchemaPath, ColumnStatistics> getColumnStatistics(TupleMetadata schema, DrillStatsTable statistics) {
+  public static Map<SchemaPath, ColumnStatistics<?>> getColumnStatistics(TupleMetadata schema, DrillStatsTable statistics) {
     List<SchemaPath> schemaPaths = SchemaUtil.getSchemaPaths(schema);
 
     return schemaPaths.stream()

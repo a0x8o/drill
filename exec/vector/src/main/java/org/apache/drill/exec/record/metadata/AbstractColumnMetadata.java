@@ -153,7 +153,7 @@ public abstract class AbstractColumnMetadata extends AbstractPropertied implemen
   }
 
   @Override
-  public TupleMetadata mapSchema() { return null; }
+  public TupleMetadata tupleSchema() { return null; }
 
   @Override
   public VariantMetadata variantSchema() { return null; }
@@ -279,9 +279,9 @@ public abstract class AbstractColumnMetadata extends AbstractPropertied implemen
       buf.append(", variant: ")
          .append(variantSchema().toString());
     }
-    if (mapSchema() != null) {
+    if (tupleSchema() != null) {
       buf.append(", schema: ")
-         .append(mapSchema().toString());
+         .append(tupleSchema().toString());
     }
     if (hasProperties()) {
       buf.append(", properties: ")
@@ -306,7 +306,7 @@ public abstract class AbstractColumnMetadata extends AbstractPropertied implemen
     builder.append(typeString());
 
     // Drill does not have nullability notion for complex types
-    if (!isNullable() && !isArray() && !isMap()) {
+    if (!isNullable() && !isArray() && !isMap() && !isDict()) {
       builder.append(" NOT NULL");
     }
 

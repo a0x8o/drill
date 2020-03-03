@@ -38,6 +38,7 @@ import org.apache.poi.ss.usermodel.CellValue;
 import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.ss.usermodel.FormulaEvaluator;
 import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.xssf.usermodel.XSSFRow;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.apache.drill.exec.physical.impl.scan.file.FileScanFramework.FileSchemaNegotiator;
@@ -45,9 +46,11 @@ import org.joda.time.Instant;
 import org.slf4j.Logger;
 
 import java.io.InputStream;
+import java.util.Date;
 import java.util.Iterator;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.TimeZone;
 
 public class ExcelBatchReader implements ManagedReader<FileSchemaNegotiator> {
 
@@ -216,7 +219,7 @@ public class ExcelBatchReader implements ManagedReader<FileSchemaNegotiator> {
         Cell cell = cellIterator.next();
 
         CellValue cellValue = evaluator.evaluate(cell);
-        switch (cellValue.getCellTypeEnum()) {
+        switch (cellValue.getCellType()) {
           case STRING:
             tempColumnName = cell.getStringCellValue()
               .replace(PARSER_WILDCARD, SAFE_WILDCARD)
@@ -265,18 +268,13 @@ public class ExcelBatchReader implements ManagedReader<FileSchemaNegotiator> {
   /**
    * Returns the column count.  There are a few gotchas here in that we have to know the header row and count the physical number of cells
    * in that row.  Since the user can define the header row,
-   * @return
+   * @return The number of actual columns
    */
   private int getColumnCount() {
-    int columnCount;
+    int rowNumber = readerConfig.headerRow > 0 ? sheet.getFirstRowNum() : 0;
+    XSSFRow sheetRow = sheet.getRow(rowNumber);
 
-    if (readerConfig.headerRow >= 0) {
-      columnCount = sheet.getRow(sheet.getFirstRowNum()).getPhysicalNumberOfCells();
-    } else {
-      // Case for when the user defines the headerRow as -1 IE:  When there isn't a headerRow.
-      columnCount = sheet.getRow(0).getPhysicalNumberOfCells();
-    }
-    return columnCount;
+    return sheetRow != null ? sheetRow.getPhysicalNumberOfCells() : 0;
   }
 
   @Override
@@ -301,7 +299,7 @@ public class ExcelBatchReader implements ManagedReader<FileSchemaNegotiator> {
     }
 
     int lastRow = readerConfig.lastRow;
-    while (recordCount < lastRow && rowIterator.hasNext()) {
+    if (recordCount < lastRow && rowIterator.hasNext()) {
       lineCount++;
 
       Row row = rowIterator.next();
@@ -337,15 +335,18 @@ public class ExcelBatchReader implements ManagedReader<FileSchemaNegotiator> {
       }
       rowWriter.save();
       recordCount++;
+      return true;
+    } else {
+      return false;
     }
-    return true;
+
   }
 
   /**
    * Function to populate the column array
-   * @param cell
-   * @param cellValue
-   * @param colPosition
+   * @param cell The input cell object
+   * @param cellValue The cell value
+   * @param colPosition The index of the column
    */
   private void populateColumnArray(Cell cell, CellValue cellValue, int colPosition) {
     if (!firstLine) {
@@ -355,7 +356,7 @@ public class ExcelBatchReader implements ManagedReader<FileSchemaNegotiator> {
     if (cellValue == null) {
       addColumnToArray(rowWriter, excelFieldNames.get(colPosition), MinorType.VARCHAR);
     } else {
-      CellType cellType = cellValue.getCellTypeEnum();
+      CellType cellType = cellValue.getCellType();
       if (cellType == CellType.STRING || readerConfig.allTextMode) {
         addColumnToArray(rowWriter, excelFieldNames.get(colPosition), MinorType.VARCHAR);
       } else if (cellType == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
@@ -412,7 +413,7 @@ public class ExcelBatchReader implements ManagedReader<FileSchemaNegotiator> {
 
   /**
    * Returns the index of the first row of actual data.  This function is to be used to find the header row as the POI skips blank rows.
-   * @return:  The headerRow index, corrected for blank rows
+   * @return The headerRow index, corrected for blank rows
    */
   private int getFirstHeaderRow() {
     int firstRow = sheet.getFirstRowNum();
@@ -481,7 +482,6 @@ public class ExcelBatchReader implements ManagedReader<FileSchemaNegotiator> {
     }
 
     public void load(Cell cell) {
-      CellValue cellValue = evaluator.evaluate(cell);
       String fieldValue = String.valueOf(cell.getNumericCellValue());
 
       if (fieldValue == null) {
@@ -519,7 +519,10 @@ public class ExcelBatchReader implements ManagedReader<FileSchemaNegotiator> {
       if (cellValue == null) {
         columnWriter.setNull();
       } else {
-        Instant timeStamp = new Instant(cellValue.getNumberValue());
+        logger.debug("Cell value: {}", cellValue.getNumberValue());
+
+        Date dt = DateUtil.getJavaDate(cellValue.getNumberValue(), TimeZone.getTimeZone("UTC"));
+        Instant timeStamp = new Instant(dt.toInstant().getEpochSecond() * 1000);
         columnWriter.setTimestamp(timeStamp);
       }
     }

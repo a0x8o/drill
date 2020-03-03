@@ -25,6 +25,7 @@ import org.apache.drill.exec.server.DrillbitContext;
 import org.apache.drill.exec.store.StoragePluginRegistry;
 import org.apache.drill.exec.store.dfs.FileSystemConfig;
 import org.apache.drill.hbase.HBaseTestsSuite;
+import org.apache.drill.test.BaseTest;
 import org.apache.hadoop.conf.Configuration;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -46,7 +47,7 @@ import com.mapr.drill.maprdb.tests.json.TestSimpleJson;
   TestSimpleJson.class,
   TestScanRanges.class
 })
-public class MaprDBTestsSuite {
+public class MaprDBTestsSuite extends BaseTest {
   public static final int INDEX_FLUSH_TIMEOUT = 60000;
 
   private static final boolean IS_DEBUG = ManagementFactory.getRuntimeMXBean().getInputArguments().toString().indexOf("-agentlib:jdwp") > 0;
@@ -137,7 +138,7 @@ public class MaprDBTestsSuite {
 
           FileSystemConfig pluginConfig = ctx.getLpPersistence().getMapper().readValue(pluginConfStr, FileSystemConfig.class);
           // create the plugin with "hbase" name so that we can run HBase unit tests against them
-          pluginRegistry.createOrUpdate("hbase", pluginConfig, true);
+          pluginRegistry.put("hbase", pluginConfig);
         }
       }
     }

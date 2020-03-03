@@ -19,6 +19,7 @@ package org.apache.drill.exec.vector.accessor.writer;
 
 import org.apache.drill.exec.vector.BaseDataValueVector;
 import org.apache.drill.exec.vector.UInt4Vector;
+import org.apache.drill.exec.vector.accessor.ColumnReader;
 import org.apache.drill.exec.vector.accessor.InvalidConversionError;
 import org.apache.drill.exec.vector.accessor.ValueType;
 import org.apache.drill.exec.vector.accessor.impl.HierarchicalFormatter;
@@ -306,14 +307,22 @@ public class OffsetVectorWriterImpl extends AbstractFixedWidthWriter implements 
   @Override
   public void setValueCount(int valueCount) {
 
-    // Value count is in row positions, not index
-    // positions. (There are one more index positions
-    // than row positions.)
+    if (valueCount == 0) {
 
-    int offsetCount = valueCount + 1;
-    mandatoryResize(offsetCount);
-    fillEmpties(valueCount - lastWriteIndex - 1);
-    if (valueCount > 0) {
+      // Special case: if the total number of values is zero,
+      // then the offset vector should have 0 (not 1) values.
+      // Serialization code relies on this fact.
+
+      vector().getBuffer().writerIndex(0);
+    } else {
+
+      // Value count is in row positions, not index
+      // positions. (There are one more index positions
+      // than row positions.)
+
+      int offsetCount = valueCount + 1;
+      mandatoryResize(offsetCount);
+      fillEmpties(valueCount - lastWriteIndex - 1);
       vector().getBuffer().writerIndex(offsetCount * VALUE_WIDTH);
     }
   }
@@ -331,5 +340,10 @@ public class OffsetVectorWriterImpl extends AbstractFixedWidthWriter implements 
   @Override
   public void setDefaultValue(Object value) {
     throw new UnsupportedOperationException("Encoding not supported for offset vectors");
+  }
+
+  @Override
+  public void copy(ColumnReader from) {
+    throw new UnsupportedOperationException("Copying of offset vectors not supported");
   }
 }

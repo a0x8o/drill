@@ -34,6 +34,7 @@ import org.apache.drill.metastore.metadata.TableInfo;
 import org.apache.drill.metastore.statistics.ColumnStatistics;
 import org.apache.drill.metastore.statistics.ColumnStatisticsKind;
 import org.apache.drill.metastore.statistics.StatisticsHolder;
+import org.apache.drill.test.BaseTest;
 import org.apache.hadoop.fs.Path;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -53,7 +54,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
 @Category(MetastoreTest.class)
-public class TestTableMetadataUnitConversion {
+public class TestTableMetadataUnitConversion extends BaseTest {
 
   private static Data data;
 
@@ -386,9 +387,9 @@ public class TestTableMetadataUnitConversion {
 
     private final TableInfo fullTableInfo;
     private final TableInfo basicTableInfo;
-    private final Map<SchemaPath, ColumnStatistics> columnsStatistics;
+    private final Map<SchemaPath, ColumnStatistics<?>> columnsStatistics;
     private final Map<String, String> unitColumnsStatistics;
-    private final Collection<StatisticsHolder> metadataStatistics;
+    private final Collection<StatisticsHolder<?>> metadataStatistics;
     private final List<String> unitMetadataStatistics;
     private final TupleMetadata schema;
     private final String unitSchema;

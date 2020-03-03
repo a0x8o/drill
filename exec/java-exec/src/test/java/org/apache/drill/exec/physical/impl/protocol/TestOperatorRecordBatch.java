@@ -36,24 +36,25 @@ import org.apache.drill.exec.expr.TypeHelper;
 import org.apache.drill.exec.ops.OperatorContext;
 import org.apache.drill.exec.physical.base.PhysicalOperator;
 import org.apache.drill.exec.physical.config.Limit;
-import org.apache.drill.exec.physical.impl.protocol.VectorContainerAccessor.ContainerAndSv2Accessor;
+import org.apache.drill.exec.physical.rowSet.RowSet.SingleRowSet;
 import org.apache.drill.exec.proto.UserBitShared.NamePart;
 import org.apache.drill.exec.record.BatchSchema;
 import org.apache.drill.exec.record.BatchSchema.SelectionVectorMode;
+import org.apache.drill.exec.record.BatchSchemaBuilder;
 import org.apache.drill.exec.record.MaterializedField;
 import org.apache.drill.exec.record.RecordBatch.IterOutcome;
-import org.apache.drill.exec.record.BatchSchemaBuilder;
-import org.apache.drill.exec.record.metadata.SchemaBuilder;
 import org.apache.drill.exec.record.TypedFieldId;
 import org.apache.drill.exec.record.VectorContainer;
 import org.apache.drill.exec.record.VectorWrapper;
+import org.apache.drill.exec.record.metadata.SchemaBuilder;
 import org.apache.drill.exec.record.metadata.TupleMetadata;
 import org.apache.drill.exec.vector.IntVector;
 import org.apache.drill.exec.vector.VarCharVector;
 import org.apache.drill.test.SubOperatorTest;
-import org.apache.drill.exec.physical.rowSet.RowSet.SingleRowSet;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Test the implementation of the Drill Volcano iterator protocol that
@@ -62,7 +63,7 @@ import org.junit.experimental.categories.Category;
 
 @Category(RowSetTests.class)
 public class TestOperatorRecordBatch extends SubOperatorTest {
-  private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(SubOperatorTest.class);
+  private static final Logger logger = LoggerFactory.getLogger(TestOperatorRecordBatch.class);
 
   /**
    * Mock operator executor that simply tracks each method call
@@ -263,7 +264,7 @@ public class TestOperatorRecordBatch extends SubOperatorTest {
     opExec.nextCalls = 2;
 
     try (OperatorRecordBatch opBatch = makeOpBatch(opExec)) {
-      opBatch.kill(false);
+      opBatch.cancel();
       assertFalse(opExec.buildSchemaCalled);
       assertEquals(0, opExec.nextCount);
       assertFalse(opExec.cancelCalled);
@@ -285,7 +286,7 @@ public class TestOperatorRecordBatch extends SubOperatorTest {
     try (OperatorRecordBatch opBatch = makeOpBatch(opExec)) {
       assertEquals(IterOutcome.OK_NEW_SCHEMA, opBatch.next());
       assertEquals(IterOutcome.OK, opBatch.next());
-      opBatch.kill(false);
+      opBatch.cancel();
       assertTrue(opExec.cancelCalled);
     } catch (Exception e) {
       fail();
@@ -308,7 +309,7 @@ public class TestOperatorRecordBatch extends SubOperatorTest {
       assertEquals(IterOutcome.OK, opBatch.next());
       assertEquals(IterOutcome.OK, opBatch.next());
       assertEquals(IterOutcome.NONE, opBatch.next());
-      opBatch.kill(false);
+      opBatch.cancel();
 
       // Already hit EOF, so fail won't be passed along.
 
@@ -340,7 +341,7 @@ public class TestOperatorRecordBatch extends SubOperatorTest {
       fail();
     }
     assertTrue(opExec.closeCalled);
-    opBatch.kill(false);
+    opBatch.cancel();
     assertFalse(opExec.cancelCalled);
   }
 
@@ -524,7 +525,7 @@ public class TestOperatorRecordBatch extends SubOperatorTest {
         .withSv2()
         .build();
 
-    ContainerAndSv2Accessor accessor = new ContainerAndSv2Accessor();
+    IndirectContainerAccessor accessor = new IndirectContainerAccessor();
     accessor.addBatch(rs.container());
     accessor.setSelectionVector(rs.getSv2());
 

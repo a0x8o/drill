@@ -20,13 +20,13 @@ package org.apache.drill;
 import org.junit.Test;
 
 public class TestCTASJson extends PlanTestBase {
-  static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(TestCTASJson.class);
 
-  @Test
   /**
-   * Test a source json file that contains records that are maps with fields of all types.
-   * Some records have missing fields. CTAS should skip the missing fields
+   * Test a source json file that contains records that are maps with fields of
+   * all types. Some records have missing fields. CTAS should skip the missing
+   * fields
    */
+  @Test
   public void testctas_alltypes_map() throws Exception {
     String testName = "ctas_alltypes_map";
     test("use dfs.tmp");
@@ -39,22 +39,23 @@ public class TestCTASJson extends PlanTestBase {
           .sqlQuery(query)
           .ordered()
           .jsonBaselineFile("json/" + testName + ".json")
-          .optionSettingQueriesForTestQuery("alter session set `store.format` = 'json' ")
+          .optionSettingQueriesForTestQuery("alter session set `store.format` = 'json'")
           .optionSettingQueriesForTestQuery("alter session set store.json.writer.skip_null_fields = true") // DEFAULT
           .build()
           .run();
     } finally {
       test("drop table " + testName + "_json");
-      test("alter session reset `store.format` ");
-      test("alter session reset store.json.writer.skip_null_fields ");
+      resetSessionOption("store.format");
+      resetSessionOption("store.json.writer.skip_null_fields");
     }
   }
 
-  @Test
   /**
-   * Test a source json file that contains records that are maps with fields of all types.
-   * Some records have missing fields. CTAS should NOT skip the missing fields
+   * Test a source json file that contains records that are maps with fields of
+   * all types. Some records have missing fields. CTAS should NOT skip the
+   * missing fields
    */
+  @Test
   public void testctas_alltypes_map_noskip() throws Exception {
     String testName = "ctas_alltypes_map";
     test("use dfs.tmp");
@@ -67,23 +68,23 @@ public class TestCTASJson extends PlanTestBase {
           .sqlQuery(query)
           .ordered()
           .jsonBaselineFile("json/" + testName + "_out.json")
-          .optionSettingQueriesForTestQuery("alter session set `store.format` = 'json' ")
+          .optionSettingQueriesForTestQuery("alter session set `store.format` = 'json'")
           .optionSettingQueriesForTestQuery("alter session set store.json.writer.skip_null_fields = false") // change from DEFAULT
           .build()
           .run();
     } finally{
       test("drop table " + testName + "_json" );
-      test("alter session reset `store.format` ");
-      test("alter session reset store.json.writer.skip_null_fields ");
+      resetSessionOption("store.format");
+      resetSessionOption("store.json.writer.skip_null_fields");
     }
-
   }
 
-  @Test
   /**
-   * Test a source json file that contains records that are maps with fields of all types.
-   * Some records have missing fields. CTAS should skip the missing fields
+   * Test a source json file that contains records that are maps with fields of
+   * all types. Some records have missing fields. CTAS should skip the missing
+   * fields
    */
+  @Test
   public void testctas_alltypes_repeatedmap() throws Exception {
     String testName = "ctas_alltypes_repeated_map";
     test("use dfs.tmp");
@@ -96,24 +97,24 @@ public class TestCTASJson extends PlanTestBase {
           .sqlQuery(query)
           .ordered()
           .jsonBaselineFile("json/" + testName + ".json")
-          .optionSettingQueriesForTestQuery("alter session set `store.format` = 'json' ")
+          .optionSettingQueriesForTestQuery("alter session set `store.format` = 'json'")
           .optionSettingQueriesForTestQuery(
               "alter session set store.json.writer.skip_null_fields = true") // DEFAULT
           .build()
           .run();
     }finally{
       test("drop table " + testName + "_json" );
-      test("alter session reset `store.format` ");
-      test("alter session reset store.json.writer.skip_null_fields ");
+      resetSessionOption("store.format");
+      resetSessionOption("store.json.writer.skip_null_fields");
     }
-
   }
 
-  @Test
   /**
-   * Test a source json file that contains records that are maps with fields of all types.
-   * Some records have missing fields. CTAS should NOT skip the missing fields
+   * Test a source json file that contains records that are maps with fields of
+   * all types. Some records have missing fields. CTAS should NOT skip the
+   * missing fields
    */
+  @Test
   public void testctas_alltypes_repeated_map_noskip() throws Exception {
     String testName = "ctas_alltypes_repeated_map";
     test("use dfs.tmp");
@@ -126,17 +127,15 @@ public class TestCTASJson extends PlanTestBase {
           .sqlQuery(query)
           .ordered()
           .jsonBaselineFile("json/" + testName + "_out.json")
-          .optionSettingQueriesForTestQuery("alter session set `store.format` = 'json' ")
+          .optionSettingQueriesForTestQuery("alter session set `store.format` = 'json'")
           .optionSettingQueriesForTestQuery(
               "alter session set store.json.writer.skip_null_fields = false") // change from DEFAULT
           .build()
           .run();
     } finally {
       test("drop table " + testName + "_json" );
-      test("alter session reset `store.format` ");
-      test("alter session reset store.json.writer.skip_null_fields ");
+      resetSessionOption("store.format");
+      resetSessionOption("store.json.writer.skip_null_fields");
     }
-
   }
-
 }

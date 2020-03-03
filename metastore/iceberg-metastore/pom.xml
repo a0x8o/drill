@@ -18,22 +18,20 @@
     limitations under the License.
 
 -->
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
     <artifactId>metastore-parent</artifactId>
     <groupId>org.apache.drill.metastore</groupId>
-    <version>1.17.0-SNAPSHOT</version>
+    <version>1.18.0-SNAPSHOT</version>
   </parent>
 
   <artifactId>drill-iceberg-metastore</artifactId>
   <name>metastore/Drill Iceberg Metastore</name>
 
   <properties>
-    <iceberg.version>0.7.0-incubating</iceberg.version>
+    <iceberg.version>2d75130</iceberg.version>
     <caffeine.version>2.7.0</caffeine.version>
   </properties>
 
@@ -49,27 +47,27 @@
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.apache.iceberg</groupId>
+      <groupId>com.github.apache.incubator-iceberg</groupId>
       <artifactId>iceberg-parquet</artifactId>
       <version>${iceberg.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.apache.iceberg</groupId>
+      <groupId>com.github.apache.incubator-iceberg</groupId>
       <artifactId>iceberg-data</artifactId>
       <version>${iceberg.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.apache.iceberg</groupId>
+      <groupId>com.github.apache.incubator-iceberg</groupId>
       <artifactId>iceberg-core</artifactId>
       <version>${iceberg.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.apache.iceberg</groupId>
+      <groupId>com.github.apache.incubator-iceberg</groupId>
       <artifactId>iceberg-common</artifactId>
       <version>${iceberg.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.apache.iceberg</groupId>
+      <groupId>com.github.apache.incubator-iceberg</groupId>
       <artifactId>iceberg-api</artifactId>
       <version>${iceberg.version}</version>
     </dependency>
@@ -136,15 +134,9 @@
     </dependency>
 
     <dependency>
-      <groupId>com.sun.codemodel</groupId>
-      <artifactId>codemodel</artifactId>
-      <version>${codemodel.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>net.openhft</groupId>
-      <artifactId>compiler</artifactId>
-      <version>2.3.4</version>
+      <groupId>org.ow2.asm</groupId>
+      <artifactId>asm</artifactId>
+      <version>${asm.version}</version>
       <scope>test</scope>
     </dependency>
   </dependencies>

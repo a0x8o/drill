@@ -28,7 +28,7 @@ import org.apache.drill.exec.physical.config.MetadataHandlerPOP;
 import org.apache.drill.exec.metastore.analyze.AnalyzeColumnUtils;
 import org.apache.drill.exec.physical.resultSet.ResultSetLoader;
 import org.apache.drill.exec.physical.resultSet.RowSetLoader;
-import org.apache.drill.exec.physical.resultSet.impl.OptionBuilder;
+import org.apache.drill.exec.physical.resultSet.impl.ResultSetOptionBuilder;
 import org.apache.drill.exec.physical.resultSet.impl.ResultSetLoaderImpl;
 import org.apache.drill.exec.physical.rowSet.DirectRowSet;
 import org.apache.drill.exec.physical.rowSet.RowSetReader;
@@ -69,7 +69,6 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.apache.drill.exec.record.RecordBatch.IterOutcome.NONE;
-import static org.apache.drill.exec.record.RecordBatch.IterOutcome.STOP;
 
 /**
  * Responsible for handling metadata returned by incoming aggregate operators
@@ -125,7 +124,6 @@ public class MetadataHandlerBatch extends AbstractSingleRecordBatch<MetadataHand
         doWorkInternal();
         // fall thru
       case NOT_YET:
-      case STOP:
         return outcome;
       default:
         throw new UnsupportedOperationException("Unsupported upstream state " + outcome);
@@ -135,7 +133,7 @@ public class MetadataHandlerBatch extends AbstractSingleRecordBatch<MetadataHand
   @Override
   public IterOutcome innerNext() {
     IterOutcome outcome = getLastKnownOutcome();
-    if (outcome != NONE && outcome != STOP) {
+    if (outcome != NONE) {
       outcome = super.innerNext();
     }
     // if incoming is exhausted, reads metadata which should be obtained from the Metastore
@@ -293,8 +291,8 @@ public class MetadataHandlerBatch extends AbstractSingleRecordBatch<MetadataHand
         .addNullable(columnNamesOptions.lastModifiedTime(), MinorType.VARCHAR)
         .add(MetastoreAnalyzeConstants.METADATA_TYPE, MinorType.VARCHAR);
 
-    ResultSetLoaderImpl.ResultSetOptions options = new OptionBuilder()
-        .setSchema(schemaBuilder.buildSchema())
+    ResultSetLoaderImpl.ResultSetOptions options = new ResultSetOptionBuilder()
+        .readerSchema(schemaBuilder.buildSchema())
         .build();
 
     return new ResultSetLoaderImpl(container.getAllocator(), options);
@@ -392,8 +390,8 @@ public class MetadataHandlerBatch extends AbstractSingleRecordBatch<MetadataHand
       }
     }
 
-    ResultSetLoaderImpl.ResultSetOptions options = new OptionBuilder()
-        .setSchema(schemaBuilder.buildSchema())
+    ResultSetLoaderImpl.ResultSetOptions options = new ResultSetOptionBuilder()
+        .readerSchema(schemaBuilder.buildSchema())
         .build();
 
     return new ResultSetLoaderImpl(container.getAllocator(), options);

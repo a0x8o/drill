@@ -43,15 +43,14 @@
 
 <#include "*/runningQuery.ftl">
 
-  <#if model.isOnlyImpersonationEnabled()>
-     <div class="form-group">
-       <label for="userName">User Name</label>
-       <input type="text" size="30" name="userName" id="userName" placeholder="User Name">
-     </div>
-  </#if>
-
   <form role="form" id="queryForm" action="/query" method="POST">
+    <#if model.isOnlyImpersonationEnabled()>
       <div class="form-group">
+        <label for="userName">User Name</label>
+        <input type="text" size="30" name="userName" id="userName" placeholder="User Name">
+      </div>
+    </#if>
+    <div class="form-group">
       <label for="queryType">Query Type</label>
       <div class="radio">
         <label>
@@ -83,17 +82,57 @@
       Submit
     </button>
     <input type="checkbox" name="forceLimit" value="limit" <#if model.isAutoLimitEnabled()>checked</#if>> Limit results to <input type="text" id="autoLimit" name="autoLimit" min="0" value="${model.getDefaultRowsAutoLimited()?c}" size="6" pattern="[0-9]*"> rows <span class="glyphicon glyphicon-info-sign" title="Limits the number of records retrieved in the query. Ignored if query has a limit already" style="cursor:pointer"></span>
+    <label> Default Schema <input type="text" size="10" name="defaultSchema" id="defaultSchema"> </label>
+    <span class="glyphicon glyphicon-info-sign" title="Set the default schema used to find table names, and for SHOW FILES and SHOW TABLES" style="cursor:pointer"></span>
     <input type="hidden" name="csrfToken" value="${model.getCsrfToken()}">
   </form>
 
   <script>
+    // Remember form field values over page reloads
+    $("input[type=text],input[type=checkbox],input[type=radio],select").each(function () {
+      var $input = $(this);
+      var savedKey = "saved_query_" + $input.attr("name");
+      var savedValue = sessionStorage.getItem(savedKey);
+      if ($input.attr("type") === "checkbox") {
+        if (savedValue === "true") {
+          $input.prop("checked", true);
+        }
+        if (savedValue === "false") {
+          $input.prop("checked", false);
+        }
+        $input.change(function () {
+          sessionStorage.setItem(savedKey, String($(this).prop("checked")));
+        });
+      } else if ($input.attr("type") === "radio") {
+        var value = $input.val();
+        if (savedValue === value) {
+          $input.prop("checked", true);
+        }
+        $input.change(function () {
+          sessionStorage.setItem(savedKey, $(this).val());
+        });
+      } else {
+        if (typeof savedValue === "string") {
+          $input.val(savedValue);
+        }
+        $input.change(function () {
+          sessionStorage.setItem(savedKey, $(this).val());
+        });
+      }
+    });
+    // Hidden text input for form-submission
+    var queryText = $('input[name="query"]');
     ace.require("ace/ext/language_tools");
     var editor = ace.edit("query-editor-format");
-    var queryText = $('input[name="query"]');
-    //Hidden text input for form-submission
     editor.getSession().on("change", function () {
-      queryText.val(editor.getSession().getValue());
+      var text = editor.getSession().getValue();
+      queryText.val(text);
+      sessionStorage.setItem("saved_query_query", text);
     });
+    var savedQueryText = sessionStorage.getItem('saved_query_query');
+    if (savedQueryText) {
+      editor.getSession().setValue(savedQueryText);
+    }
     editor.setAutoScrollEditorIntoView(true);
     editor.setOption("maxLines", 25);
     editor.setOption("minLines", 12);

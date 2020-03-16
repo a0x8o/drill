@@ -77,7 +77,6 @@ import org.apache.drill.exec.planner.logical.DrillProjectRel;
 import org.apache.drill.exec.planner.logical.DrillRel;
 import org.apache.drill.exec.planner.logical.DrillRelFactories;
 import org.apache.drill.exec.planner.logical.DrillScreenRel;
-import org.apache.drill.exec.planner.logical.DrillStoreRel;
 import org.apache.drill.exec.planner.logical.PreProcessLogicalRel;
 import org.apache.drill.exec.planner.physical.DrillDistributionTrait;
 import org.apache.drill.exec.planner.physical.PhysicalPlanCreator;
@@ -181,8 +180,8 @@ public class DefaultSqlHandler extends AbstractSqlHandler {
   }
 
   /**
-   * Rewrite the parse tree. Used before validating the parse tree. Useful if a particular statement needs to converted
-   * into another statement.
+   * Rewrite the parse tree. Used before validating the parse tree. Useful if a
+   * particular statement needs to converted into another statement.
    *
    * @param node sql parse tree to be rewritten
    * @return Rewritten sql parse tree
@@ -275,23 +274,17 @@ public class DefaultSqlHandler extends AbstractSqlHandler {
       // Convert SUM to $SUM0
       final RelNode convertedRelNodeWithSum0 = transform(PlannerType.HEP_BOTTOM_UP, PlannerPhase.SUM_CONVERSION, convertedRelNode);
 
-      final DrillRel drillRel = (DrillRel) convertedRelNodeWithSum0;
-
-      if (drillRel instanceof DrillStoreRel) {
-        throw new UnsupportedOperationException();
-      } else {
-
-        // If the query contains a limit 0 clause, disable distributed mode since it is overkill for determining schema.
-        if (FindLimit0Visitor.containsLimit0(convertedRelNodeWithSum0) &&
-            FindHardDistributionScans.canForceSingleMode(convertedRelNodeWithSum0)) {
-          context.getPlannerSettings().forceSingleMode();
-          if (context.getOptions().getOption(ExecConstants.LATE_LIMIT0_OPT)) {
-            return FindLimit0Visitor.addLimitOnTopOfLeafNodes(drillRel);
-          }
+      DrillRel drillRel = (DrillRel) convertedRelNodeWithSum0;
+      // If the query contains a limit 0 clause, disable distributed mode since it is overkill for determining schema.
+      if (FindLimit0Visitor.containsLimit0(convertedRelNodeWithSum0) &&
+          FindHardDistributionScans.canForceSingleMode(convertedRelNodeWithSum0)) {
+        context.getPlannerSettings().forceSingleMode();
+        if (context.getOptions().getOption(ExecConstants.LATE_LIMIT0_OPT)) {
+          drillRel = FindLimit0Visitor.addLimitOnTopOfLeafNodes(drillRel);
         }
-
-        return drillRel;
       }
+
+      return drillRel;
     } catch (RelOptPlanner.CannotPlanException ex) {
       logger.error(ex.getMessage());
 
@@ -319,7 +312,7 @@ public class DefaultSqlHandler extends AbstractSqlHandler {
   }
 
   /**
-   * A shuttle designed to finalize all RelNodes.
+   * Finalize all RelNodes.
    */
   private static class PrelFinalizer extends RelShuttleImpl {
 
@@ -432,7 +425,8 @@ public class DefaultSqlHandler extends AbstractSqlHandler {
    * @throws RelConversionException
    * @throws SqlUnsupportedException
    */
-  protected Prel convertToPrel(RelNode drel, RelDataType validatedRowType) throws RelConversionException, SqlUnsupportedException {
+  protected Prel convertToPrel(RelNode drel, RelDataType validatedRowType)
+      throws RelConversionException, SqlUnsupportedException {
     Preconditions.checkArgument(drel.getConvention() == DrillRel.DRILL_LOGICAL);
 
     final RelTraitSet traits = drel.getTraitSet().plus(Prel.DRILL_PHYSICAL).plus(DrillDistributionTrait.SINGLETON);
@@ -476,6 +470,8 @@ public class DefaultSqlHandler extends AbstractSqlHandler {
         }
       }
     }
+    // Handy way to visualize the plan while debugging
+    //ExplainHandler.printPlan(phyRelNode, context);
 
     /* The order of the following transformations is important */
 
@@ -537,7 +533,7 @@ public class DefaultSqlHandler extends AbstractSqlHandler {
 
     /*
      * 3.)
-     * Since our operators work via names rather than indices, we have to make to reorder any
+     * Since our operators work via names rather than indices, we have to reorder any
      * output before we return data to the user as we may have accidentally shuffled things.
      * This adds a trivial project to reorder columns prior to output.
      */
@@ -564,16 +560,14 @@ public class DefaultSqlHandler extends AbstractSqlHandler {
     }
     */
 
-
     /* 6.)
      * if the client does not support complex types (Map, Repeated)
-     * insert a project which which would convert
+     * insert a project which would convert
      */
     if (!context.getSession().isSupportComplexTypes()) {
       logger.debug("Client does not support complex types, add ComplexToJson operator.");
       phyRelNode = ComplexToJsonPrelVisitor.addComplexToJsonPrel(phyRelNode);
     }
-
 
     /* 7.)
      * Insert LocalExchange (mux and/or demux) nodes
@@ -588,14 +582,12 @@ public class DefaultSqlHandler extends AbstractSqlHandler {
       phyRelNode = RuntimeFilterVisitor.addRuntimeFilter(phyRelNode, context);
     }
 
-
     /* 9.)
      * Next, we add any required selection vector removers given the supported encodings of each
      * operator. This will ultimately move to a new trait but we're managing here for now to avoid
      * introducing new issues in planning before the next release
      */
     phyRelNode = SelectionVectorPrelVisitor.addSelectionRemoversWhereNecessary(phyRelNode);
-
 
     /* 10.)
      * Finally, Make sure that the no rels are repeats.
@@ -642,6 +634,7 @@ public class DefaultSqlHandler extends AbstractSqlHandler {
       }
       return null;
     }
+
   }
 
   protected Pair<SqlNode, RelDataType> validateNode(SqlNode sqlNode) throws ValidationException, RelConversionException, ForemanSetupException {

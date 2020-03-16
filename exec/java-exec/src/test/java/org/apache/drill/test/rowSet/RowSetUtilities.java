@@ -215,6 +215,14 @@ public class RowSetUtilities {
     return array;
   }
 
+  public static boolean[] boolArray(Boolean... elements) {
+    boolean[] array = new boolean[elements.length];
+    for (int i = 0; i < elements.length; i++) {
+      array[i] = elements[i];
+    }
+    return array;
+  }
+
   public static String[] strArray(String... elements) {
     return elements;
   }
@@ -252,7 +260,7 @@ public class RowSetUtilities {
   }
 
   /**
-   * Convenience method to verify the actual results, then free memory
+   * Verify the actual results, then free memory
    * for both the expected and actual result sets.
    * @param expected The expected results.
    * @param actual the actual results to verify.
@@ -266,7 +274,7 @@ public class RowSetUtilities {
   }
 
   /**
-   * Convenience method to bootstrap a map object given key-value sequence.
+   * Bootstrap a map object given key-value sequence.
    *
    * @param entry key-value sequence
    * @return map containing key-value pairs from passed sequence

@@ -47,7 +47,6 @@ public class MetadataUtils {
    * @param field the materialized field to wrap
    * @return the column metadata that wraps the field
    */
-
   public static ColumnMetadata fromField(MaterializedField field) {
     MajorType majorType = field.getType();
     MinorType type = majorType.getMinorType();
@@ -107,7 +106,6 @@ public class MetadataUtils {
    * @param columns list of columns that make up the tuple
    * @return a tuple metadata object that contains the columns
    */
-
   public static TupleSchema fromColumns(List<ColumnMetadata> columns) {
     TupleSchema tuple = new TupleSchema();
     for (ColumnMetadata column : columns) {
@@ -126,7 +124,6 @@ public class MetadataUtils {
    * the map
    * @return a map column metadata for the map
    */
-
   public static MapColumnMetadata newMap(MaterializedField field, TupleSchema schema) {
     return new MapColumnMetadata(field, schema);
   }
@@ -137,6 +134,10 @@ public class MetadataUtils {
 
   public static MapColumnMetadata newMap(String name, TupleMetadata schema) {
     return new MapColumnMetadata(name, DataMode.REQUIRED, (TupleSchema) schema);
+  }
+
+  public static MapColumnMetadata newMap(String name) {
+    return newMap(name, new TupleSchema());
   }
 
   public static DictColumnMetadata newDict(MaterializedField field) {
@@ -165,15 +166,15 @@ public class MetadataUtils {
   }
 
   public static VariantColumnMetadata newVariant(MaterializedField field, VariantSchema schema) {
-    return new VariantColumnMetadata(field, schema);
+    return VariantColumnMetadata.unionOf(field, schema);
   }
 
   public static VariantColumnMetadata newVariant(String name, DataMode cardinality) {
     switch (cardinality) {
     case OPTIONAL:
-      return new VariantColumnMetadata(name, MinorType.UNION, new VariantSchema());
+      return VariantColumnMetadata.union(name);
     case REPEATED:
-      return new VariantColumnMetadata(name, MinorType.LIST, new VariantSchema());
+      return VariantColumnMetadata.list(name);
     default:
       throw new IllegalArgumentException();
     }
@@ -185,6 +186,10 @@ public class MetadataUtils {
 
   public static ColumnMetadata newMapArray(String name, TupleMetadata schema) {
     return new MapColumnMetadata(name, DataMode.REPEATED, (TupleSchema) schema);
+  }
+
+  public static ColumnMetadata newMapArray(String name) {
+    return newMapArray(name, new TupleSchema());
   }
 
   public static DictColumnMetadata newDictArray(String name) {
@@ -231,10 +236,19 @@ public class MetadataUtils {
     return new PrimitiveColumnMetadata(field);
   }
 
-  private static boolean isScalar(MinorType type) {
-    return !(type == MinorType.MAP
-        || type == MinorType.UNION
-        || type == MinorType.LIST
-        || type == MinorType.DICT);
+  public static boolean isScalar(MinorType type) {
+    return !isComplex(type);
+  }
+
+  public static boolean isComplex(MinorType type) {
+    switch (type) {
+      case MAP:
+      case UNION:
+      case LIST:
+      case DICT:
+        return true;
+      default:
+        return false;
+    }
   }
 }

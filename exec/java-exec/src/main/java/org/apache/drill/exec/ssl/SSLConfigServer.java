@@ -74,23 +74,27 @@ public class SSLConfigServer extends SSLConfig {
     }
     userSslEnabled =
         config.hasPath(ExecConstants.USER_SSL_ENABLED) && config.getBoolean(ExecConstants.USER_SSL_ENABLED);
-    trustStoreType = getConfigParam(ExecConstants.SSL_TRUSTSTORE_TYPE,
-        resolveHadoopPropertyName(HADOOP_SSL_TRUSTSTORE_TYPE_TPL_KEY, mode));
-    trustStorePath = getConfigParam(ExecConstants.SSL_TRUSTSTORE_PATH,
-        resolveHadoopPropertyName(HADOOP_SSL_TRUSTSTORE_LOCATION_TPL_KEY, mode));
-    trustStorePassword = getConfigParam(ExecConstants.SSL_TRUSTSTORE_PASSWORD,
-        resolveHadoopPropertyName(HADOOP_SSL_TRUSTSTORE_PASSWORD_TPL_KEY, mode));
-    keyStoreType = getConfigParam(ExecConstants.SSL_KEYSTORE_TYPE,
-        resolveHadoopPropertyName(HADOOP_SSL_KEYSTORE_TYPE_TPL_KEY, mode));
-    keyStorePath = getConfigParam(ExecConstants.SSL_KEYSTORE_PATH,
-        resolveHadoopPropertyName(HADOOP_SSL_KEYSTORE_LOCATION_TPL_KEY, mode));
-    keyStorePassword = getConfigParam(ExecConstants.SSL_KEYSTORE_PASSWORD,
-        resolveHadoopPropertyName(HADOOP_SSL_KEYSTORE_PASSWORD_TPL_KEY, mode));
+    SSLCredentialsProvider credentialsProvider = SSLCredentialsProvider.getSSLCredentialsProvider(
+        this::getConfigParam,
+        Mode.SERVER,
+        config.getBoolean(ExecConstants.SSL_USE_MAPR_CONFIG));
+    trustStoreType = credentialsProvider.getTrustStoreType(
+        ExecConstants.SSL_TRUSTSTORE_TYPE, resolveHadoopPropertyName(HADOOP_SSL_TRUSTSTORE_TYPE_TPL_KEY, mode));
+    trustStorePath = credentialsProvider.getTrustStoreLocation(
+        ExecConstants.SSL_TRUSTSTORE_PATH, resolveHadoopPropertyName(HADOOP_SSL_TRUSTSTORE_LOCATION_TPL_KEY, mode));
+    trustStorePassword = credentialsProvider.getTrustStorePassword(
+        ExecConstants.SSL_TRUSTSTORE_PASSWORD, resolveHadoopPropertyName(HADOOP_SSL_TRUSTSTORE_PASSWORD_TPL_KEY, mode));
+    keyStoreType = credentialsProvider.getKeyStoreType(
+        ExecConstants.SSL_KEYSTORE_TYPE, resolveHadoopPropertyName(HADOOP_SSL_KEYSTORE_TYPE_TPL_KEY, mode));
+    keyStorePath = credentialsProvider.getKeyStoreLocation(
+        ExecConstants.SSL_KEYSTORE_PATH, resolveHadoopPropertyName(HADOOP_SSL_KEYSTORE_LOCATION_TPL_KEY, mode));
+    keyStorePassword = credentialsProvider.getKeyStorePassword(
+        ExecConstants.SSL_KEYSTORE_PASSWORD, resolveHadoopPropertyName(HADOOP_SSL_KEYSTORE_PASSWORD_TPL_KEY, mode));
+    String keyPass = credentialsProvider.getKeyPassword(
+        ExecConstants.SSL_KEY_PASSWORD, resolveHadoopPropertyName(HADOOP_SSL_KEYSTORE_KEYPASSWORD_TPL_KEY, mode));
     // if no keypassword specified, use keystore password
-    String keyPass = getConfigParam(ExecConstants.SSL_KEY_PASSWORD,
-        resolveHadoopPropertyName(HADOOP_SSL_KEYSTORE_KEYPASSWORD_TPL_KEY, mode));
     keyPassword = keyPass.isEmpty() ? keyStorePassword : keyPass;
-    protocol = getConfigParamWithDefault(ExecConstants.SSL_PROTOCOL, DEFAULT_SSL_PROTOCOL);
+    protocol = config.getString(ExecConstants.SSL_PROTOCOL);
     // If provider is OPENSSL then to debug or run this code in an IDE, you will need to enable
     // the dependency on netty-tcnative with the correct classifier for the platform you use.
     // This can be done by enabling the openssl profile.
@@ -99,7 +103,7 @@ public class SSLConfigServer extends SSLConfig {
     // or from your local maven repository:
     // ~/.m2/repository/kr/motd/maven/os-maven-plugin/1.6.1/os-maven-plugin-1.6.1.jar
     // Note that installing this plugin may require you to start with a new workspace
-    provider = getConfigParamWithDefault(ExecConstants.SSL_PROVIDER, DEFAULT_SSL_PROVIDER);
+    provider = config.getString(ExecConstants.SSL_PROVIDER);
   }
 
   public void validateKeyStore() throws DrillException {
@@ -218,18 +222,6 @@ public class SSLConfigServer extends SSLConfig {
   private String getHadoopConfigParam(String name) {
     Preconditions.checkArgument(this.hadoopConfig != null);
     String value = hadoopConfig.get(name, "");
-    value = value.trim();
-    return value;
-  }
-
-  private String getConfigParamWithDefault(String name, String defaultValue) {
-    String value = "";
-    if (config.hasPath(name)) {
-      value = config.getString(name);
-    }
-    if (value.isEmpty()) {
-      value = defaultValue;
-    }
     value = value.trim();
     return value;
   }

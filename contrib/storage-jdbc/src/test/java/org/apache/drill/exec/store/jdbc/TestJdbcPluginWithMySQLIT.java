@@ -40,7 +40,7 @@ import static org.junit.Assert.assertEquals;
 
 /**
  * JDBC storage plugin tests against MySQL.
- * Note: it requires libaio.so library in the system
+ * Note: it requires libaio1.so library on Linux
  */
 @Category(JdbcStorageTest.class)
 public class TestJdbcPluginWithMySQLIT extends ClusterTest {
@@ -53,7 +53,7 @@ public class TestJdbcPluginWithMySQLIT extends ClusterTest {
     String mysqlDBName = "drill_mysql_test";
     int mysqlPort = QueryTestUtil.getFreePortNumber(2215, 300);
 
-    MysqldConfig config = MysqldConfig.aMysqldConfig(Version.v5_6_21)
+    MysqldConfig config = MysqldConfig.aMysqldConfig(Version.v5_7_27)
         .withPort(mysqlPort)
         .withUser("mysqlUser", "mysqlPass")
         .withTimeZone(DateTimeZone.UTC.toTimeZone())
@@ -74,7 +74,7 @@ public class TestJdbcPluginWithMySQLIT extends ClusterTest {
         "mysqlUser", "mysqlPass", false, null);
     jdbcStorageConfig.setEnabled(true);
 
-    cluster.defineStoragePlugin(ctx -> new JdbcStoragePlugin(jdbcStorageConfig, ctx, "mysql"));
+    cluster.defineStoragePlugin("mysql", jdbcStorageConfig);
 
     if (osName.startsWith("linux")) {
       // adds storage plugin with case insensitive table names
@@ -82,7 +82,7 @@ public class TestJdbcPluginWithMySQLIT extends ClusterTest {
           String.format("jdbc:mysql://localhost:%s/%s?useJDBCCompliantTimezoneShift=true", mysqlPort, mysqlDBName),
           "mysqlUser", "mysqlPass", true, null);
       jdbcCaseSensitiveStorageConfig.setEnabled(true);
-      cluster.defineStoragePlugin(ctx -> new JdbcStoragePlugin(jdbcCaseSensitiveStorageConfig, ctx, "mysqlCaseInsensitive"));
+      cluster.defineStoragePlugin("mysqlCaseInsensitive", jdbcCaseSensitiveStorageConfig);
     }
   }
 

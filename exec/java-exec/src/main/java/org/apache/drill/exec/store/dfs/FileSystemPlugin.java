@@ -54,18 +54,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * A Storage engine associated with a Hadoop FileSystem Implementation. Examples include HDFS, MapRFS, QuantacastFileSystem,
- * LocalFileSystem, as well Apache Drill specific CachedFileSystem, ClassPathFileSystem and LocalSyncableFileSystem.
- * Tables are file names, directories and path patterns. This storage engine delegates to FSFormatEngines but shares
+ * A Storage engine associated with a Hadoop FileSystem Implementation. Examples
+ * include HDFS, MapRFS, QuantacastFileSystem, LocalFileSystem, as well Apache
+ * Drill specific CachedFileSystem, ClassPathFileSystem and
+ * LocalSyncableFileSystem. Tables are file names, directories and path
+ * patterns. This storage engine delegates to FSFormatEngines but shares
  * references to the FileSystem configuration and path management.
  */
 public class FileSystemPlugin extends AbstractStoragePlugin {
-
   private static final Logger logger = LoggerFactory.getLogger(FileSystemPlugin.class);
 
   /**
-   * org.apache.hadoop.io.compress library supports such codecs as Gzip and Bzip2 out of box.
-   * This list stores only codecs that are missing in Hadoop library.
+   * The {@code org.apache.hadoop.io.compress} library supports such codecs as
+   * Gzip and Bzip2 out of box. This list stores only codecs that are missing in
+   * Hadoop library.
    */
   private static final List<String> ADDITIONAL_CODECS = Collections.singletonList(
     ZipCodec.class.getCanonicalName());
@@ -109,13 +111,17 @@ public class FileSystemPlugin extends AbstractStoragePlugin {
       List<WorkspaceSchemaFactory> factories = new ArrayList<>();
       if (!noWorkspace) {
         for (Map.Entry<String, WorkspaceConfig> space : config.getWorkspaces().entrySet()) {
-          factories.add(new WorkspaceSchemaFactory(this, space.getKey(), name, space.getValue(), matchers, context.getLpPersistence(), context.getClasspathScan()));
+          factories.add(new WorkspaceSchemaFactory(
+              this, space.getKey(), name, space.getValue(), matchers,
+              context.getLpPersistence(), context.getClasspathScan()));
         }
       }
 
       // if the "default" workspace is not given add one.
       if (noWorkspace || !config.getWorkspaces().containsKey(DEFAULT_WS_NAME)) {
-        factories.add(new WorkspaceSchemaFactory(this, DEFAULT_WS_NAME, name, WorkspaceConfig.DEFAULT, matchers, context.getLpPersistence(), context.getClasspathScan()));
+        factories.add(new WorkspaceSchemaFactory(this, DEFAULT_WS_NAME, name,
+            WorkspaceConfig.DEFAULT, matchers,
+            context.getLpPersistence(), context.getClasspathScan()));
       }
 
       this.schemaFactory = new FileSystemSchemaFactory(name, factories);
@@ -194,25 +200,33 @@ public class FileSystemPlugin extends AbstractStoragePlugin {
   }
 
   @Override
-  public AbstractGroupScan getPhysicalScan(String userName, JSONOptions selection, SessionOptionManager options) throws IOException {
-    return getPhysicalScan(userName, selection, AbstractGroupScan.ALL_COLUMNS, options, null);
+  public AbstractGroupScan getPhysicalScan(String userName, JSONOptions selection,
+      SessionOptionManager options) throws IOException {
+    return getPhysicalScan(userName, selection, AbstractGroupScan.ALL_COLUMNS,
+        options, null);
   }
 
   @Override
-  public AbstractGroupScan getPhysicalScan(String userName, JSONOptions selection, SessionOptionManager options, MetadataProviderManager metadataProviderManager) throws IOException {
-    return getPhysicalScan(userName, selection, AbstractGroupScan.ALL_COLUMNS, options, metadataProviderManager);
+  public AbstractGroupScan getPhysicalScan(String userName, JSONOptions selection,
+      SessionOptionManager options, MetadataProviderManager metadataProviderManager) throws IOException {
+    return getPhysicalScan(userName, selection, AbstractGroupScan.ALL_COLUMNS,
+        options, metadataProviderManager);
   }
 
   @Override
-  public AbstractGroupScan getPhysicalScan(String userName, JSONOptions selection, List<SchemaPath> columns) throws IOException {
+  public AbstractGroupScan getPhysicalScan(String userName, JSONOptions selection,
+      List<SchemaPath> columns) throws IOException {
     return getPhysicalScan(userName, selection, columns, null, null);
   }
 
   @Override
-  public AbstractGroupScan getPhysicalScan(String userName, JSONOptions selection, List<SchemaPath> columns, SessionOptionManager options, MetadataProviderManager metadataProviderManager) throws IOException {
-    FormatSelection formatSelection = selection.getWith(lpPersistance, FormatSelection.class);
+  public AbstractGroupScan getPhysicalScan(String userName, JSONOptions selection,
+      List<SchemaPath> columns, SessionOptionManager options,
+      MetadataProviderManager metadataProviderManager) throws IOException {
+    FormatSelection formatSelection = selection.getWith(lpPersistance.getMapper(), FormatSelection.class);
     FormatPlugin plugin = getFormatPlugin(formatSelection.getFormat());
-    return plugin.getGroupScan(userName, formatSelection.getSelection(), columns, options, metadataProviderManager);
+    return plugin.getGroupScan(userName, formatSelection.getSelection(), columns,
+        options, metadataProviderManager);
   }
 
   @Override
@@ -225,8 +239,10 @@ public class FileSystemPlugin extends AbstractStoragePlugin {
   }
 
   /**
-   * If format plugin configuration is for named format plugin, will return format plugin from pre-loaded list by name.
-   * For other cases will try to find format plugin by its configuration, if not present will attempt to create one.
+   * If format plugin configuration is for named format plugin, will return
+   * format plugin from pre-loaded list by name. For other cases will try to
+   * find format plugin by its configuration, if not present will attempt to
+   * create one.
    *
    * @param config format plugin configuration
    * @return format plugin for given configuration if found, null otherwise

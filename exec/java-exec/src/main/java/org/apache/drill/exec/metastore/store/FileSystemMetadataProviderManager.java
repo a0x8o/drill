@@ -15,33 +15,53 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.drill.exec.metastore;
+package org.apache.drill.exec.metastore.store;
 
+import org.apache.drill.exec.metastore.MetadataProviderManager;
 import org.apache.drill.exec.planner.common.DrillStatsTable;
+import org.apache.drill.exec.record.metadata.TupleMetadata;
 import org.apache.drill.exec.record.metadata.schema.SchemaProvider;
-import org.apache.drill.metastore.MetastoreRegistry;
-import org.apache.drill.metastore.metadata.TableInfo;
 import org.apache.drill.metastore.metadata.TableMetadataProvider;
 
 /**
- * Implementation of {@link MetadataProviderManager} which uses Drill Metastore providers.
+ * Implementation of {@link MetadataProviderManager} which uses file system providers and returns
+ * builders for file system based {@link TableMetadataProvider} instances.
  */
-public class MetastoreMetadataProviderManager implements MetadataProviderManager {
-
-  private final MetastoreRegistry metastoreRegistry;
-  private final TableInfo tableInfo;
-  private final MetastoreMetadataProviderConfig config;
-
-  private TableMetadataProvider tableMetadataProvider;
+public class FileSystemMetadataProviderManager implements MetadataProviderManager {
 
   private SchemaProvider schemaProvider;
   private DrillStatsTable statsProvider;
 
-  public MetastoreMetadataProviderManager(MetastoreRegistry metastoreRegistry,
-      TableInfo tableInfo, MetastoreMetadataProviderConfig config) {
-    this.metastoreRegistry = metastoreRegistry;
-    this.tableInfo = tableInfo;
-    this.config = config;
+  private TableMetadataProvider tableMetadataProvider;
+
+  public static MetadataProviderManager init() {
+    return new FileSystemMetadataProviderManager();
+  }
+
+  /**
+   * Returns {@link TableMetadataProvider} which provides specified schema.
+   *
+   * @param schema table schema which should be provided
+   * @return {@link TableMetadataProvider} which provides specified schema
+   */
+  public static TableMetadataProvider getMetadataProviderForSchema(TupleMetadata schema) {
+    return new SimpleFileTableMetadataProvider.Builder(new FileSystemMetadataProviderManager())
+        .withSchema(schema)
+        .build();
+  }
+
+  /**
+   * Checks whether specified {@link MetadataProviderManager} is not null and returns {@link TableMetadataProvider}
+   * obtained from specified {@link MetadataProviderManager}.
+   * Otherwise {@link FileSystemMetadataProviderManager} is used to construct {@link TableMetadataProvider}.
+   *
+   * @param providerManager metadata provider manager
+   * @return {@link MetadataProviderManager} instance
+   */
+  public static TableMetadataProvider getMetadataProvider(MetadataProviderManager providerManager) {
+    return providerManager == null
+        ? new SimpleFileTableMetadataProvider.Builder(new FileSystemMetadataProviderManager()).build()
+        : providerManager.getTableMetadataProvider();
   }
 
   @Override
@@ -74,43 +94,7 @@ public class MetastoreMetadataProviderManager implements MetadataProviderManager
     return tableMetadataProvider;
   }
 
-  public MetastoreRegistry getMetastoreRegistry() {
-    return metastoreRegistry;
-  }
-
-  public TableInfo getTableInfo() {
-    return tableInfo;
-  }
-
-  public MetastoreMetadataProviderConfig getConfig() {
-    return config;
-  }
-
   public boolean usesMetastore() {
-    return true;
-  }
-
-  public static class MetastoreMetadataProviderConfig {
-    private final boolean useSchema;
-    private final boolean useStatistics;
-    private final boolean fallbackToFileMetadata;
-
-    public MetastoreMetadataProviderConfig(boolean useSchema, boolean useStatistics, boolean fallbackToFileMetadata) {
-      this.useSchema = useSchema;
-      this.useStatistics = useStatistics;
-      this.fallbackToFileMetadata = fallbackToFileMetadata;
-    }
-
-    public boolean useSchema() {
-      return useSchema;
-    }
-
-    public boolean useStatistics() {
-      return useStatistics;
-    }
-
-    public boolean fallbackToFileMetadata() {
-      return fallbackToFileMetadata;
-    }
+    return false;
   }
 }

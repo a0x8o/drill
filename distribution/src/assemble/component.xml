@@ -49,6 +49,7 @@
         <include>org.apache.drill.contrib:drill-jdbc-storage:jar</include>
         <include>org.apache.drill.contrib:drill-kudu-storage:jar</include>
         <include>org.apache.drill.contrib:drill-storage-kafka:jar</include>
+        <include>org.apache.drill.contrib:drill-storage-http:jar</include>
         <include>org.apache.drill.contrib:drill-opentsdb-storage:jar</include>
         <include>org.apache.drill.contrib:drill-udfs:jar</include>
       </includes>
@@ -158,6 +159,7 @@
       <useProjectArtifact>false</useProjectArtifact>
       <includes>
         <include>org.apache.zookeeper:zookeeper</include>
+        <include>org.apache.zookeeper:zookeeper-jute</include>
       </includes>
       <scope>runtime</scope>
     </dependencySet>

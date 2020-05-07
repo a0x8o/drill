@@ -87,7 +87,7 @@ public class SimpleMessageParser implements MessageParser {
   }
 
   private boolean parseToElement(TokenIterator tokenizer, int level) throws MessageContextException {
-    for (;;) {
+    while (true) {
       JsonToken token = tokenizer.requireNext();
       switch (token) {
         case FIELD_NAME:
@@ -130,22 +130,7 @@ public class SimpleMessageParser implements MessageParser {
   }
 
   private void skipElement(TokenIterator tokenizer) {
-    int level = 0;
-    do {
-      JsonToken token = tokenizer.requireNext();
-      switch (token) {
-        case START_OBJECT:
-        case START_ARRAY:
-          level++;
-          break;
-        case END_OBJECT:
-        case END_ARRAY:
-          level--;
-          break;
-        default:
-          break;
-      }
-    } while (level > 0);
+    DummyValueParser.INSTANCE.parse(tokenizer);
   }
 
   @Override

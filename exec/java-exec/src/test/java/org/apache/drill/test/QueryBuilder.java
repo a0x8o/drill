@@ -17,6 +17,8 @@
  */
 package org.apache.drill.test;
 
+import static org.junit.Assert.assertEquals;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
@@ -58,10 +60,7 @@ import org.apache.drill.exec.vector.ValueVector;
 import org.apache.drill.exec.vector.accessor.ScalarReader;
 import org.apache.drill.shaded.guava.com.google.common.base.Preconditions;
 import org.apache.drill.test.BufferingQueryEventListener.QueryEvent;
-import org.apache.drill.test.ClientFixture.StatementParser;
 import org.joda.time.Period;
-
-import static org.junit.Assert.assertEquals;
 
 /**
  * Builder for a Drill query. Provides all types of query formats,
@@ -121,21 +120,18 @@ public class QueryBuilder {
    * The future used to wait for the completion of an async query. Returns
    * just the summary of the query.
    */
-
   public static class QuerySummaryFuture implements Future<QuerySummary> {
 
     /**
      * Synchronizes the listener thread and the test thread that
      * launched the query.
      */
-
     private final CountDownLatch lock = new CountDownLatch(1);
     private QuerySummary summary;
 
     /**
      * Unsupported at present.
      */
-
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
       throw new UnsupportedOperationException();
@@ -144,7 +140,6 @@ public class QueryBuilder {
     /**
      * Always returns false.
      */
-
     @Override
     public boolean isCancelled() { return false; }
 
@@ -160,7 +155,6 @@ public class QueryBuilder {
     /**
      * Not supported at present, just does a non-timeout get.
      */
-
     @Override
     public QuerySummary get(long timeout, TimeUnit unit) throws InterruptedException {
       return get();
@@ -335,64 +329,39 @@ public class QueryBuilder {
    * Run the query and return the first non-empty batch as a
    * {@link DirectRowSet} object that can be inspected directly
    * by the code using a {@link RowSetReader}.
-   * <p>
    *
    * @see #rowSetIterator() for a version that reads a series of
    * batches as row sets.
    * @return a row set that represents the first non-empty batch returned from
-   * the query
+   * the query, or {@code null} if the query returns no data (no batches)
    * @throws RpcException if anything goes wrong
    */
   public DirectRowSet rowSet() throws RpcException {
 
-    // Ignore all but the first non-empty batch.
-    // Always return the last batch, which may be empty.
-
-    QueryDataBatch resultBatch = null;
-    for (QueryDataBatch batch : results()) {
-      if (resultBatch == null) {
-        resultBatch = batch;
-      } else if (resultBatch.getHeader().getRowCount() == 0) {
-        resultBatch.release();
-        resultBatch = batch;
-      } else if (batch.getHeader().getRowCount() > 0) {
-        throw new IllegalStateException("rowSet() returns a single batch, but this query returned multiple batches. Consider rowSetIterator() instead.");
-      } else {
-        batch.release();
+    VectorContainer batch = null;
+    try (QueryBatchIterator iter = new QueryBatchIterator(client.allocator(), withEventListener())) {
+      while (iter.next()) {
+        batch = iter.batch();
+        if (batch.getRecordCount() != 0) {
+          iter.retainData();
+          break;
+        }
       }
+      iter.retainData();
     }
-
-    // No results?
-
-    if (resultBatch == null) {
+    if (batch == null) {
       return null;
+    } else {
+      return DirectRowSet.fromContainer(batch);
     }
-
-    // Unload the batch and convert to a row set.
-
-    RecordBatchLoader loader = new RecordBatchLoader(client.allocator());
-    loader.load(resultBatch.getHeader().getDef(), resultBatch.getData());
-    resultBatch.release();
-    VectorContainer container = loader.getContainer();
-    container.setRecordCount(loader.getRecordCount());
-
-    // Null results? Drill will return a single batch with no rows
-    // and no columns even if the scan (or other) operator returns
-    // no batches at all. For ease of testing, simply map this null
-    // result set to a null output row set that says "nothing at all
-    // was returned." Note that this is different than an empty result
-    // set which has a schema, but no rows.
-
-    if (container.getRecordCount() == 0 && container.getNumberOfColumns() == 0) {
-      container.clear();
-      return null;
-    }
-
-    return DirectRowSet.fromContainer(container);
   }
 
   public QueryRowSetIterator rowSetIterator() {
     return new QueryRowSetIterator(client.allocator(), withEventListener());
+  }
+
+  public QueryRowSetReader rowSetReader() {
+    return QueryRowSetReader.build(client.allocator(), withEventListener());
   }
 
   /**

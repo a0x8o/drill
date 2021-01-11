@@ -249,7 +249,9 @@ public class XMLReader {
           }
 
           Iterator<Attribute> attributes = startElement.getAttributes();
-          writeAttributes(attributePrefix, attributes);
+          if (attributes != null && attributes.hasNext()) {
+            writeAttributes(attributePrefix, attributes);
+          }
         }
         break;
 
@@ -257,6 +259,9 @@ public class XMLReader {
        * This case processes character elements.
        */
       case XMLStreamConstants.CHARACTERS:
+        /*
+         * This is the case for comments or other characters after a closing tag
+         */
         if (currentState == xmlState.ROW_ENDED) {
           break;
         }
@@ -278,16 +283,18 @@ public class XMLReader {
           }
         }
 
+        // Get the field value
         fieldValue = currentEvent.asCharacters().getData().trim();
         changeState(xmlState.GETTING_DATA);
         break;
 
       case XMLStreamConstants.END_ELEMENT:
         currentNestingLevel--;
-        // End the row
+
         if (currentNestingLevel < dataLevel - 1) {
           break;
         } else if (currentEvent.asEndElement().getName().toString().compareTo(rootDataFieldName) == 0) {
+          // End the row
           currentTupleWriter = endRow();
 
           // Clear stacks
@@ -298,15 +305,27 @@ public class XMLReader {
         } else if (currentState == xmlState.FIELD_ENDED && currentNestingLevel >= dataLevel) {
           // Case to end nested maps
           // Pop tupleWriter off stack
-          currentTupleWriter = rowWriterStack.pop();
-          attributePrefix = XMLUtils.removeField(attributePrefix);
+          if (rowWriterStack.size() > 0) {
+            currentTupleWriter = rowWriterStack.pop();
+          }
+          // Pop field name
+          if (fieldNameStack.size() > 0) {
+            fieldNameStack.pop();
+          }
+
+          attributePrefix = XMLUtils.removeField(attributePrefix,fieldName);
 
         } else if (currentState != xmlState.ROW_ENDED){
           writeFieldData(fieldName, fieldValue, currentTupleWriter);
           // Clear out field name and value
+          attributePrefix = XMLUtils.removeField(attributePrefix, fieldName);
+
+          // Pop field name
+          if (fieldNameStack.size() > 0) {
+            fieldNameStack.pop();
+          }
           fieldName = null;
           fieldValue = null;
-          attributePrefix = XMLUtils.removeField(attributePrefix);
         }
         break;
     }
@@ -365,6 +384,30 @@ public class XMLReader {
   }
 
   /**
+   * Writes a attribute. If the field does not have a corresponding ScalarWriter, this method will
+   * create one.
+   * @param fieldName The field name
+   * @param fieldValue The field value to be written
+   * @param writer The TupleWriter which represents
+   */
+  private void writeAttributeData(String fieldName, String fieldValue, TupleWriter writer) {
+    if (fieldName == null) {
+      return;
+    }
+
+    // Find the TupleWriter object
+    int index = writer.tupleSchema().index(fieldName);
+    if (index == -1) {
+      ColumnMetadata colSchema = MetadataUtils.newScalar(fieldName, TypeProtos.MinorType.VARCHAR, TypeProtos.DataMode.OPTIONAL);
+      index = writer.addColumn(colSchema);
+    }
+    ScalarWriter colWriter = writer.scalar(index);
+    if (fieldValue != null) {
+      colWriter.setString(fieldValue);
+    }
+  }
+
+  /**
    * Returns a MapWriter for a given field.  If the writer does not exist, add one to the schema
    * @param mapName The Map's name
    * @param rowWriter The current TupleWriter
@@ -409,8 +452,7 @@ public class XMLReader {
     while (attributes.hasNext()) {
       Attribute currentAttribute = attributes.next();
       String key = prefix + "_" + currentAttribute.getName().toString();
-      writeFieldData(key, currentAttribute.getValue(), attributeWriter);
+      writeAttributeData(key, currentAttribute.getValue(), attributeWriter);
     }
   }
-
 }

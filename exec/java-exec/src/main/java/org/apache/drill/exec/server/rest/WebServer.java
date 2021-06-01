@@ -26,9 +26,8 @@ import org.apache.commons.lang3.StringEscapeUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.drill.common.config.DrillConfig;
 import org.apache.drill.common.exceptions.DrillException;
+import org.apache.drill.common.util.DrillFileUtils;
 import org.apache.drill.exec.ExecConstants;
-import org.apache.drill.exec.server.rest.header.ResponseHeadersSettingFilter;
-import org.apache.drill.exec.server.rest.ssl.SslContextFactoryConfigurator;
 import org.apache.drill.exec.exception.DrillbitStartupException;
 import org.apache.drill.exec.expr.fn.registry.FunctionHolder;
 import org.apache.drill.exec.expr.fn.registry.LocalFunctionRegistry;
@@ -40,6 +39,8 @@ import org.apache.drill.exec.server.options.OptionValidator.OptionDescription;
 import org.apache.drill.exec.server.options.OptionValue;
 import org.apache.drill.exec.server.rest.auth.DrillErrorHandler;
 import org.apache.drill.exec.server.rest.auth.DrillHttpSecurityHandlerProvider;
+import org.apache.drill.exec.server.rest.header.ResponseHeadersSettingFilter;
+import org.apache.drill.exec.server.rest.ssl.SslContextFactoryConfigurator;
 import org.apache.drill.exec.work.WorkManager;
 import org.eclipse.jetty.http.HttpVersion;
 import org.eclipse.jetty.security.SecurityHandler;
@@ -49,10 +50,8 @@ import org.eclipse.jetty.server.HttpConnectionFactory;
 import org.eclipse.jetty.server.SecureRequestCustomizer;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
-import org.eclipse.jetty.server.SessionManager;
 import org.eclipse.jetty.server.SslConnectionFactory;
 import org.eclipse.jetty.server.handler.ErrorHandler;
-import org.eclipse.jetty.server.session.HashSessionManager;
 import org.eclipse.jetty.server.session.SessionHandler;
 import org.eclipse.jetty.servlet.DefaultServlet;
 import org.eclipse.jetty.servlet.FilterHolder;
@@ -266,17 +265,18 @@ public class WebServer implements AutoCloseable {
   }
 
   /**
-   * Create a {@link SessionHandler} which contains a {@link HashSessionManager}
+   * Create a {@link SessionHandler}
    *
    * @param securityHandler Set of init parameters that are used by the Authentication
    * @return session handler
    */
   private SessionHandler createSessionHandler(final SecurityHandler securityHandler) {
-    SessionManager sessionManager = new HashSessionManager();
-    sessionManager.setMaxInactiveInterval(config.getInt(ExecConstants.HTTP_SESSION_MAX_IDLE_SECS));
+    SessionHandler sessionHandler = new SessionHandler();
+    //SessionManager sessionManager = new HashSessionManager();
+    sessionHandler.setMaxInactiveInterval(config.getInt(ExecConstants.HTTP_SESSION_MAX_IDLE_SECS));
     // response cookie will be returned with HttpOnly flag
-    sessionManager.getSessionCookieConfig().setHttpOnly(true);
-    sessionManager.addEventListener(new HttpSessionListener() {
+    sessionHandler.getSessionCookieConfig().setHttpOnly(true);
+    sessionHandler.addEventListener(new HttpSessionListener() {
       @Override
       public void sessionCreated(HttpSessionEvent se) { }
 
@@ -305,7 +305,7 @@ public class WebServer implements AutoCloseable {
       }
     });
 
-    return new SessionHandler(sessionManager);
+    return sessionHandler;
   }
 
   public int getPort() {
@@ -394,7 +394,7 @@ public class WebServer implements AutoCloseable {
    */
   public File getOrCreateTmpJavaScriptDir() {
     if (tmpJavaScriptDir == null && this.drillbit.getContext() != null) {
-      tmpJavaScriptDir = org.apache.drill.shaded.guava.com.google.common.io.Files.createTempDir();
+      tmpJavaScriptDir = DrillFileUtils.createTempDir();
       // Perform All auto generated files at this point
       try {
         generateOptionsDescriptionJSFile();

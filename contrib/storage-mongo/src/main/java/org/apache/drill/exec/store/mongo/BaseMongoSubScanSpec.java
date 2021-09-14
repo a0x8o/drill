@@ -17,33 +17,25 @@
  */
 package org.apache.drill.exec.store.mongo;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.ToString;
-import org.bson.Document;
+import lombok.Setter;
+import lombok.experimental.SuperBuilder;
 
-import org.bson.conversions.Bson;
-
-import java.util.ArrayList;
 import java.util.List;
 
-@AllArgsConstructor
 @Getter
-@ToString
-public class MongoScanSpec {
+@Setter
+@SuperBuilder(setterPrefix = "set")
+public class BaseMongoSubScanSpec {
+
+  @JsonProperty
   private final String dbName;
+
+  @JsonProperty
   private final String collectionName;
 
-  private Document filters;
+  @JsonProperty
+  private final List<String> hosts;
 
-  private List<Bson> operations = new ArrayList<>();
-
-  @JsonCreator
-  public MongoScanSpec(@JsonProperty("dbName") String dbName,
-      @JsonProperty("collectionName") String collectionName) {
-    this.dbName = dbName;
-    this.collectionName = collectionName;
-  }
 }

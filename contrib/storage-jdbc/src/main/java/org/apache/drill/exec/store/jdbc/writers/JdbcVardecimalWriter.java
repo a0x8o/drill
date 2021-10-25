@@ -26,8 +26,13 @@ import java.sql.SQLException;
 
 public class JdbcVardecimalWriter extends JdbcColumnWriter {
 
-  public JdbcVardecimalWriter(String colName, RowSetLoader rowWriter, int columnIndex) {
+  private final int scale;
+  private final int precision;
+
+  public JdbcVardecimalWriter(String colName, RowSetLoader rowWriter, int columnIndex, int scale, int precision) {
     super(colName, rowWriter, columnIndex);
+    this.scale = scale;
+    this.precision = precision;
   }
 
   @Override

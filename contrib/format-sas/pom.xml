@@ -27,11 +27,8 @@
     <version>1.20.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>drill-storage-splunk</artifactId>
-  <name>Drill : Contrib : Storage : Splunk</name>
-  <properties>
-    <okhttp.version>4.5.0</okhttp.version>
-  </properties>
+  <artifactId>drill-format-sas</artifactId>
+  <name>Drill : Contrib : Format : SAS</name>
 
   <dependencies>
     <dependency>
@@ -40,15 +37,9 @@
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>com.splunk</groupId>
-      <artifactId>splunk</artifactId>
-      <version>1.7.1</version>
-      <exclusions>
-        <exclusion>
-          <groupId>org.apache.maven.plugins</groupId>
-          <artifactId>maven-deploy-plugin</artifactId>
-        </exclusion>
-      </exclusions>
+      <groupId>com.epam</groupId>
+      <artifactId>parso</artifactId>
+      <version>2.0.14</version>
     </dependency>
     <!-- Test dependencies -->
     <dependency>
@@ -58,7 +49,6 @@
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
-
     <dependency>
       <groupId>org.apache.drill</groupId>
       <artifactId>drill-common</artifactId>
@@ -66,14 +56,6 @@
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
-
-    <dependency>
-      <groupId>org.testcontainers</groupId>
-      <artifactId>testcontainers</artifactId>
-      <version>${testcontainers.version}</version>
-      <scope>test</scope>
-    </dependency>
-
   </dependencies>
   <build>
     <plugins>
@@ -87,11 +69,11 @@
               <goal>copy-resources</goal>
             </goals>
             <configuration>
-              <outputDirectory>${basedir}/target/classes/org/apache/drill/exec/store/splunk
+              <outputDirectory>${basedir}/target/classes/org/apache/drill/exec/store/sas
               </outputDirectory>
               <resources>
                 <resource>
-                  <directory>src/main/java/org/apache/drill/exec/store/splunk</directory>
+                  <directory>src/main/java/org/apache/drill/exec/store/sas</directory>
                   <filtering>true</filtering>
                 </resource>
               </resources>
@@ -101,29 +83,4 @@
       </plugin>
     </plugins>
   </build>
-
-  <profiles>
-    <profile>
-      <id>non-x86_64</id>
-      <activation>
-        <os>
-          <arch>!amd64</arch>
-        </os>
-      </activation>
-      <build>
-        <pluginManagement>
-          <plugins>
-            <plugin>
-              <groupId>org.apache.maven.plugins</groupId>
-              <artifactId>maven-surefire-plugin</artifactId>
-              <configuration>
-                <!-- DRILL-7911: There is no Docker image for non-Linux/AMD64 -->
-                <skip>true</skip>
-              </configuration>
-            </plugin>
-          </plugins>
-        </pluginManagement>
-      </build>
-    </profile>
-  </profiles>
 </project>

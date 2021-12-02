@@ -52,6 +52,7 @@
         <include>org.apache.drill.contrib:drill-format-httpd:jar</include>
         <include>org.apache.drill.contrib:drill-format-excel:jar</include>
         <include>org.apache.drill.contrib:drill-format-spss:jar</include>
+        <include>org.apache.drill.contrib:drill-format-sas:jar</include>
         <include>org.apache.drill.contrib:drill-jdbc-storage:jar</include>
         <include>org.apache.drill.contrib:drill-kudu-storage:jar</include>
         <include>org.apache.drill.contrib:drill-storage-splunk:jar</include>
@@ -137,6 +138,10 @@
         <exclude>org.apache.drill.contrib.storage-hive</exclude>
         <exclude>org.apache.drill.memory</exclude>
         <exclude>org.apache.drill.metastore</exclude>
+        <exclude>org.projectlombok:lombok</exclude>
+        <exclude>org.junit.jupiter:*:jar</exclude>
+        <exclude>org.junit.platform:*:jar</exclude>
+        <exclude>org.junit.vintage:*:jar</exclude>
         <!-- Below Hive jars are already included in drill-hive-exec-shaded.jar -->
         <exclude>junit:junit:jar</exclude>
         <!-- exclude or sqlline has problems -->
